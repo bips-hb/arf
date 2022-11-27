@@ -44,16 +44,15 @@ Implements an adversarial random forest to learn independence-inducing splits.
 }
 \details{
 The adversarial random forest (ARF) algorithm partitions data into fully
-factorized leaves where features are jointly independent. Call this the local
-independence criterion. The ARF procedure is iterative, with alternating
-rounds of generation and discrimination. In the first instance, synthetic
-data is generated via independent bootstraps of each feature. A RF classifier
-is trained to distinguish between real and synthetic samples. In subsequent
-rounds, synthetic data is generated separately in each leaf, using splits
-from the previous forest. This creates increasingly realistic data that
-satisfies the local independence criterion by construction. The algorithm
-converges when a RF cannot reliably distinguish between the two classes,
-i.e. when OOB accuracy falls below 0.5 + \code{delta}.
+factorized leaves where features are jointly independent. ARFs are trained
+iteratively, with alternating rounds of generation and discrimination. In
+the first instance, synthetic data is generated via independent bootstraps of
+each feature, and a RF classifier is trained to distinguish between real and
+synthetic samples. In subsequent rounds, synthetic data is generated
+separately in each leaf, using splits from the previous forest. This creates
+increasingly realistic data that satisfies local independence by construction.
+The algorithm converges when a RF cannot reliably distinguish between the two
+classes, i.e. when OOB accuracy falls below 0.5 + \code{delta}.
 
 ARFs are useful for several unsupservised learning tasks, such as density
 estimation (see \code{\link{forde}}) and data synthesis (see
