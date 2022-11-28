@@ -182,11 +182,11 @@ forde <- function(
       long <- melt(dt, id.vars = c('tree', 'leaf'))
       if (family == 'truncnorm') {
         long[, list(cat = NA_character_, prob = NA_real_, 
-                    mu = mean(value), sigma = sd(value), type = 'cnt'), 
+                    mu = mean(value), sigma = sd(value), family = 'truncnorm'), 
              by = .(tree, leaf, variable)]
       } else if (family == 'unif') {
         long[, list(cat = NA_character_, prob = NA_real_, 
-                    mu = NA_real_, sigma = NA_real_, type = 'cnt'), 
+                    mu = NA_real_, sigma = NA_real_, family = 'unif'), 
              by = .(tree, leaf, variable)]
       }
     }
@@ -202,7 +202,8 @@ forde <- function(
       dt <- data.table(tree = tree, x[, factor_cols, drop = FALSE], leaf = pred[, tree])
       long <- melt(dt, id.vars = c('tree', 'leaf'), value.factor = FALSE, value.name = 'cat')
       long[, count := .N, by = .(tree, leaf, variable)]
-      unique(setDT(long)[, list(prob = .N/count, mu = NA_real_, sigma = NA_real_, type = 'cat'), 
+      unique(setDT(long)[, list(prob = .N/count, mu = NA_real_, sigma = NA_real_, 
+                                family = 'multinom'), 
                          by = .(tree, leaf, variable, cat)])
     }
     if (isTRUE(parallel)) {
@@ -260,7 +261,7 @@ forde <- function(
           id.vars = 'obs'
         )
         preds_x_cnt <- merge(preds, x_long_cnt, by = 'obs', allow.cartesian = TRUE)
-        psi_x_cnt <- merge(psi[type == 'cnt', .(tree, leaf, cvg, variable, min, max, mu, sigma)], 
+        psi_x_cnt <- merge(psi[family != 'multinom', .(tree, leaf, cvg, variable, min, max, mu, sigma)], 
                            preds_x_cnt, by = c('tree', 'leaf', 'variable'))
         if (family == 'truncnorm') {
           psi_x_cnt[, lik := dtruncnorm(value, a = min, b = max, mean = mu, sd = sigma)]
@@ -278,7 +279,7 @@ forde <- function(
           id.vars = 'obs', value.name = 'cat'
         )
         preds_x_cat <- merge(preds, x_long_cat, by = 'obs', allow.cartesian = TRUE)
-        psi_x_cat <- merge(psi[type == 'cat', .(tree, leaf, cvg, variable, cat, prob)], 
+        psi_x_cat <- merge(psi[family == 'multinom', .(tree, leaf, cvg, variable, cat, prob)], 
                            preds_x_cat, by = c('tree', 'leaf', 'variable', 'cat'), 
                            allow.cartesian = TRUE)
         psi_x_cat[, lik := prob]
