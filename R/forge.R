@@ -7,6 +7,8 @@
 #' @param family Distribution to use for random sampling. Current options 
 #'   include truncated normal (the default \code{family = "truncnorm"}) and 
 #'   uniform (\code{family = "unif"}). See Details.
+#' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
+#'   via \code{doParallel}.
 #'   
 #' @details  
 #' \code{forge} simulates a synthetic dataset of \code{n_synth} samples. First,
@@ -51,16 +53,22 @@
 forge <- function(
     psi, 
     n_synth, 
-    family = 'truncnorm') {
+    family = 'truncnorm',
+    parallel = TRUE) {
   
   # Draw random leaves with probability proportional to coverage
   omega <- unique(psi[, .(tree, leaf, cvg)])
   omega[, pr := cvg / max(tree)][, idx := .I]
   draws <- sample(omega$idx, size = n_synth, replace = TRUE, prob = omega$pr)
-  psi_idx <- foreach(i = 1:n_synth, .combine = rbind) %do% {
+  psi_fn <- function(i) {
     id <- draws[i]
     out <- psi[tree == omega[idx == id, tree] & leaf == omega[idx == id, leaf]]
     out[, idx := i]
+  }
+  if (isTRUE(parallel)) {
+    psi_idx <- foreach(i = 1:n_synth, .combine = rbind) %dopar% psi_fn(i)
+  } else {
+    psi_idx <- foreach(i = 1:n_synth, .combine = rbind) %do% psi_fn(i)
   }
   
   # Simulate data

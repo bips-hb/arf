@@ -44,8 +44,8 @@ dataset in one round, which is always the fastest option if memory allows.
 However, with large samples or many trees, it can be more memory efficient
 to split the data into batches. This has no impact on results.}
 
-\item{parallel}{Compute parameters in parallel? Must register backend
-beforehand, e.g. via \code{doParallel}.}
+\item{parallel}{Compute in parallel? Must register backend beforehand, e.g.
+via \code{doParallel}.}
 }
 \value{
 A list with two elements:

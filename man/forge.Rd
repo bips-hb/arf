@@ -4,7 +4,7 @@
 \alias{forge}
 \title{Forests for generative modeling}
 \usage{
-forge(psi, n_synth, family = "truncnorm")
+forge(psi, n_synth, family = "truncnorm", parallel = TRUE)
 }
 \arguments{
 \item{psi}{Parameters learned via \code{forde}.}
@@ -14,6 +14,9 @@ forge(psi, n_synth, family = "truncnorm")
 \item{family}{Distribution to use for random sampling. Current options
 include truncated normal (the default \code{family = "truncnorm"}) and
 uniform (\code{family = "unif"}). See Details.}
+
+\item{parallel}{Compute in parallel? Must register backend beforehand, e.g.
+via \code{doParallel}.}
 }
 \value{
 A dataset of \code{n_synth} synthetic samples. Because continuous and

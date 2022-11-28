@@ -11,7 +11,7 @@
 #'   < 0.5 + \code{delta}. 
 #' @param max_iters Maximum iterations for the adversarial loop.
 #' @param verbose Print discriminator accuracy after each round?
-#' @param parallel Train in parallel? Must register backend beforehand, e.g. 
+#' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
 #'   via \code{doParallel}.
 #' @param ... Extra parameters to be passed to \code{ranger}.
 #' 

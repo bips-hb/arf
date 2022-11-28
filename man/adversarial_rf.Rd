@@ -31,7 +31,7 @@ likelihood estimation. See Details.}
 
 \item{verbose}{Print discriminator accuracy after each round?}
 
-\item{parallel}{Train in parallel? Must register backend beforehand, e.g.
+\item{parallel}{Compute in parallel? Must register backend beforehand, e.g.
 via \code{doParallel}.}
 
 \item{...}{Extra parameters to be passed to \code{ranger}.}
