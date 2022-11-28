@@ -160,7 +160,7 @@ forde <- function(
                id.vars = c('tree', 'leaf'), value.name = 'min'), 
           melt(data.table(tree = tree, leaf = leaves, ub[leaves, ]), 
                id.vars = c('tree', 'leaf'), value.name = 'max'), 
-          by = c('tree', 'leaf', 'variable'))
+          by = c('tree', 'leaf', 'variable'), sort = FALSE)
   }
   if (isTRUE(parallel)) {
     bnds <- foreach(tree = 1:num_trees, .combine = rbind) %dopar% bnd_fn(tree)
@@ -213,7 +213,7 @@ forde <- function(
     }
   } 
   psi_tmp <- rbind(psi_cnt, psi_cat)
-  psi <- merge(psi_tmp, bnds, by = c('tree', 'leaf', 'variable'))
+  psi <- merge(psi_tmp, bnds, by = c('tree', 'leaf', 'variable'), sort = FALSE)
   rm(psi_cnt, psi_cat, psi_tmp)
   
   # Log-likelihood calculation
@@ -260,9 +260,9 @@ forde <- function(
                      x[batch_idx[[fold]], !factor_cols, drop = FALSE]), 
           id.vars = 'obs'
         )
-        preds_x_cnt <- merge(preds, x_long_cnt, by = 'obs', allow.cartesian = TRUE)
+        preds_x_cnt <- merge(preds, x_long_cnt, by = 'obs', sort = FALSE, allow.cartesian = TRUE)
         psi_x_cnt <- merge(psi[family != 'multinom', .(tree, leaf, cvg, variable, min, max, mu, sigma)], 
-                           preds_x_cnt, by = c('tree', 'leaf', 'variable'))
+                           preds_x_cnt, by = c('tree', 'leaf', 'variable'), sort = FALSE)
         if (family == 'truncnorm') {
           psi_x_cnt[, lik := dtruncnorm(value, a = min, b = max, mean = mu, sd = sigma)]
         } else if (family == 'unif') {
@@ -278,10 +278,10 @@ forde <- function(
                      x[batch_idx[[fold]], factor_cols, drop = FALSE]), 
           id.vars = 'obs', value.name = 'cat'
         )
-        preds_x_cat <- merge(preds, x_long_cat, by = 'obs', allow.cartesian = TRUE)
+        preds_x_cat <- merge(preds, x_long_cat, by = 'obs', sort = FALSE, allow.cartesian = TRUE)
         psi_x_cat <- merge(psi[family == 'multinom', .(tree, leaf, cvg, variable, cat, prob)], 
                            preds_x_cat, by = c('tree', 'leaf', 'variable', 'cat'), 
-                           allow.cartesian = TRUE)
+                           sort = FALSE, allow.cartesian = TRUE)
         psi_x_cat[, lik := prob]
         psi_x_cat <- psi_x_cat[, .(tree, obs, cvg, lik)]
         rm(x_long_cat, preds_x_cat)
