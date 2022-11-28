@@ -49,19 +49,13 @@ forge <- function(
     parallel = TRUE) {
   
   # Draw random leaves with probability proportional to coverage
-  omega <- unique(psi[, .(tree, leaf, cvg)])
-  omega[, pr := cvg / max(tree)][, idx := .I]
-  draws <- sample(omega$idx, size = n_synth, replace = TRUE, prob = omega$pr)
-  psi_fn <- function(i) {
-    id <- draws[i]
-    out <- psi[tree == omega[idx == id, tree] & leaf == omega[idx == id, leaf]]
-    out[, idx := i]
-  }
-  if (isTRUE(parallel)) {
-    psi_idx <- foreach(i = 1:n_synth, .combine = rbind) %dopar% psi_fn(i)
-  } else {
-    psi_idx <- foreach(i = 1:n_synth, .combine = rbind) %do% psi_fn(i)
-  }
+  num_trees <- psi[, max(tree)]
+  omega <- unique(psi[, .(tree, leaf, cvg)])[, idx := .I]
+  draws <- data.table('idx' = sample(omega$idx, size = n_synth, replace = TRUE, 
+                      prob = omega$cvg / num_trees))
+  omega <- merge(draws, omega, sort = FALSE)[, idx := .I]
+  psi_idx <- merge(omega, psi, by = c('tree', 'leaf', 'cvg'), sort = FALSE, 
+                   allow.cartesian = TRUE)
   
   # Simulate data
   synth_cnt <- synth_cat <- NULL
