@@ -73,9 +73,10 @@ forge <- function(
     synth_cnt[, idx := NULL]
   }
   if (nrow(psi[family == 'multinom']) > 0L) { # Categorical
+    psi_idx[prob == 1, dat := cat]
     synth_cat_fn <- function(j) {
       psi_j <- psi_idx[variable == j]
-      psi_j[, dat := sample(cat, 1, prob = prob), by = idx]
+      psi_j[prob < 1, dat := sample(cat, 1, prob = prob), by = idx]
       out <- unique(psi_j[, .(idx, dat)])[, dat]
       out <- data.table(out)
       colnames(out) <- j
