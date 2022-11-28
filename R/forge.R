@@ -4,9 +4,6 @@
 #' 
 #' @param psi Parameters learned via \code{forde}. 
 #' @param n_synth Number of synthetic samples to generate.
-#' @param family Distribution to use for random sampling. Current options 
-#'   include truncated normal (the default \code{family = "truncnorm"}) and 
-#'   uniform (\code{family = "unif"}). See Details.
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
 #'   via \code{doParallel}.
 #'   
@@ -17,10 +14,6 @@
 #' density function learned by \code{\link{forde}}. This will create realistic
 #' data so long as the random forest used in the previous step satisfies the 
 #' local independence criterion. 
-#' 
-#' Currently, \code{forge} only provides support for truncated normal or uniform
-#' densities when features are continuous. Future releases will accommodate 
-#' a larger class of distributional families.
 #' 
 #' 
 #' @return  
@@ -53,7 +46,6 @@
 forge <- function(
     psi, 
     n_synth, 
-    family = 'truncnorm',
     parallel = TRUE) {
   
   # Draw random leaves with probability proportional to coverage
@@ -73,23 +65,34 @@ forge <- function(
   
   # Simulate data
   synth_cnt <- synth_cat <- NULL
-  if (nrow(psi[type == 'cnt']) > 0L) {  # Continuous
-    psi_cnt <- psi_idx[type == 'cnt']
-    if (family == 'truncnorm') {
-      psi_cnt[, dat := rtruncnorm(nrow(psi_cnt), a = min, b = max,
-                                  mean = mu, sd = sigma)]
-    } else if (family == 'unif') {
-      psi_cnt[, dat := runif(nrow(psi_cnt), min = min, max = max)]
+  if (nrow(psi[family != 'multinom']) > 0L) {  # Continuous
+    psi_cnt <- psi_idx[family != 'multinom']
+    fams <- psi_cnt[, unique(family)]
+    if ('truncnorm' %in% fams) {
+      psi_cnt[family == 'truncnorm', 
+              dat := rtruncnorm(nrow(psi_cnt), a = min, b = max, mean = mu, sd = sigma)]
+    } 
+    if ('unif' %in% fams) {
+      psi_cnt[family == 'unif', dat := runif(nrow(psi_cnt), min = min, max = max)]
     }
     synth_cnt <- dcast(psi_cnt, idx ~ variable, value.var = 'dat')
     synth_cnt[, idx := NULL]
   }
-  if (nrow(psi[type == 'cat']) > 0L) { # Categorical
-    psi_cat <- psi_idx[type == 'cat']
-    psi_cat[, dat := sample(cat, 1, prob = prob), by = .(idx, variable)]
-    synth_cat <- dcast(unique(psi_cat[, .(idx, variable, dat)]), 
-                       idx ~ variable, value.var = 'dat')
-    synth_cat[, idx := NULL]
+  if (nrow(psi[family == 'multinom']) > 0L) { # Categorical
+    synth_cat_fn <- function(j) {
+      psi_j <- psi_idx[variable == j]
+      psi_j[, dat := sample(cat, 1, prob = prob), by = idx]
+      out <- unique(psi_j[, .(idx, dat)])[, dat]
+      out <- data.table(out)
+      colnames(out) <- j
+      return(out)
+    }
+    cat_vars <- as.character(psi[family == 'multinom', unique(variable)])
+    if (isTRUE(parallel) & length(cat_vars) > 1) {
+      synth_cat <- foreach(j = cat_vars, .combine = cbind) %dopar% synth_cat_fn(j)
+    } else {
+      synth_cat <- foreach(j = cat_vars, .combine = cbind) %do% synth_cat_fn(j)
+    }
   }
   
   # Export

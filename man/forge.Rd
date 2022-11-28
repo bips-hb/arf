@@ -4,16 +4,12 @@
 \alias{forge}
 \title{Forests for generative modeling}
 \usage{
-forge(psi, n_synth, family = "truncnorm", parallel = TRUE)
+forge(psi, n_synth, parallel = TRUE)
 }
 \arguments{
 \item{psi}{Parameters learned via \code{forde}.}
 
 \item{n_synth}{Number of synthetic samples to generate.}
-
-\item{family}{Distribution to use for random sampling. Current options
-include truncated normal (the default \code{family = "truncnorm"}) and
-uniform (\code{family = "unif"}). See Details.}
 
 \item{parallel}{Compute in parallel? Must register backend beforehand, e.g.
 via \code{doParallel}.}
@@ -33,10 +29,6 @@ sampled independently within each leaf according to the probability mass or
 density function learned by \code{\link{forde}}. This will create realistic
 data so long as the random forest used in the previous step satisfies the
 local independence criterion.
-
-Currently, \code{forge} only provides support for truncated normal or uniform
-densities when features are continuous. Future releases will accommodate
-a larger class of distributional families.
 }
 \examples{
 arf <- adversarial_rf(iris)
