@@ -6,7 +6,7 @@
 #' @param num_trees Number of trees to grow in each forest. The default works 
 #'   well for most generative modeling tasks, but should be increased for 
 #'   likelihood estimation. See Details.
-#' @param min_node_size Minimum size for terminal nodes.
+#' @param min_node_size Minimal number of real data samples in leaf nodes.
 #' @param delta Tolerance parameter. Algorithm converges when OOB accuracy is
 #'   < 0.5 + \code{delta}. 
 #' @param max_iters Maximum iterations for the adversarial loop.
@@ -67,7 +67,7 @@
 adversarial_rf <- function(
     x, 
     num_trees = 10, 
-    min_node_size = 5, 
+    min_node_size = 2, 
     delta = 0,
     max_iters = 10,
     verbose = TRUE,
@@ -161,10 +161,9 @@ adversarial_rf <- function(
   
   # Prune leaves with 0 coverage, or with coverage 1/n if any features are continuous
   pred <- predict(rf0, x_real, type = 'terminalNodes')$predictions + 1
-  min_leaf_n <- ifelse(any(!factor_cols), 1, 0)
   for (tree in 1:num_trees) {
     leaves <- which(rf0$forest$child.nodeIDs[[tree]][[1]] == 0)
-    to_prune <- leaves[!(leaves %in% which(tabulate(pred[, tree]) > min_leaf_n))]
+    to_prune <- leaves[!(leaves %in% which(tabulate(pred[, tree]) >= min_node_size))]
     while(length(to_prune) > 0) {
       for (tp in to_prune) {
         # Find parents

@@ -7,7 +7,7 @@
 adversarial_rf(
   x,
   num_trees = 10,
-  min_node_size = 5,
+  min_node_size = 2,
   delta = 0,
   max_iters = 10,
   verbose = TRUE,
@@ -22,7 +22,7 @@ adversarial_rf(
 well for most generative modeling tasks, but should be increased for
 likelihood estimation. See Details.}
 
-\item{min_node_size}{Minimum size for terminal nodes.}
+\item{min_node_size}{Minimal number of real data samples in leaf nodes.}
 
 \item{delta}{Tolerance parameter. Algorithm converges when OOB accuracy is
 < 0.5 + \code{delta}.}
