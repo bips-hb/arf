@@ -198,15 +198,15 @@ forde <- function(
       if (isTRUE(oob)) {
         dt <- dt[!is.na(leaf)]
       }
-      long <- melt(dt, id.vars = c('tree', 'leaf'))
+      long <- melt(dt, id.vars = c('tree', 'leaf'), variable.factor = FALSE)
       if (family == 'truncnorm') {
         long[, list(cat = NA_character_, prob = NA_real_, 
                     mu = mean(value), sigma = sd(value), family = 'truncnorm'), 
-             by = .(tree, leaf, variable)]
+             by = .(leaf, variable)]
       } else if (family == 'unif') {
         long[, list(cat = NA_character_, prob = NA_real_, 
                     mu = NA_real_, sigma = NA_real_, family = 'unif'), 
-             by = .(tree, leaf, variable)]
+             by = .(leaf, variable)]
       }
     }
     if (isTRUE(parallel)) {
@@ -222,11 +222,12 @@ forde <- function(
       if (isTRUE(oob)) {
         dt <- dt[!is.na(leaf)]
       }
-      long <- melt(dt, id.vars = c('tree', 'leaf'), value.factor = FALSE, value.name = 'cat')
-      long[, count := .N, by = .(tree, leaf, variable)]
-      unique(setDT(long)[, list(prob = .N/count, mu = NA_real_, sigma = NA_real_, 
-                                family = 'multinom'), 
-                         by = .(tree, leaf, variable, cat)])
+      long <- melt(dt, id.vars = c('tree', 'leaf'), variable.factor = FALSE,
+                   value.factor = FALSE, value.name = 'cat')
+      long[, count := .N, by = .(leaf, variable)]
+      unique(long[, list(prob = .N/count, mu = NA_real_, sigma = NA_real_, 
+                         family = 'multinom'), 
+                  by = .(leaf, variable, cat)])
     }
     if (isTRUE(parallel)) {
       psi_cat <- foreach(tree = 1:num_trees, .combine = rbind) %dopar% psi_cat_fn(tree)
@@ -272,7 +273,7 @@ forde <- function(
     loglik_fn <- function(fold) {
       psi_x_cnt <- psi_x_cat <- NULL
       # Predictions
-      preds <- rbindlist(lapply(1:ncol(pred), function(b) {
+      preds <- rbindlist(lapply(1:num_trees, function(b) {
         data.table(tree = b, leaf = pred[batch_idx[[fold]], b], obs = batch_idx[[fold]])
       }))
       if (isTRUE(oob)) {
@@ -283,7 +284,7 @@ forde <- function(
         x_long_cnt <- melt(
           data.table(obs = batch_idx[[fold]], 
                      x[batch_idx[[fold]], !factor_cols, drop = FALSE]), 
-          id.vars = 'obs'
+          id.vars = 'obs', variable.factor = FALSE
         )
         preds_x_cnt <- merge(preds, x_long_cnt, by = 'obs', sort = FALSE, allow.cartesian = TRUE)
         psi_x_cnt <- merge(psi[family != 'multinom', .(tree, leaf, cvg, variable, min, max, mu, sigma)], 
@@ -301,7 +302,7 @@ forde <- function(
         x_long_cat <- melt(
           data.table(obs = batch_idx[[fold]], 
                      x[batch_idx[[fold]], factor_cols, drop = FALSE]), 
-          id.vars = 'obs', value.name = 'cat'
+          id.vars = 'obs', value.name = 'cat', variable.factor = FALSE
         )
         preds_x_cat <- merge(preds, x_long_cat, by = 'obs', sort = FALSE, allow.cartesian = TRUE)
         psi_x_cat <- merge(psi[family == 'multinom', .(tree, leaf, cvg, variable, cat, prob)], 
@@ -339,3 +340,5 @@ forde <- function(
   out <- list('psi' = psi, 'loglik' = loglik)
   return(out)
 }
+
+
