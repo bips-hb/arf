@@ -52,7 +52,7 @@ forge <- function(
   num_trees <- psi[, max(tree)]
   omega <- unique(psi[, .(tree, leaf, cvg)])[, idx := .I]
   draws <- data.table('idx' = sample(omega$idx, size = n_synth, replace = TRUE, 
-                      prob = omega$cvg / num_trees))
+                                     prob = omega$cvg / num_trees))
   omega <- merge(draws, omega, sort = FALSE)[, idx := .I]
   psi_idx <- merge(omega, psi, by = c('tree', 'leaf', 'cvg'), sort = FALSE, 
                    allow.cartesian = TRUE)
@@ -77,12 +77,11 @@ forge <- function(
     synth_cat_fn <- function(j) {
       psi_j <- psi_idx[variable == j]
       psi_j[prob < 1, dat := sample(cat, 1, prob = prob), by = idx]
-      out <- unique(psi_j[, .(idx, dat)])[, dat]
-      out <- data.table(out)
+      out <- data.table(unique(psi_j[, .(idx, dat)])[, dat])
       colnames(out) <- j
       return(out)
     }
-    cat_vars <- as.character(psi[family == 'multinom', unique(variable)])
+    cat_vars <- psi[family == 'multinom', unique(variable)]
     if (isTRUE(parallel) & length(cat_vars) > 1) {
       synth_cat <- foreach(j = cat_vars, .combine = cbind) %dopar% synth_cat_fn(j)
     } else {
@@ -94,3 +93,5 @@ forge <- function(
   x_synth <- cbind(synth_cnt, synth_cat)
   return(x_synth)
 }
+
+
