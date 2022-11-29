@@ -159,7 +159,7 @@ adversarial_rf <- function(
     }
   }
   
-  # Prune leaves with 0 coverage, or with coverage 1/n if any features are continuous
+  # Prune leaves to ensure min_node_size w.r.t. real data
   pred <- predict(rf0, x_real, type = 'terminalNodes')$predictions + 1
   for (tree in 1:num_trees) {
     leaves <- which(rf0$forest$child.nodeIDs[[tree]][[1]] == 0)
