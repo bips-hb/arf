@@ -100,11 +100,11 @@ adversarial_rf <- function(
   # Train unsupervised random forest
   if (isTRUE(parallel)) {
     rf0 <- ranger(y ~ ., dat, keep.inbag = TRUE, classification = TRUE, 
-                  num.trees = num_trees, min.node.size = min_node_size, 
+                  num.trees = num_trees, min.node.size = 2 * min_node_size, 
                   respect.unordered.factors = TRUE, ...)
   } else {
     rf0 <- ranger(y ~ ., dat, keep.inbag = TRUE, classification = TRUE, 
-                  num.trees = num_trees, min.node.size = min_node_size, 
+                  num.trees = num_trees, min.node.size = 2 * min_node_size, 
                   respect.unordered.factors = TRUE, num.threads = 1, ...)
   }
   
@@ -137,11 +137,11 @@ adversarial_rf <- function(
       # Train unsupervised random forest
       if (isTRUE(parallel)) {
         rf1 <- ranger(y ~ ., dat, keep.inbag = TRUE, classification = TRUE, 
-                      num.trees = num_trees, min.node.size = min_node_size, 
+                      num.trees = num_trees, min.node.size = 2 * min_node_size, 
                       respect.unordered.factors = TRUE, ...)
       } else {
         rf1 <- ranger(y ~ ., dat, keep.inbag = TRUE, classification = TRUE, 
-                      num.trees = num_trees, min.node.size = min_node_size, 
+                      num.trees = num_trees, min.node.size = 2 * min_node_size, 
                       respect.unordered.factors = TRUE, num.threads = 1, ...)
       }
       # Evaluate
@@ -160,24 +160,24 @@ adversarial_rf <- function(
   }
   
   # Prune leaves to ensure min_node_size w.r.t. real data
-  pred <- predict(rf0, x_real, type = 'terminalNodes')$predictions + 1
+  pred <- predict(rf0, x_real, type = 'terminalNodes')$predictions + 1L
   for (tree in 1:num_trees) {
-    leaves <- which(rf0$forest$child.nodeIDs[[tree]][[1]] == 0)
+    leaves <- which(rf0$forest$child.nodeIDs[[tree]][[1]] == 0L)
     to_prune <- leaves[!(leaves %in% which(tabulate(pred[, tree]) >= min_node_size))]
     while(length(to_prune) > 0) {
       for (tp in to_prune) {
         # Find parents
-        parent <- which((rf0$forest$child.nodeIDs[[tree]][[1]] + 1) == tp)
+        parent <- which((rf0$forest$child.nodeIDs[[tree]][[1]] + 1L) == tp)
         if (length(parent) > 0) {
           # Left child
           rf0$forest$child.nodeIDs[[tree]][[1]][parent] <- rf0$forest$child.nodeIDs[[tree]][[2]][parent]
         } else {
           # Right child
-          parent <- which((rf0$forest$child.nodeIDs[[tree]][[2]] + 1) == tp)
+          parent <- which((rf0$forest$child.nodeIDs[[tree]][[2]] + 1L) == tp)
           rf0$forest$child.nodeIDs[[tree]][[2]][parent] <- rf0$forest$child.nodeIDs[[tree]][[1]][parent]
         }
       }
-      to_prune <- which((rf0$forest$child.nodeIDs[[tree]][[1]] + 1) %in% to_prune)
+      to_prune <- which((rf0$forest$child.nodeIDs[[tree]][[1]] + 1L) %in% to_prune)
     }
   }
   
