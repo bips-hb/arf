@@ -194,17 +194,18 @@ forde <- function(
   # Continuous case
   if (any(!factor_cols)) {
     psi_cnt_fn <- function(tree) {
-      dt <- data.table(tree = tree, x[, !factor_cols, drop = FALSE], leaf = pred[, tree])
+      dt <- data.table(x[, !factor_cols, drop = FALSE], leaf = pred[, tree])
       if (isTRUE(oob)) {
         dt <- dt[!is.na(leaf)]
       }
-      long <- melt(dt, id.vars = c('tree', 'leaf'), variable.factor = FALSE)
+      long <- melt(dt, id.vars = 'leaf', variable.factor = FALSE)
       if (family == 'truncnorm') {
         long[, list(cat = NA_character_, prob = NA_real_, 
-                    mu = mean(value), sigma = sd(value), family = 'truncnorm'), 
+                    mu = mean(value), sigma = sd(value), 
+                    family = 'truncnorm', tree = tree), 
              by = .(leaf, variable)]
       } else if (family == 'unif') {
-        long[, list(cat = NA_character_, prob = NA_real_, 
+        long[, list(tree = tree, cat = NA_character_, prob = NA_real_, 
                     mu = NA_real_, sigma = NA_real_, family = 'unif'), 
              by = .(leaf, variable)]
       }
@@ -218,15 +219,15 @@ forde <- function(
   # Categorical case
   if (any(factor_cols)) {
     psi_cat_fn <- function(tree) {
-      dt <- data.table(tree = tree, x[, factor_cols, drop = FALSE], leaf = pred[, tree])
+      dt <- data.table(x[, factor_cols, drop = FALSE], leaf = pred[, tree])
       if (isTRUE(oob)) {
         dt <- dt[!is.na(leaf)]
       }
-      long <- melt(dt, id.vars = c('tree', 'leaf'), variable.factor = FALSE,
+      long <- melt(dt, id.vars = 'leaf', variable.factor = FALSE,
                    value.factor = FALSE, value.name = 'cat')
       long[, count := .N, by = .(leaf, variable)]
       unique(long[, list(prob = .N/count, mu = NA_real_, sigma = NA_real_, 
-                         family = 'multinom'), 
+                         family = 'multinom', tree = tree), 
                   by = .(leaf, variable, cat)])
     }
     if (isTRUE(parallel)) {
@@ -236,7 +237,7 @@ forde <- function(
     }
   } 
   psi_tmp <- rbind(psi_cnt, psi_cat)
-  psi <- merge(psi_tmp, bnds, by = c('tree', 'leaf', 'variable'), sort = FALSE)
+  psi <- merge(psi_tmp, bnds, by = c('tree', 'leaf', 'variable'))
   rm(psi_cnt, psi_cat, psi_tmp)
   
   # Log-likelihood calculation
