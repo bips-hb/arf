@@ -7,6 +7,8 @@
 #' @param x_trn Training data for estimating parameters.
 #' @param x_tst Optional test data. If supplied, the function computes 
 #'   log-likelihoods on test data (measured in nats).
+#' @param oob Only use out-of-bag samples for parameter estimation? If 
+#'   \code{TRUE}, \code{x_trn} must be the same dataset used to train \code{rf}.
 #' @param family Distribution to use for density estimation of continuous 
 #'   features. Current options include truncated normal (the default
 #'   \code{family = "truncnorm"}) and uniform (\code{family = "unif"}). See 
@@ -89,6 +91,7 @@ forde <- function(
     rf, 
     x_trn, 
     x_tst = NULL, 
+    oob = FALSE,
     family = 'truncnorm', 
     epsilon = 0.1, 
     loglik = TRUE, 
@@ -102,6 +105,11 @@ forde <- function(
     }
     if (colnames(x_tst) != colnames(x_trn)) {
       stop('x_trn and x_tst must have identical colnames.')
+    }
+  }
+  if (isTRUE(oob)) {
+    if (!nrow(x_trn) %in% c(rf$num.samples, rf$num.samples/2)) {
+      stop('rf must be trained on x_trn when oob = TRUE.')
     }
   }
   if (!family %in% c('truncnorm', 'unif')) {
@@ -128,7 +136,7 @@ forde <- function(
   
   # Compute leaf bounds and coverage
   num_trees <- rf$num.trees
-  pred <- predict(rf, x, type = 'terminalNodes')$predictions + 1
+  pred <- predict(rf, x, type = 'terminalNodes')$predictions + 1L
   bnd_fn <- function(tree) {
     num_nodes <- length(rf$forest$split.varIDs[[tree]])
     lb <- matrix(-Inf, nrow = num_nodes, ncol = d)
@@ -143,9 +151,9 @@ forde <- function(
       }
     }
     for (i in 1:num_nodes) {
-      left_child <- rf$forest$child.nodeIDs[[tree]][[1]][i] + 1
-      right_child <- rf$forest$child.nodeIDs[[tree]][[2]][i] + 1
-      splitvarID <- rf$forest$split.varIDs[[tree]][i] + 1
+      left_child <- rf$forest$child.nodeIDs[[tree]][[1]][i] + 1L
+      right_child <- rf$forest$child.nodeIDs[[tree]][[2]][i] + 1L
+      splitvarID <- rf$forest$split.varIDs[[tree]][i] + 1L
       splitval <- rf$forest$split.value[[tree]][i]
       if (left_child > 1 & left_child != right_child) {
         ub[left_child, ] <- ub[right_child, ] <- ub[i, ]
@@ -153,7 +161,7 @@ forde <- function(
         ub[left_child, splitvarID] <- lb[right_child, splitvarID] <- splitval
       }
     }
-    leaves <- which(rf$forest$child.nodeIDs[[tree]][[1]] == 0) 
+    leaves <- which(rf$forest$child.nodeIDs[[tree]][[1]] == 0L) 
     colnames(lb) <- rf$forest$independent.variable.names
     colnames(ub) <- rf$forest$independent.variable.names
     merge(melt(data.table(tree = tree, leaf = leaves, lb[leaves, ]), 
@@ -167,7 +175,15 @@ forde <- function(
   } else {
     bnds <- foreach(tree = 1:num_trees, .combine = rbind) %do% bnd_fn(tree)
   }
-  bnds[, cvg := sum(pred[, tree] == leaf) / n, by = .(tree, leaf)]
+  # Use only OOB data?
+  if (isTRUE(oob)) {
+    inbag <- (do.call(cbind, rf$inbag.counts) > 0L)[1:nrow(x_trn), ]
+    pred[inbag] <- NA_integer_
+    bnds[, n_oob := sum(!is.na(pred[, tree])), by = tree]
+    bnds[, cvg := sum(pred[, tree] == leaf, na.rm = TRUE) / n_oob, by = .(tree, leaf)]
+  } else {
+    bnds[, cvg := sum(pred[, tree] == leaf) / n, by = .(tree, leaf)]
+  }
   # Can't do anything with coverage 1/n
   if (any(!factor_cols)) {
     bnds[cvg == 1/n, cvg := 0]
@@ -179,6 +195,9 @@ forde <- function(
   if (any(!factor_cols)) {
     psi_cnt_fn <- function(tree) {
       dt <- data.table(tree = tree, x[, !factor_cols, drop = FALSE], leaf = pred[, tree])
+      if (isTRUE(oob)) {
+        dt <- dt[!is.na(leaf)]
+      }
       long <- melt(dt, id.vars = c('tree', 'leaf'))
       if (family == 'truncnorm') {
         long[, list(cat = NA_character_, prob = NA_real_, 
@@ -200,6 +219,9 @@ forde <- function(
   if (any(factor_cols)) {
     psi_cat_fn <- function(tree) {
       dt <- data.table(tree = tree, x[, factor_cols, drop = FALSE], leaf = pred[, tree])
+      if (isTRUE(oob)) {
+        dt <- dt[!is.na(leaf)]
+      }
       long <- melt(dt, id.vars = c('tree', 'leaf'), value.factor = FALSE, value.name = 'cat')
       long[, count := .N, by = .(tree, leaf, variable)]
       unique(setDT(long)[, list(prob = .N/count, mu = NA_real_, sigma = NA_real_, 
@@ -253,6 +275,9 @@ forde <- function(
       preds <- rbindlist(lapply(1:ncol(pred), function(b) {
         data.table(tree = b, leaf = pred[batch_idx[[fold]], b], obs = batch_idx[[fold]])
       }))
+      if (isTRUE(oob)) {
+        preds <- preds[!is.na(leaf)]
+      }
       # Continuous data
       if (any(!factor_cols)) {
         x_long_cnt <- melt(

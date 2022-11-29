@@ -8,6 +8,7 @@ forde(
   rf,
   x_trn,
   x_tst = NULL,
+  oob = FALSE,
   family = "truncnorm",
   epsilon = 0.1,
   loglik = TRUE,
@@ -23,6 +24,9 @@ of class \code{ranger}.}
 
 \item{x_tst}{Optional test data. If supplied, the function computes
 log-likelihoods on test data (measured in nats).}
+
+\item{oob}{Only use out-of-bag samples for parameter estimation? If
+\code{TRUE}, \code{x_trn} must be the same dataset used to train \code{rf}.}
 
 \item{family}{Distribution to use for density estimation of continuous
 features. Current options include truncated normal (the default
