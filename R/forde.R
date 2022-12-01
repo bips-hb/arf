@@ -279,13 +279,14 @@ forde <- function(
     }
     
     # Optional batch index
-    if (!is.null(batch)) {
-      k <- round(n / batch)
-      batch_idx <- suppressWarnings(split(1:n, seq_len(k)))
-    } else {
-      k <- 1L
-      batch_idx <- list(1:n)
+    if (is.null(batch)) {
+      batch <- n
     }
+    if (round(n/batch) < 2) {
+      batch <- n
+    }
+    k <- round(n/batch)
+    batch_idx <- suppressWarnings(split(1:n, seq_len(k)))
     # Compute per-feature likelihoods
     loglik_fn <- function(fold) {
       psi_x_cnt <- psi_x_cat <- NULL
