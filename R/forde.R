@@ -103,7 +103,7 @@ forde <- function(
     if (ncol(x_tst) != ncol(x_trn)) {
       stop('x_trn and x_tst must be the same dimensionality.')
     }
-    if (colnames(x_tst) != colnames(x_trn)) {
+    if (!identical(colnames(x_tst), colnames(x_trn))) {
       stop('x_trn and x_tst must have identical colnames.')
     }
   }
@@ -131,6 +131,15 @@ forde <- function(
     x[, idx_logical] <- as.data.frame(
       lapply(x[, idx_logical, drop = FALSE], as.factor)
     )
+  }
+  idx_intgr <- sapply(x, is.integer)
+  if (any(idx_intgr)) {
+    warning('Recoding integer data as ordered factors. To override this behavior, ',
+            'explicitly code these variables as numeric.')
+    for (j in which(idx_intgr)) {
+      lvls <- sort(unique(x[, j]))
+      x[, j] <- factor(x[, j], levels = lvls, ordered = TRUE)
+    }
   }
   factor_cols <- sapply(x, is.factor)
   
@@ -257,6 +266,13 @@ forde <- function(
         x[, idx_logical] <- as.data.frame(
           lapply(x[, idx_logical, drop = FALSE], as.factor)
         )
+      }
+      idx_intgr <- sapply(x, is.integer)
+      if (any(idx_intgr)) {
+        for (j in which(idx_intgr)) {
+          lvls <- sort(unique(x[, j]))
+          x[, j] <- factor(x[, j], levels = lvls, ordered = TRUE)
+        }
       }
       factor_cols <- sapply(x, is.factor)
       pred <- predict(rf, x, type = 'terminalNodes')$predictions + 1

@@ -16,7 +16,8 @@ adversarial_rf(
 )
 }
 \arguments{
-\item{x}{Input data.}
+\item{x}{Input data. Integer variables are recoded as ordered factors with
+a warning. See Details.}
 
 \item{num_trees}{Number of trees to grow in each forest. The default works
 well for most generative modeling tasks, but should be increased for
@@ -59,6 +60,12 @@ estimation (see \code{\link{forde}}) and data synthesis (see
 \code{\link{forge}}). For the former, we recommend increasing the number of
 trees for improved performance (typically on the order of 100-1000 depending
 on sample size).
+
+Integer variables are treated as ordered factors by default. If the ARF is
+passed to \code{forde}, the estimated distribution for these variables will
+only have support on observed factor levels (i.e., the output will be a pmf,
+not a pdf). To override this behavior and assign nonzero density to
+intermediate values, explicitly recode the features as numeric.
 
 Note: convergence is not guaranteed in finite samples. The \code{max_iter}
 argument sets an upper bound on the number of training rounds. Similar
