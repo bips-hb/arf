@@ -275,17 +275,17 @@ forde <- function(
         }
       }
       factor_cols <- sapply(x, is.factor)
-      pred <- predict(rf, x, type = 'terminalNodes')$predictions + 1
+      pred <- predict(rf, x, type = 'terminalNodes')$predictions + 1L
     }
     
     # Optional batch index
     if (is.null(batch)) {
       batch <- n
     }
-    if (round(n/batch) < 2) {
-      batch <- n
-    }
     k <- round(n/batch)
+    if (k < 1) {
+      k <- 1
+    }
     batch_idx <- suppressWarnings(split(1:n, seq_len(k)))
     # Compute per-feature likelihoods
     loglik_fn <- function(fold) {
