@@ -108,7 +108,7 @@ adversarial_rf <- function(
   factor_cols <- sapply(x_real, is.factor)
   # Sample from marginals to get naive synthetic data
   x_synth <- as.data.frame(lapply(x_real, function(x) {
-    sample(x, length(x), replace = TRUE)
+    sample(x, n, replace = TRUE)
   }))
   # Merge real and synthetic data
   dat <- rbind(data.frame(y = 1L, x_real),
