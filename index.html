@@ -78,10 +78,51 @@
 </nav><div class="container template-home">
 <div class="row">
   <main id="main" class="col-md-9">
-<div class="section level1">
-<div class="page-header"><h1 id="arf-adversarial-random-forests">arf: Adversarial random forests<a class="anchor" aria-label="anchor" href="#arf-adversarial-random-forests"></a>
-</h1></div>
+<div class="section level2">
+<h2 id="arf-adversarial-random-forests">arf: Adversarial Random Forests<a class="anchor" aria-label="anchor" href="#arf-adversarial-random-forests"></a>
+</h2>
 <p>Adversarial random forests for density estimation and generative modeling</p>
+<div class="section level3">
+<h3 id="introduction">Introduction<a class="anchor" aria-label="anchor" href="#introduction"></a>
+</h3>
+<p>Adversarial random forests (ARFs) recursively partition data into fully factorized leaves, where features are jointly independent. The procedure is iterative, with alternating rounds of generation and discrimination. Data become increasingly realistic at each round, until original and synthetic samples can no longer be reliably distinguished. This is useful for several unsupervised learning tasks, such as density estimation and data synthesis. Methods for both are implemented in this package. ARFs naturally handle unstructured data with mixed continuous and categorical covariates. They inherit many of the benefits of RFs, including speed, flexibility, and solid performance with default parameters.</p>
+</div>
+<div class="section level3">
+<h3 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
+</h3>
+<p>To install the development version from GitHub using <code>devtools</code>, run</p>
+<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"bips-hb/cpi"</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="examples">Examples<a class="anchor" aria-label="anchor" href="#examples"></a>
+</h3>
+<div class="section level4">
+<h4 id="density-estimation">Density estimation<a class="anchor" aria-label="anchor" href="#density-estimation"></a>
+</h4>
+<p>To run an adversarial random forest on the iris data, perform density estimation and calculate log-likelihood on the same data:</p>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">arf</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">iris</span><span class="op">)</span></span>
+<span><span class="va">psi</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/forde.html">forde</a></span><span class="op">(</span><span class="va">arf</span>, <span class="va">iris</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="fu"><a href="reference/lik.html">lik</a></span><span class="op">(</span><span class="va">arf</span>, <span class="va">psi</span>, <span class="va">iris</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level4">
+<h4 id="generative-modeling">Generative modeling<a class="anchor" aria-label="anchor" href="#generative-modeling"></a>
+</h4>
+<p>To generate synthetic data based on the iris data:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">arf</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">iris</span><span class="op">)</span></span>
+<span><span class="va">psi</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/forde.html">forde</a></span><span class="op">(</span><span class="va">arf</span>, <span class="va">iris</span><span class="op">)</span></span>
+<span><span class="fu"><a href="reference/forge.html">forge</a></span><span class="op">(</span><span class="va">psi</span>, <span class="fl">100</span><span class="op">)</span></span></code></pre></div>
+</div>
+</div>
+<div class="section level3">
+<h3 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a>
+</h3>
+<ul>
+<li>Watson, D. S., Blesch, K., Kapar, J. &amp; Wright, M. N. (2022). Smooth densities and generative modeling with unsupervised random forests. Preprint: <a href="https://arxiv.org/abs/2205.09435" class="external-link uri">https://arxiv.org/abs/2205.09435</a>.</li>
+</ul>
+</div>
 </div>
 
   </main><aside class="col-md-3"><div class="links">
