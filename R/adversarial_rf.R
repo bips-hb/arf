@@ -1,4 +1,4 @@
-#' Adversarial random forest
+#' Adversarial Random Forests
 #' 
 #' Implements an adversarial random forest to learn independence-inducing splits.
 #' 

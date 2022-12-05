@@ -2,7 +2,7 @@
 % Please edit documentation in R/adversarial_rf.R
 \name{adversarial_rf}
 \alias{adversarial_rf}
-\title{Adversarial random forest}
+\title{Adversarial Random Forests}
 \usage{
 adversarial_rf(
   x,
