@@ -2,31 +2,25 @@
 % Please edit documentation in R/forde.R
 \name{forde}
 \alias{forde}
-\title{Forests for density estimation}
+\title{Forests for Density Estimation}
 \usage{
 forde(
-  rf,
-  x_trn,
-  x_tst = NULL,
+  arf,
+  x,
   oob = FALSE,
   family = "truncnorm",
   epsilon = 0.1,
-  loglik = TRUE,
-  batch = NULL,
   parallel = TRUE
 )
 }
 \arguments{
-\item{rf}{Pre-trained adversarial random forest. Alternatively, any object
+\item{arf}{Pre-trained adversarial random forest. Alternatively, any object
 of class \code{ranger}.}
 
-\item{x_trn}{Training data for estimating parameters.}
-
-\item{x_tst}{Optional test data. If supplied, the function computes
-log-likelihoods on test data (measured in nats).}
+\item{x}{Training data for estimating parameters.}
 
 \item{oob}{Only use out-of-bag samples for parameter estimation? If
-\code{TRUE}, \code{x_trn} must be the same dataset used to train \code{rf}.}
+\code{TRUE}, \code{x} must be the same dataset used to train \code{arf}.}
 
 \item{family}{Distribution to use for density estimation of continuous
 features. Current options include truncated normal (the default
@@ -39,29 +33,13 @@ of training data. The gap between lower and upper bounds is expanded by
 a factor of \code{epsilon}. Only used when a variable is never selected for
 splitting.}
 
-\item{loglik}{Return log-likelihood of training or test data? If \code{FALSE},
-function only returns leaf and distribution parameters \code{psi}. This
-can save time when the ultimate goal is data synthesis.}
-
-\item{batch}{Batch size. The default is to compute parameters for the full
-dataset in one round, which is always the fastest option if memory allows.
-However, with large samples or many trees, it can be more memory efficient
-to split the data into batches. This has no impact on results.}
-
 \item{parallel}{Compute in parallel? Must register backend beforehand, e.g.
 via \code{doParallel}.}
 }
 \value{
-A list with two elements:
-\itemize{
-\item \code{psi}, a \code{data.table} with leaf and distribution parameters
-for each feature. These are used for computing log-likelihoods or
+A \code{data.table} with leaf and distribution parameters for each feature.
+These are used for estimating likelihoods with \code{\link{lik}} and
 generating data with \code{\link{forge}}.
-\item \code{loglik}, a vector of log-likelihoods, one for each sample in
-\code{x_trn} or \code{x_tst}, if the latter is provided. To skip these
-calculations, set \code{loglik = FALSE}, in which case this item is
-\code{NULL}.
-}
 }
 \description{
 Uses a pre-trained ARF model to estimate leaf and distribution parameters.
@@ -81,16 +59,15 @@ densities when features are continuous. Future releases will accommodate
 a larger class of distributional families.
 
 Though \code{forde} was designed to take an adversarial random forest as
-input, \code{rf} can in principle be any object of class \code{ranger}. This
+input, \code{arf} can in principle be any object of class \code{ranger}. This
 allows users to test performance with alternative pipelines (e.g., with
 supervised forest input). There is also no requirement that \code{x_trn} be
-the data used to fit \code{rf}.
+the data used to fit \code{arf}.
 }
 \examples{
 arf <- adversarial_rf(iris)
-fd <- forde(arf, iris)
-head(fd$psi)
-head(fd$loglik)
+psi <- forde(arf, iris)
+head(psi)
 
 
 }
@@ -100,5 +77,5 @@ forests for density estimation and generative modeling. \emph{arXiv} preprint,
 2205.09435.
 }
 \seealso{
-\code{\link{adversarial_rf}}, \code{\link{forge}}
+\code{\link{adversarial_rf}}, \code{\link{forge}}, \code{\link{lik}}
 }

@@ -1,14 +1,12 @@
-#' Forests for density estimation
+#' Forests for Density Estimation
 #' 
 #' Uses a pre-trained ARF model to estimate leaf and distribution parameters.
 #' 
-#' @param rf Pre-trained adversarial random forest. Alternatively, any object
+#' @param arf Pre-trained adversarial random forest. Alternatively, any object
 #'   of class \code{ranger}.
-#' @param x_trn Training data for estimating parameters.
-#' @param x_tst Optional test data. If supplied, the function computes 
-#'   log-likelihoods on test data (measured in nats).
+#' @param x Training data for estimating parameters.
 #' @param oob Only use out-of-bag samples for parameter estimation? If 
-#'   \code{TRUE}, \code{x_trn} must be the same dataset used to train \code{rf}.
+#'   \code{TRUE}, \code{x} must be the same dataset used to train \code{arf}.
 #' @param family Distribution to use for density estimation of continuous 
 #'   features. Current options include truncated normal (the default
 #'   \code{family = "truncnorm"}) and uniform (\code{family = "unif"}). See 
@@ -18,13 +16,6 @@
 #'   of training data. The gap between lower and upper bounds is expanded by 
 #'   a factor of \code{epsilon}. Only used when a variable is never selected for
 #'   splitting.
-#' @param loglik Return log-likelihood of training or test data? If \code{FALSE},
-#'   function only returns leaf and distribution parameters \code{psi}. This
-#'   can save time when the ultimate goal is data synthesis.
-#' @param batch Batch size. The default is to compute parameters for the full 
-#'   dataset in one round, which is always the fastest option if memory allows. 
-#'   However, with large samples or many trees, it can be more memory efficient 
-#'   to split the data into batches. This has no impact on results.
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
 #'   via \code{doParallel}.
 #'   
@@ -44,23 +35,16 @@
 #' a larger class of distributional families.
 #' 
 #' Though \code{forde} was designed to take an adversarial random forest as 
-#' input, \code{rf} can in principle be any object of class \code{ranger}. This
+#' input, \code{arf} can in principle be any object of class \code{ranger}. This
 #' allows users to test performance with alternative pipelines (e.g., with 
 #' supervised forest input). There is also no requirement that \code{x_trn} be 
-#' the data used to fit \code{rf}.
+#' the data used to fit \code{arf}.
 #' 
 #' 
 #' @return 
-#' A list with two elements: 
-#' \itemize{
-#'   \item \code{psi}, a \code{data.table} with leaf and distribution parameters
-#'   for each feature. These are used for computing log-likelihoods or 
-#'   generating data with \code{\link{forge}}.
-#'   \item \code{loglik}, a vector of log-likelihoods, one for each sample in 
-#'   \code{x_trn} or \code{x_tst}, if the latter is provided. To skip these 
-#'   calculations, set \code{loglik = FALSE}, in which case this item is 
-#'   \code{NULL}.
-#' }
+#' A \code{data.table} with leaf and distribution parameters for each feature. 
+#' These are used for estimating likelihoods with \code{\link{lik}} and 
+#' generating data with \code{\link{forge}}.
 #' 
 #' 
 #' @references 
@@ -71,45 +55,33 @@
 #' 
 #' @examples
 #' arf <- adversarial_rf(iris)
-#' fd <- forde(arf, iris)
-#' head(fd$psi)
-#' head(fd$loglik)
+#' psi <- forde(arf, iris)
+#' head(psi)
 #' 
 #' 
 #' @seealso
-#' \code{\link{adversarial_rf}}, \code{\link{forge}}
+#' \code{\link{adversarial_rf}}, \code{\link{forge}}, \code{\link{lik}}
 #' 
 #'
 #' @export
 #' @import ranger 
 #' @import data.table
 #' @importFrom foreach foreach %do% %dopar%
-#' @importFrom truncnorm dtruncnorm 
 #' 
 
+
 forde <- function(
-    rf, 
-    x_trn, 
-    x_tst = NULL, 
+    arf, 
+    x, 
     oob = FALSE,
     family = 'truncnorm', 
     epsilon = 0.1, 
-    loglik = TRUE, 
-    batch = NULL, 
     parallel = TRUE) {
-
-  # Prelimz
-  if (!is.null(x_tst)) {
-    if (ncol(x_tst) != ncol(x_trn)) {
-      stop('x_trn and x_tst must be the same dimensionality.')
-    }
-    if (!identical(colnames(x_tst), colnames(x_trn))) {
-      stop('x_trn and x_tst must have identical colnames.')
-    }
-  }
+  
+  # Prelimz=
   if (isTRUE(oob)) {
-    if (!nrow(x_trn) %in% c(rf$num.samples, rf$num.samples/2)) {
-      stop('rf must be trained on x_trn when oob = TRUE.')
+    if (!nrow(x) %in% c(arf$num.samples, arf$num.samples/2)) {
+      stop('Forest must be trained on x when oob = TRUE.')
     }
   }
   if (!family %in% c('truncnorm', 'unif')) {
@@ -117,7 +89,7 @@ forde <- function(
   }
   
   # Prep data
-  x <- as.data.frame(x_trn)
+  x <- as.data.frame(x)
   n <- nrow(x)
   d <- ncol(x)
   idx_char <- sapply(x, is.character)
@@ -144,10 +116,10 @@ forde <- function(
   factor_cols <- sapply(x, is.factor)
   
   # Compute leaf bounds and coverage
-  num_trees <- rf$num.trees
-  pred <- predict(rf, x, type = 'terminalNodes')$predictions + 1L
+  num_trees <- arf$num.trees
+  pred <- predict(arf, x, type = 'terminalNodes')$predictions + 1L
   bnd_fn <- function(tree) {
-    num_nodes <- length(rf$forest$split.varIDs[[tree]])
+    num_nodes <- length(arf$forest$split.varIDs[[tree]])
     lb <- matrix(-Inf, nrow = num_nodes, ncol = d)
     ub <- matrix(Inf, nrow = num_nodes, ncol = d)
     if (family == 'unif') {
@@ -160,19 +132,19 @@ forde <- function(
       }
     }
     for (i in 1:num_nodes) {
-      left_child <- rf$forest$child.nodeIDs[[tree]][[1]][i] + 1L
-      right_child <- rf$forest$child.nodeIDs[[tree]][[2]][i] + 1L
-      splitvarID <- rf$forest$split.varIDs[[tree]][i] + 1L
-      splitval <- rf$forest$split.value[[tree]][i]
+      left_child <- arf$forest$child.nodeIDs[[tree]][[1]][i] + 1L
+      right_child <- arf$forest$child.nodeIDs[[tree]][[2]][i] + 1L
+      splitvarID <- arf$forest$split.varIDs[[tree]][i] + 1L
+      splitval <- arf$forest$split.value[[tree]][i]
       if (left_child > 1 & left_child != right_child) {
         ub[left_child, ] <- ub[right_child, ] <- ub[i, ]
         lb[left_child, ] <- lb[right_child, ] <- lb[i, ]
         ub[left_child, splitvarID] <- lb[right_child, splitvarID] <- splitval
       }
     }
-    leaves <- which(rf$forest$child.nodeIDs[[tree]][[1]] == 0L) 
-    colnames(lb) <- rf$forest$independent.variable.names
-    colnames(ub) <- rf$forest$independent.variable.names
+    leaves <- which(arf$forest$child.nodeIDs[[tree]][[1]] == 0L) 
+    colnames(lb) <- arf$forest$independent.variable.names
+    colnames(ub) <- arf$forest$independent.variable.names
     merge(melt(data.table(tree = tree, leaf = leaves, lb[leaves, ]), 
                id.vars = c('tree', 'leaf'), value.name = 'min'), 
           melt(data.table(tree = tree, leaf = leaves, ub[leaves, ]), 
@@ -186,7 +158,7 @@ forde <- function(
   }
   # Use only OOB data?
   if (isTRUE(oob)) {
-    inbag <- (do.call(cbind, rf$inbag.counts) > 0L)[1:nrow(x_trn), ]
+    inbag <- (do.call(cbind, arf$inbag.counts) > 0L)[1:nrow(x_trn), ]
     pred[inbag] <- NA_integer_
     bnds[, n_oob := sum(!is.na(pred[, tree])), by = tree]
     bnds[, cvg := sum(pred[, tree] == leaf, na.rm = TRUE) / n_oob, by = .(tree, leaf)]
@@ -249,114 +221,8 @@ forde <- function(
   psi <- merge(psi_tmp, bnds, by = c('tree', 'leaf', 'variable'))
   rm(psi_cnt, psi_cat, psi_tmp)
   
-  # Log-likelihood calculation
-  if (isTRUE(loglik)) {
-    # Optionally prep test data
-    if (!is.null(x_tst)) {
-      x <- as.data.frame(x_tst)
-      n <- nrow(x_tst)
-      idx_char <- sapply(x, is.character)
-      if (any(idx_char)) {
-        x[, idx_char] <- as.data.frame(
-          lapply(x[, idx_char, drop = FALSE], as.factor)
-        )
-      }
-      idx_logical <- sapply(x, is.logical)
-      if (any(idx_logical)) {
-        x[, idx_logical] <- as.data.frame(
-          lapply(x[, idx_logical, drop = FALSE], as.factor)
-        )
-      }
-      idx_intgr <- sapply(x, is.integer)
-      if (any(idx_intgr)) {
-        for (j in which(idx_intgr)) {
-          lvls <- sort(unique(x[, j]))
-          x[, j] <- factor(x[, j], levels = lvls, ordered = TRUE)
-        }
-      }
-      factor_cols <- sapply(x, is.factor)
-      pred <- predict(rf, x, type = 'terminalNodes')$predictions + 1L
-    }
-    
-    # Optional batch index
-    if (is.null(batch)) {
-      batch <- n
-    }
-    k <- round(n/batch)
-    if (k < 1) {
-      k <- 1
-    }
-    batch_idx <- suppressWarnings(split(1:n, seq_len(k)))
-    # Compute per-feature likelihoods
-    loglik_fn <- function(fold) {
-      psi_x_cnt <- psi_x_cat <- NULL
-      # Predictions
-      preds <- rbindlist(lapply(1:num_trees, function(b) {
-        data.table(tree = b, leaf = pred[batch_idx[[fold]], b], obs = batch_idx[[fold]])
-      }))
-      if (isTRUE(oob)) {
-        preds <- preds[!is.na(leaf)]
-      }
-      # Continuous data
-      if (any(!factor_cols)) {
-        x_long_cnt <- melt(
-          data.table(obs = batch_idx[[fold]], 
-                     x[batch_idx[[fold]], !factor_cols, drop = FALSE]), 
-          id.vars = 'obs', variable.factor = FALSE
-        )
-        preds_x_cnt <- merge(preds, x_long_cnt, by = 'obs', sort = FALSE, allow.cartesian = TRUE)
-        psi_x_cnt <- merge(psi[family != 'multinom', .(tree, leaf, cvg, variable, min, max, mu, sigma)], 
-                           preds_x_cnt, by = c('tree', 'leaf', 'variable'), sort = FALSE)
-        if (family == 'truncnorm') {
-          psi_x_cnt[, lik := dtruncnorm(value, a = min, b = max, mean = mu, sd = sigma)]
-        } else if (family == 'unif') {
-          psi_x_cnt[, lik := dunif(value, min = min, max = max)]
-        } 
-        psi_x_cnt <- psi_x_cnt[, .(tree, obs, cvg, lik)]
-        rm(x_long_cnt, preds_x_cnt)
-      }
-      # Categorical data
-      if (any(factor_cols)) {
-        x_long_cat <- melt(
-          data.table(obs = batch_idx[[fold]], 
-                     x[batch_idx[[fold]], factor_cols, drop = FALSE]), 
-          id.vars = 'obs', value.name = 'cat', variable.factor = FALSE
-        )
-        preds_x_cat <- merge(preds, x_long_cat, by = 'obs', sort = FALSE, allow.cartesian = TRUE)
-        psi_x_cat <- merge(psi[family == 'multinom', .(tree, leaf, cvg, variable, cat, prob)], 
-                           preds_x_cat, by = c('tree', 'leaf', 'variable', 'cat'), 
-                           sort = FALSE, allow.cartesian = TRUE)
-        psi_x_cat[, lik := prob]
-        psi_x_cat <- psi_x_cat[, .(tree, obs, cvg, lik)]
-        rm(x_long_cat, preds_x_cat)
-      } 
-      rm(preds)
-      # Put it together
-      psi_x <- rbind(psi_x_cnt, psi_x_cat)
-      rm(psi_x_cnt, psi_x_cat)
-      # Compute per-sample log-likelihoods
-      loglik <- unique(psi_x[, prod(lik) * cvg, by = .(obs, tree)])
-      loglik[is.na(V1), V1 := 0]
-      loglik <- loglik[, log(mean(V1)), by = obs]
-      return(loglik)
-    }
-    if (k == 1L) {
-      ll <- loglik_fn(1)
-    } else {
-      if (isTRUE(parallel)) {
-        ll <- foreach(fold = 1:k, .combine = rbind) %dopar% loglik_fn(fold)
-      } else {
-        ll <- foreach(fold = 1:k, .combine = rbind) %do% loglik_fn(fold)
-      }
-    }
-    loglik <- ll[order(obs), V1]
-  } else {
-    loglik <- NULL
-  }
-  
   # Export
-  out <- list('psi' = psi, 'loglik' = loglik)
-  return(out)
+  return(psi)
 }
 
 
