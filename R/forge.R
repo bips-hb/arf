@@ -58,24 +58,24 @@ forge <- function(
                                      prob = omega$cvg / num_trees))
   omega <- merge(draws, omega, sort = FALSE)[, idx := .I]
   params_idx <- merge(omega, params, by = c('tree', 'leaf', 'cvg'), sort = FALSE, 
-                   allow.cartesian = TRUE)
+                      allow.cartesian = TRUE)
   
   # Simulate data
   synth_cnt <- synth_cat <- NULL
-  if (nrow(params[family != 'multinom']) > 0L) {  # Continuous
+  if (params[family != 'multinom', .N > 0L]) {  # Continuous
     params_cnt <- params_idx[family != 'multinom']
     fams <- params_cnt[, unique(family)]
     if ('truncnorm' %in% fams) {
       params_cnt[family == 'truncnorm', 
-              dat := truncnorm::rtruncnorm(nrow(params_cnt), a = min, b = max, mean = mu, sd = sigma)]
+                 dat := truncnorm::rtruncnorm(.N, a = min, b = max, mean = mu, sd = sigma)]
     } 
     if ('unif' %in% fams) {
-      params_cnt[family == 'unif', dat := stats::runif(nrow(params_cnt), min = min, max = max)]
+      params_cnt[family == 'unif', dat := stats::runif(.N, min = min, max = max)]
     }
     synth_cnt <- dcast(params_cnt, idx ~ variable, value.var = 'dat')
     synth_cnt[, idx := NULL]
   }
-  if (nrow(params[family == 'multinom']) > 0L) { # Categorical
+  if (params[family == 'multinom', .N > 0L]) {  # Categorical
     params_idx[prob == 1, dat := cat]
     synth_cat_fn <- function(j) {
       params_j <- params_idx[variable == j]
