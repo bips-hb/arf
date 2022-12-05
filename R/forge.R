@@ -1,8 +1,8 @@
-#' Forests for generative modeling
+#' Forests for Generative Modeling
 #' 
 #' Uses pre-trained FORDE model to simulate synthetic data.
 #' 
-#' @param psi Parameters learned via \code{forde}. 
+#' @param params Parameters learned via \code{forde}. 
 #' @param n_synth Number of synthetic samples to generate.
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
 #'   via \code{doParallel}.
@@ -30,8 +30,8 @@
 #'
 #' @examples
 #' arf <- adversarial_rf(iris)
-#' fd <- forde(arf, iris)
-#' x_synth <- forge(fd$psi, n_synth = 100)
+#' psi <- forde(arf, iris)
+#' x_synth <- forge(psi, n_synth = 100)
 #'
 #' @seealso
 #' \code{\link{adversarial_rf}}, \code{\link{forde}}
@@ -44,44 +44,44 @@
 #' 
 
 forge <- function(
-    psi, 
+    params, 
     n_synth, 
     parallel = TRUE) {
   
   # Draw random leaves with probability proportional to coverage
-  num_trees <- psi[, max(tree)]
-  omega <- unique(psi[, .(tree, leaf, cvg)])[, idx := .I]
+  num_trees <- params[, max(tree)]
+  omega <- unique(params[, .(tree, leaf, cvg)])[, idx := .I]
   draws <- data.table('idx' = sample(omega$idx, size = n_synth, replace = TRUE, 
                                      prob = omega$cvg / num_trees))
   omega <- merge(draws, omega, sort = FALSE)[, idx := .I]
-  psi_idx <- merge(omega, psi, by = c('tree', 'leaf', 'cvg'), sort = FALSE, 
+  params_idx <- merge(omega, params, by = c('tree', 'leaf', 'cvg'), sort = FALSE, 
                    allow.cartesian = TRUE)
   
   # Simulate data
   synth_cnt <- synth_cat <- NULL
-  if (nrow(psi[family != 'multinom']) > 0L) {  # Continuous
-    psi_cnt <- psi_idx[family != 'multinom']
-    fams <- psi_cnt[, unique(family)]
+  if (nrow(params[family != 'multinom']) > 0L) {  # Continuous
+    params_cnt <- params_idx[family != 'multinom']
+    fams <- params_cnt[, unique(family)]
     if ('truncnorm' %in% fams) {
-      psi_cnt[family == 'truncnorm', 
-              dat := rtruncnorm(nrow(psi_cnt), a = min, b = max, mean = mu, sd = sigma)]
+      params_cnt[family == 'truncnorm', 
+              dat := rtruncnorm(nrow(params_cnt), a = min, b = max, mean = mu, sd = sigma)]
     } 
     if ('unif' %in% fams) {
-      psi_cnt[family == 'unif', dat := runif(nrow(psi_cnt), min = min, max = max)]
+      params_cnt[family == 'unif', dat := runif(nrow(params_cnt), min = min, max = max)]
     }
-    synth_cnt <- dcast(psi_cnt, idx ~ variable, value.var = 'dat')
+    synth_cnt <- dcast(params_cnt, idx ~ variable, value.var = 'dat')
     synth_cnt[, idx := NULL]
   }
-  if (nrow(psi[family == 'multinom']) > 0L) { # Categorical
-    psi_idx[prob == 1, dat := cat]
+  if (nrow(params[family == 'multinom']) > 0L) { # Categorical
+    params_idx[prob == 1, dat := cat]
     synth_cat_fn <- function(j) {
-      psi_j <- psi_idx[variable == j]
-      psi_j[prob < 1, dat := sample(cat, 1, prob = prob), by = idx]
-      out <- data.table(unique(psi_j[, .(idx, dat)])[, dat])
+      params_j <- params_idx[variable == j]
+      params_j[prob < 1, dat := sample(cat, 1, prob = prob), by = idx]
+      out <- data.table(unique(params_j[, .(idx, dat)])[, dat])
       colnames(out) <- j
       return(out)
     }
-    cat_vars <- psi[family == 'multinom', unique(variable)]
+    cat_vars <- params[family == 'multinom', unique(variable)]
     if (isTRUE(parallel) & length(cat_vars) > 1) {
       synth_cat <- foreach(j = cat_vars, .combine = cbind) %dopar% synth_cat_fn(j)
     } else {

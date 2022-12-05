@@ -2,12 +2,12 @@
 % Please edit documentation in R/forge.R
 \name{forge}
 \alias{forge}
-\title{Forests for generative modeling}
+\title{Forests for Generative Modeling}
 \usage{
-forge(psi, n_synth, parallel = TRUE)
+forge(params, n_synth, parallel = TRUE)
 }
 \arguments{
-\item{psi}{Parameters learned via \code{forde}.}
+\item{params}{Parameters learned via \code{forde}.}
 
 \item{n_synth}{Number of synthetic samples to generate.}
 
@@ -32,8 +32,8 @@ local independence criterion.
 }
 \examples{
 arf <- adversarial_rf(iris)
-fd <- forde(arf, iris)
-x_synth <- forge(fd$psi, n_synth = 100)
+psi <- forde(arf, iris)
+x_synth <- forge(psi, n_synth = 100)
 
 }
 \references{
