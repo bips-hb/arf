@@ -63,6 +63,9 @@ lik <- function(
     batch = NULL, 
     parallel = TRUE) {
   
+  # To avoid data.table check issues
+  tree <- cvg <- leaf <- variable <- num_trees <- mu <- sigma <- value <- obs <- prob <- V1 <- loglik <- family <- fold <- . <- NULL
+  
   # Prelimz
   x <- as.data.frame(x)
   n <- nrow(x)
@@ -119,9 +122,9 @@ lik <- function(
       params_x_cnt <- merge(params[family != 'multinom', .(tree, leaf, cvg, variable, min, max, mu, sigma)], 
                             preds_x_cnt, by = c('tree', 'leaf', 'variable'), sort = FALSE)
       if (family == 'truncnorm') {
-        params_x_cnt[, lik := dtruncnorm(value, a = min, b = max, mean = mu, sd = sigma)]
+        params_x_cnt[, lik := truncnorm::dtruncnorm(value, a = min, b = max, mean = mu, sd = sigma)]
       } else if (family == 'unif') {
-        params_x_cnt[, lik := dunif(value, min = min, max = max)]
+        params_x_cnt[, lik := stats::dunif(value, min = min, max = max)]
       } 
       params_x_cnt <- params_x_cnt[, .(tree, obs, cvg, lik)]
       rm(x_long_cnt, preds_x_cnt)

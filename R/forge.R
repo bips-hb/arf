@@ -49,7 +49,7 @@ forge <- function(
     parallel = TRUE) {
   
   # To avoid data.table check issues
-  tree <- cvg <- leaf <- idx <- family <- mu <- sigma <- prob <- NULL
+  tree <- cvg <- leaf <- idx <- family <- mu <- sigma <- prob <- dat <- variable <- j <- . <- NULL
   
   # Draw random leaves with probability proportional to coverage
   num_trees <- params[, max(tree)]
@@ -67,10 +67,10 @@ forge <- function(
     fams <- params_cnt[, unique(family)]
     if ('truncnorm' %in% fams) {
       params_cnt[family == 'truncnorm', 
-              dat := rtruncnorm(nrow(params_cnt), a = min, b = max, mean = mu, sd = sigma)]
+              dat := truncnorm::rtruncnorm(nrow(params_cnt), a = min, b = max, mean = mu, sd = sigma)]
     } 
     if ('unif' %in% fams) {
-      params_cnt[family == 'unif', dat := runif(nrow(params_cnt), min = min, max = max)]
+      params_cnt[family == 'unif', dat := stats::runif(nrow(params_cnt), min = min, max = max)]
     }
     synth_cnt <- dcast(params_cnt, idx ~ variable, value.var = 'dat')
     synth_cnt[, idx := NULL]

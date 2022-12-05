@@ -79,7 +79,7 @@ forde <- function(
     parallel = TRUE) {
   
   # To avoid data.table check issues
-  tree <- n_oob <- cvg <- leaf <- variable <- count <- NULL
+  tree <- n_oob <- cvg <- leaf <- variable <- count <- sd <- value <- . <- NULL
   
   # Prelimz
   if (isTRUE(oob)) {
@@ -161,7 +161,7 @@ forde <- function(
   }
   # Use only OOB data?
   if (isTRUE(oob)) {
-    inbag <- (do.call(cbind, arf$inbag.counts) > 0L)[1:nrow(x_trn), ]
+    inbag <- (do.call(cbind, arf$inbag.counts) > 0L)[1:(arf$num.samples/2), ]
     pred[inbag] <- NA_integer_
     bnds[, n_oob := sum(!is.na(pred[, tree])), by = tree]
     bnds[, cvg := sum(pred[, tree] == leaf, na.rm = TRUE) / n_oob, by = .(tree, leaf)]

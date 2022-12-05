@@ -83,7 +83,7 @@ adversarial_rf <- function(
     ...) {
   
   # To avoid data.table check issues
-  i <- NULL
+  i <- . <- NULL
 
   # Prelimz
   x_real <- as.data.frame(x)
@@ -138,7 +138,7 @@ adversarial_rf <- function(
   if (acc > 0.5 + delta & iters < max_iters) {
     converged <- FALSE
     while (!isTRUE(converged)) {
-      nodeIDs <- predict(rf0, x_real, type = 'terminalNodes')$predictions
+      nodeIDs <- stats::predict(rf0, x_real, type = 'terminalNodes')$predictions
       # Create synthetic data
       trees <- sample(1:num_trees, n, replace = TRUE)
       leaves <- sapply(1:n, function(i) sample(nodeIDs[, trees[i]], 1))
@@ -180,7 +180,7 @@ adversarial_rf <- function(
   }
   
   # Prune leaves to ensure min_node_size w.r.t. real data
-  pred <- predict(rf0, x_real, type = 'terminalNodes')$predictions + 1L
+  pred <- stats::predict(rf0, x_real, type = 'terminalNodes')$predictions + 1L
   for (tree in 1:num_trees) {
     leaves <- which(rf0$forest$child.nodeIDs[[tree]][[1]] == 0L)
     to_prune <- leaves[!(leaves %in% which(tabulate(pred[, tree]) >= min_node_size))]
