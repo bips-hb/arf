@@ -122,6 +122,7 @@ lik <- function(
       preds_x_cnt <- merge(preds, x_long_cnt, by = 'obs', sort = FALSE, allow.cartesian = TRUE)
       params_x_cnt <- merge(params[family != 'multinom', .(tree, leaf, cvg, variable, min, max, mu, sigma)], 
                             preds_x_cnt, by = c('tree', 'leaf', 'variable'), sort = FALSE)
+      family <- unique(params[family != "multinom", family])
       if (family == 'truncnorm') {
         params_x_cnt[, lik := truncnorm::dtruncnorm(value, a = min, b = max, mean = mu, sd = sigma)]
       } else if (family == 'unif') {
