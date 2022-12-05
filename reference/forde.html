@@ -115,24 +115,28 @@ generating data with <code><a href="forge.html">forge</a></code>.</p>
 distribution parameters for data within each leaf. The former includes
 coverage (proportion of data falling into the leaf) and split criteria. The
 latter includes proportions for categorical features and mean/variance for
-continuous features. These values are stored in a <code>data.table</code> called
-<code>psi</code>, which can be passed onto <code><a href="forge.html">forge</a></code> for data synthesis.
-They are also used to compute log-likelihoods for <code>x_trn</code> or <code>x_tst</code>
-if <code>loglik = TRUE</code>.</p>
-<p>Currently, <code>forde</code> only provides support for truncated normal or uniform
-densities when features are continuous. Future releases will accommodate
-a larger class of distributional families.</p>
+continuous features. These values are stored in a <code>data.table</code>, which
+can be used as input to various other functions.</p>
+<p>Currently, <code>forde</code> only provides support for a limited number of
+distributional families: truncated normal or uniform for continuous data,
+and multinomial for discrete data. Future releases will accommodate a larger
+class of options.</p>
 <p>Though <code>forde</code> was designed to take an adversarial random forest as
-input, <code>arf</code> can in principle be any object of class <code>ranger</code>. This
-allows users to test performance with alternative pipelines (e.g., with
-supervised forest input). There is also no requirement that <code>x_trn</code> be
-the data used to fit <code>arf</code>.</p>
+input, the function's first argument can in principle be any object of class
+<code>ranger</code>. This allows users to test performance with alternative
+pipelines (e.g., with supervised forest input). There is also no requirement
+that <code>x</code> be the data used to fit <code>arf</code>, unless <code>oob = TRUE</code>.
+In fact, using another dataset here may protect against overfitting. This
+connects with Wager &amp; Athey's (2018) notion of "honest trees".</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
     <p>Watson, D., Blesch, K., Kapar, J., &amp; Wright, M. (2022). Adversarial random
 forests for density estimation and generative modeling. <em>arXiv</em> preprint,
 2205.09435.</p>
+<p>Wager, S. &amp; Athey, S. (2018). Estimation and inference of heterogeneous
+treatment effects using random forests. <em>J. Am. Stat. Assoc.</em>,
+<em>113</em>(523): 1228-1242.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -142,24 +146,24 @@ forests for density estimation and generative modeling. <em>arXiv</em> preprint,
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">arf</span> <span class="op">&lt;-</span> <span class="fu"><a href="adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">iris</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 0, Accuracy: 89.9%</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 1, Accuracy: 38.1%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 0, Accuracy: 87.33%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 1, Accuracy: 34.34%</span>
 <span class="r-in"><span><span class="va">psi</span> <span class="op">&lt;-</span> <span class="fu">forde</span><span class="op">(</span><span class="va">arf</span>, <span class="va">iris</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">psi</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    tree leaf     variable    cat prob       mu      sigma    family  min max</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1:    1   11 Petal.Length   &lt;NA&gt;   NA 1.350000 0.21213203 truncnorm -Inf Inf</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2:    1   11  Petal.Width   &lt;NA&gt;   NA 0.300000 0.14142136 truncnorm -Inf Inf</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3:    1   11 Sepal.Length   &lt;NA&gt;   NA 5.750000 0.07071068 truncnorm -Inf Inf</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4:    1   11  Sepal.Width   &lt;NA&gt;   NA 4.200000 0.28284271 truncnorm -Inf Inf</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5:    1   11      Species setosa    1       NA         NA  multinom -Inf Inf</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6:    1   12 Petal.Length   &lt;NA&gt;   NA 1.766667 0.10327956 truncnorm -Inf Inf</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    tree leaf     variable        cat prob   mu     sigma    family  min  max</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1:    1   11 Petal.Length       &lt;NA&gt;   NA 5.20 0.5656854 truncnorm 4.75  Inf</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2:    1   11  Petal.Width       &lt;NA&gt;   NA 1.40 0.0000000 truncnorm -Inf 1.45</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3:    1   11 Sepal.Length       &lt;NA&gt;   NA 6.45 0.4949747 truncnorm -Inf  Inf</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4:    1   11  Sepal.Width       &lt;NA&gt;   NA 2.70 0.1414214 truncnorm -Inf  Inf</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5:    1   11      Species versicolor  0.5   NA        NA  multinom -Inf  Inf</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6:    1   11      Species  virginica  0.5   NA        NA  multinom -Inf  Inf</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>           cvg</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1: 0.01333333</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2: 0.01333333</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 3: 0.01333333</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 4: 0.01333333</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 5: 0.01333333</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6: 0.04000000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6: 0.01333333</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
