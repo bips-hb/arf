@@ -34,4 +34,4 @@ forge(psi, 100)
 ```
 
 ### References
-* Watson, D. S., Blesch, K., Kapar, J. & Wright, M. N. (2022). Smooth densities and generative modeling with unsupervised random forests. Preprint: https://arxiv.org/abs/2205.09435.
+* Watson, D. S., Blesch, K., Kapar, J. & Wright, M. N. (2022). Adversarial random forests for density estimation and generative modeling. Preprint: https://arxiv.org/abs/2205.09435.
