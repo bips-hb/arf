@@ -3,6 +3,7 @@
 export(adversarial_rf)
 export(forde)
 export(forge)
+export(lik)
 import(data.table)
 import(ranger)
 importFrom(foreach,"%do%")
