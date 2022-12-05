@@ -1,0 +1,25 @@
+---
+title: "Density Estimation"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Density Estimation}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(arf)
+```
+
+```{r}
+arf <- adversarial_rf(iris)
+psi <- forde(arf, iris)
+mean(lik(arf, psi, iris))
+```
