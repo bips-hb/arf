@@ -21,6 +21,13 @@
       <ul class="navbar-nav me-auto"><li class="active nav-item">
   <a class="nav-link" href="../reference/index.html">Reference</a>
 </li>
+<li class="nav-item dropdown">
+  <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown" role="button" aria-expanded="false" aria-haspopup="true" id="dropdown-articles">Articles</a>
+  <div class="dropdown-menu" aria-labelledby="dropdown-articles">
+    <a class="dropdown-item" href="../articles/density_estimation.html">Density Estimation</a>
+    <a class="dropdown-item" href="../articles/generative_modeling.html">Generative Modeling</a>
+  </div>
+</li>
       </ul><form class="form-inline my-2 my-lg-0" role="search">
         <input type="search" class="form-control me-sm-2" aria-label="Toggle navigation" name="search-input" data-search-index="../search.json" id="search-input" placeholder="Search for" autocomplete="off"></form>
 
@@ -135,24 +142,24 @@ forests for density estimation and generative modeling. <em>arXiv</em> preprint,
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">arf</span> <span class="op">&lt;-</span> <span class="fu"><a href="adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">iris</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 0, Accuracy: 87.84%</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 1, Accuracy: 39.39%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 0, Accuracy: 85.86%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 1, Accuracy: 37.41%</span>
 <span class="r-in"><span><span class="va">psi</span> <span class="op">&lt;-</span> <span class="fu">forde</span><span class="op">(</span><span class="va">arf</span>, <span class="va">iris</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">psi</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    tree leaf     variable       cat prob       mu     sigma    family  min  max</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1:    1   24 Petal.Length      &lt;NA&gt;   NA 6.190909 0.3645670 truncnorm -Inf  Inf</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2:    1   24  Petal.Width      &lt;NA&gt;   NA 1.954545 0.1916436 truncnorm -Inf 2.25</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3:    1   24 Sepal.Length      &lt;NA&gt;   NA 7.300000 0.4289522 truncnorm -Inf  Inf</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4:    1   24  Sepal.Width      &lt;NA&gt;   NA 3.072727 0.4002272 truncnorm -Inf  Inf</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5:    1   24      Species virginica    1       NA        NA  multinom -Inf  Inf</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6:    1   29 Petal.Length      &lt;NA&gt;   NA 5.450000 0.1643168 truncnorm -Inf  Inf</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>           cvg</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1: 0.07333333</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2: 0.07333333</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3: 0.07333333</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4: 0.07333333</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5: 0.07333333</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6: 0.04000000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1:    1   12 Petal.Length      &lt;NA&gt;   NA 6.566667 0.4163332 truncnorm -Inf  Inf</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2:    1   12  Petal.Width      &lt;NA&gt;   NA 2.066667 0.2081666 truncnorm -Inf  Inf</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3:    1   12 Sepal.Length      &lt;NA&gt;   NA 7.600000 0.1732051 truncnorm -Inf  Inf</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4:    1   12  Sepal.Width      &lt;NA&gt;   NA 2.733333 0.1154701 truncnorm -Inf 2.85</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5:    1   12      Species virginica    1       NA        NA  multinom -Inf  Inf</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6:    1   20 Petal.Length      &lt;NA&gt;   NA 4.933333 0.3881580 truncnorm -Inf 5.55</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     cvg</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1: 0.02</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2: 0.02</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3: 0.02</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4: 0.02</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5: 0.02</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6: 0.04</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
