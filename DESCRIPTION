@@ -25,7 +25,8 @@ Description: Adversarial random forests (ARFs) recursively partition data into
     speed, flexibility, and solid performance with default parameters. For 
     details, see Watson et al. (2022) <arXiv:2205.09435>.
 License: GPL (>=3)
-URL: https://github.com/bips-hb/arf
+URL: https://github.com/bips-hb/arf,
+    https://bips-hb.github.io/arf/
 BugReports: https://github.com/bips-hb/arf/issues
 Imports:
     data.table,
