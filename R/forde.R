@@ -25,20 +25,21 @@
 #' distribution parameters for data within each leaf. The former includes 
 #' coverage (proportion of data falling into the leaf) and split criteria. The 
 #' latter includes proportions for categorical features and mean/variance for
-#' continuous features. These values are stored in a \code{data.table} called
-#' \code{psi}, which can be passed onto \code{\link{forge}} for data synthesis. 
-#' They are also used to compute log-likelihoods for \code{x_trn} or \code{x_tst} 
-#' if \code{loglik = TRUE}.
+#' continuous features. These values are stored in a \code{data.table}, which 
+#' can be used as input to various other functions.
 #' 
-#' Currently, \code{forde} only provides support for truncated normal or uniform
-#' densities when features are continuous. Future releases will accommodate 
-#' a larger class of distributional families.
+#' Currently, \code{forde} only provides support for a limited number of 
+#' distributional families: truncated normal or uniform for continuous data,
+#' and multinomial for discrete data. Future releases will accommodate a larger 
+#' class of options.
 #' 
 #' Though \code{forde} was designed to take an adversarial random forest as 
-#' input, \code{arf} can in principle be any object of class \code{ranger}. This
-#' allows users to test performance with alternative pipelines (e.g., with 
-#' supervised forest input). There is also no requirement that \code{x_trn} be 
-#' the data used to fit \code{arf}.
+#' input, the function's first argument can in principle be any object of class 
+#' \code{ranger}. This allows users to test performance with alternative 
+#' pipelines (e.g., with supervised forest input). There is also no requirement 
+#' that \code{x} be the data used to fit \code{arf}, unless \code{oob = TRUE}. 
+#' In fact, using another dataset here may protect against overfitting. This 
+#' connects with Wager & Athey's (2018) notion of "honest trees".
 #' 
 #' 
 #' @return 
@@ -51,6 +52,10 @@
 #' Watson, D., Blesch, K., Kapar, J., & Wright, M. (2022). Adversarial random 
 #' forests for density estimation and generative modeling. \emph{arXiv} preprint,
 #' 2205.09435.
+#' 
+#' Wager, S. & Athey, S. (2018). Estimation and inference of heterogeneous 
+#' treatment effects using random forests. \emph{J. Am. Stat. Assoc.}, 
+#' \emph{113}(523): 1228-1242.
 #' 
 #' 
 #' @examples
@@ -82,10 +87,8 @@ forde <- function(
   tree <- n_oob <- cvg <- leaf <- variable <- count <- sd <- value <- . <- NULL
   
   # Prelimz
-  if (isTRUE(oob)) {
-    if (!nrow(x) %in% c(arf$num.samples, arf$num.samples/2)) {
-      stop('Forest must be trained on x when oob = TRUE.')
-    }
+  if (isTRUE(oob) & !nrow(x) %in% c(arf$num.samples, arf$num.samples/2)) {
+    stop('Forest must be trained on x when oob = TRUE.')
   }
   if (!family %in% c('truncnorm', 'unif')) {
     stop('family not recognized.')
