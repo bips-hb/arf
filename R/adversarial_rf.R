@@ -85,7 +85,7 @@ adversarial_rf <- function(
   # To avoid data.table check issues
   i <- . <- NULL
 
-  # Prelimz
+  # Prep data
   x_real <- as.data.frame(x)
   n <- nrow(x_real)
   idx_char <- sapply(x_real, is.character)
