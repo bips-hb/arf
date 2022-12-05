@@ -78,7 +78,10 @@ forde <- function(
     epsilon = 0.1, 
     parallel = TRUE) {
   
-  # Prelimz=
+  # To avoid data.table check issues
+  tree <- n_oob <- cvg <- leaf <- variable <- count <- NULL
+  
+  # Prelimz
   if (isTRUE(oob)) {
     if (!nrow(x) %in% c(arf$num.samples, arf$num.samples/2)) {
       stop('Forest must be trained on x when oob = TRUE.')

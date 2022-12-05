@@ -68,6 +68,7 @@
 #' @export
 #' @import ranger 
 #' @import data.table
+#' @importFrom stats predict
 #' @importFrom foreach foreach %do% %dopar%
 #'
 
@@ -81,6 +82,9 @@ adversarial_rf <- function(
     parallel = TRUE,
     ...) {
   
+  # To avoid data.table check issues
+  i <- NULL
+
   # Prelimz
   x_real <- as.data.frame(x)
   n <- nrow(x_real)

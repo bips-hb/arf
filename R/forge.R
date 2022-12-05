@@ -48,6 +48,9 @@ forge <- function(
     n_synth, 
     parallel = TRUE) {
   
+  # To avoid data.table check issues
+  tree <- cvg <- leaf <- idx <- family <- mu <- sigma <- prob <- NULL
+  
   # Draw random leaves with probability proportional to coverage
   num_trees <- params[, max(tree)]
   omega <- unique(params[, .(tree, leaf, cvg)])[, idx := .I]
