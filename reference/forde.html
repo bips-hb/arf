@@ -142,24 +142,24 @@ forests for density estimation and generative modeling. <em>arXiv</em> preprint,
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">arf</span> <span class="op">&lt;-</span> <span class="fu"><a href="adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">iris</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 0, Accuracy: 85.86%</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 1, Accuracy: 37.41%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 0, Accuracy: 89.9%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 1, Accuracy: 38.1%</span>
 <span class="r-in"><span><span class="va">psi</span> <span class="op">&lt;-</span> <span class="fu">forde</span><span class="op">(</span><span class="va">arf</span>, <span class="va">iris</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">psi</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    tree leaf     variable       cat prob       mu     sigma    family  min  max</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1:    1   12 Petal.Length      &lt;NA&gt;   NA 6.566667 0.4163332 truncnorm -Inf  Inf</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2:    1   12  Petal.Width      &lt;NA&gt;   NA 2.066667 0.2081666 truncnorm -Inf  Inf</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3:    1   12 Sepal.Length      &lt;NA&gt;   NA 7.600000 0.1732051 truncnorm -Inf  Inf</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4:    1   12  Sepal.Width      &lt;NA&gt;   NA 2.733333 0.1154701 truncnorm -Inf 2.85</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5:    1   12      Species virginica    1       NA        NA  multinom -Inf  Inf</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6:    1   20 Petal.Length      &lt;NA&gt;   NA 4.933333 0.3881580 truncnorm -Inf 5.55</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>     cvg</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1: 0.02</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2: 0.02</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3: 0.02</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4: 0.02</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5: 0.02</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6: 0.04</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    tree leaf     variable    cat prob       mu      sigma    family  min max</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1:    1   11 Petal.Length   &lt;NA&gt;   NA 1.350000 0.21213203 truncnorm -Inf Inf</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2:    1   11  Petal.Width   &lt;NA&gt;   NA 0.300000 0.14142136 truncnorm -Inf Inf</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3:    1   11 Sepal.Length   &lt;NA&gt;   NA 5.750000 0.07071068 truncnorm -Inf Inf</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4:    1   11  Sepal.Width   &lt;NA&gt;   NA 4.200000 0.28284271 truncnorm -Inf Inf</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5:    1   11      Species setosa    1       NA         NA  multinom -Inf Inf</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6:    1   12 Petal.Length   &lt;NA&gt;   NA 1.766667 0.10327956 truncnorm -Inf Inf</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>           cvg</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1: 0.01333333</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2: 0.01333333</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3: 0.01333333</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4: 0.01333333</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5: 0.01333333</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6: 0.04000000</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>

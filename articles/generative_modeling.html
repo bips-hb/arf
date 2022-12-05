@@ -82,22 +82,22 @@
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/bips-hb/arf" class="external-link">arf</a></span><span class="op">)</span></span></code></pre></div>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">arf</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">iris</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Iteration: 0, Accuracy: 84.12%</span></span>
+<span><span class="co">#&gt; Iteration: 0, Accuracy: 87.84%</span></span>
 <span><span class="co">#&gt; Warning: executing %dopar% sequentially: no parallel backend registered</span></span>
-<span><span class="co">#&gt; Iteration: 1, Accuracy: 39.6%</span></span>
+<span><span class="co">#&gt; Iteration: 1, Accuracy: 46.28%</span></span>
 <span><span class="va">psi</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/forde.html">forde</a></span><span class="op">(</span><span class="va">arf</span>, <span class="va">iris</span><span class="op">)</span></span>
 <span><span class="fu"><a href="../reference/forge.html">forge</a></span><span class="op">(</span><span class="va">psi</span>, <span class="fl">10</span><span class="op">)</span></span>
 <span><span class="co">#&gt;     Petal.Length Petal.Width Sepal.Length Sepal.Width    Species</span></span>
-<span><span class="co">#&gt;  1:     1.318198  0.25869453     4.504421    2.485732     setosa</span></span>
-<span><span class="co">#&gt;  2:     1.382796  0.15846235     5.214372    3.497319     setosa</span></span>
-<span><span class="co">#&gt;  3:     3.963738  1.27582896     5.294522    2.476046 versicolor</span></span>
-<span><span class="co">#&gt;  4:     4.902972  1.35806551     5.979429    2.800000 versicolor</span></span>
-<span><span class="co">#&gt;  5:     1.216977  0.12415606     5.002035    2.777663     setosa</span></span>
-<span><span class="co">#&gt;  6:     5.100000  2.33457389     5.800000    2.679485  virginica</span></span>
-<span><span class="co">#&gt;  7:     4.624491  1.83038377     6.418671    2.700000  virginica</span></span>
-<span><span class="co">#&gt;  8:     1.755660  0.33750961     5.490678    4.117737     setosa</span></span>
-<span><span class="co">#&gt;  9:     1.461608  0.16951823     5.272465    3.243260     setosa</span></span>
-<span><span class="co">#&gt; 10:     1.353629  0.09901146     4.826543    3.787588     setosa</span></span></code></pre></div>
+<span><span class="co">#&gt;  1:     4.000000   1.6394109     5.840324    2.328110 versicolor</span></span>
+<span><span class="co">#&gt;  2:     4.756087   1.3834529     5.910397    2.568873 versicolor</span></span>
+<span><span class="co">#&gt;  3:     5.105373   1.9770624     6.368764    3.123758  virginica</span></span>
+<span><span class="co">#&gt;  4:     3.420900   1.0220113     5.124981    2.592223 versicolor</span></span>
+<span><span class="co">#&gt;  5:     4.702529   1.2762699     5.778020    2.652686 versicolor</span></span>
+<span><span class="co">#&gt;  6:     1.345819   0.2429706     4.382329    2.672406     setosa</span></span>
+<span><span class="co">#&gt;  7:     5.752514   2.2668504     6.801733    3.207037  virginica</span></span>
+<span><span class="co">#&gt;  8:     1.454145   0.4774013     4.880763    3.852448     setosa</span></span>
+<span><span class="co">#&gt;  9:     5.824875   2.0749834     6.491493    2.987648  virginica</span></span>
+<span><span class="co">#&gt; 10:     3.876335   1.3905738     5.659218    2.881966 versicolor</span></span></code></pre></div>
   </main>
 </div>
 
