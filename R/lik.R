@@ -64,7 +64,7 @@ lik <- function(
     parallel = TRUE) {
   
   # To avoid data.table check issues
-  tree <- cvg <- leaf <- variable <- num_trees <- mu <- sigma <- value <- obs <- prob <- V1 <- loglik <- family <- fold <- . <- NULL
+  tree <- cvg <- leaf <- variable <- mu <- sigma <- value <- obs <- prob <- V1 <- loglik <- family <- fold <- . <- NULL
   
   # Prelimz
   x <- as.data.frame(x)
@@ -102,6 +102,7 @@ lik <- function(
   batch_idx <- suppressWarnings(split(1:n, seq_len(k)))
   
   # Likelihood function
+  num_trees <- arf$num.trees
   lik_fn <- function(fold) {
     params_x_cnt <- params_x_cat <- NULL
     # Predictions
