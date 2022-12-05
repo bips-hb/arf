@@ -64,7 +64,7 @@ lik <- function(
     parallel = TRUE) {
   
   # To avoid data.table check issues
-  tree <- cvg <- leaf <- variable <- mu <- sigma <- value <- obs <- prob <- V1 <- loglik <- family <- fold <- . <- NULL
+  tree <- cvg <- leaf <- variable <- mu <- sigma <- value <- obs <- prob <- V1 <- family <- fold <- . <- NULL
   
   # Prelimz
   x <- as.data.frame(x)
@@ -154,9 +154,9 @@ lik <- function(
     lik <- unique(params_x[, prod(lik) * cvg, by = .(obs, tree)])
     lik[is.na(V1), V1 := 0]
     if (isTRUE(log)) {
-      out <- loglik[, log(mean(V1)), by = obs]
+      out <- lik[, log(mean(V1)), by = obs]
     } else {
-      out <- loglik[, mean(V1), by = obs]
+      out <- lik[, mean(V1), by = obs]
     }
     return(out)
   }
