@@ -13,7 +13,7 @@ Adversarial random forests (ARFs) recursively partition data into fully factoriz
 To install the development version from GitHub using `devtools`, run
 
 ```R
-devtools::install_github("bips-hb/cpi")
+devtools::install_github("bips-hb/arf")
 ```
 
 ### Examples
