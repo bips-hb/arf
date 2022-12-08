@@ -60,6 +60,7 @@ forge <- function(
   # Simulate data
   synth_cnt <- synth_cat <- NULL
   if (!is.null(params$cnt)) {
+    fam <- params$meta[family != 'multinom', unique(family)]
     psi <- merge(omega, params$cnt, by = 'f_idx', sort = FALSE, allow.cartesian = TRUE)
     if (fam == 'truncnorm') {
       psi[, dat := truncnorm::rtruncnorm(.N, a = min, b = max, mean = mu, sd = sigma)]
