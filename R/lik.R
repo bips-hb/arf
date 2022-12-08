@@ -2,13 +2,13 @@
 #' 
 #' Compute the density of input data.
 #' 
-#' @param arf Pre-trained adversarial random forest. Alternatively, any object
-#'   of class \code{ranger}.
-#' @param params Parameters learned via \code{forde}. 
-#' @param x Input data. Function outputs densities for each sample.
+#' @param arf Pre-trained \code{\link{adversarial_rf}}. Alternatively, any 
+#'   object of class \code{ranger}.
+#' @param params Parameters learned via \code{\link{forde}}. 
+#' @param x Input data. Densities will be computed for each sample.
 #' @param oob Only use out-of-bag leaves for likelihood estimation? If 
-#'   \code{TRUE}, \code{x} must be the same dataset used to train \code{rf}.
-#' @param log Return likelihoods on log scale?
+#'   \code{TRUE}, \code{x} must be the same dataset used to train \code{arf}.
+#' @param log Return likelihoods on log scale? Recommended to prevent underflow.
 #' @param batch Batch size. The default is to compute densities for all of 
 #'   \code{x} in one round, which is always the fastest option if memory allows. 
 #'   However, with large samples or many trees, it can be more memory efficient 
@@ -22,7 +22,7 @@
 #' using a pre-trained ARF. Each sample's likelihood is a weighted average of 
 #' its likelihood in all leaves whose split criteria it satisfies. Intra-leaf
 #' densities are fully factorized, since ARFs satisfy the local independence
-#' criterion by construction.
+#' criterion by construction. See Watson et al. (2022).
 #' 
 #' 
 #' @return 
@@ -52,6 +52,7 @@
 #' @import data.table
 #' @importFrom foreach foreach %do% %dopar%
 #' @importFrom truncnorm dtruncnorm 
+#' @importFrom matrixStats logSumExp
 #' 
 
 lik <- function(
@@ -66,7 +67,7 @@ lik <- function(
   # To avoid data.table check issues
   tree <- cvg <- leaf <- variable <- mu <- sigma <- value <- obs <- prob <- V1 <- family <- fold <- . <- NULL
   
-  # Prelimz
+  # Prep data
   x <- as.data.frame(x)
   n <- nrow(x)
   idx_char <- sapply(x, is.character)
@@ -81,9 +82,9 @@ lik <- function(
       lapply(x[, idx_logical, drop = FALSE], as.factor)
     )
   }
-  idx_intgr <- sapply(x, is.integer)
-  if (any(idx_intgr)) {
-    for (j in which(idx_intgr)) {
+  idx_integer <- sapply(x, is.integer)
+  if (any(idx_integer)) {
+    for (j in which(idx_integer)) {
       lvls <- sort(unique(x[, j]))
       x[, j] <- factor(x[, j], levels = lvls, ordered = TRUE)
     }
@@ -103,6 +104,7 @@ lik <- function(
   
   # Likelihood function
   num_trees <- arf$num.trees
+  fams <- params$meta$family
   lik_fn <- function(fold) {
     params_x_cnt <- params_x_cat <- NULL
     # Predictions
@@ -112,51 +114,55 @@ lik <- function(
     if (isTRUE(oob)) {
       preds <- preds[!is.na(leaf)]
     }
+    preds <- merge(preds, params$forest, by = c('tree', 'leaf'), sort = FALSE)
+    preds[, leaf := NULL]
     # Continuous data
-    if (any(!factor_cols)) {
+    if (!is.null(params$cnt)) {
+      fam <- params$meta[family != 'multinom', unique(family)]
       x_long_cnt <- melt(
         data.table(obs = batch_idx[[fold]], 
                    x[batch_idx[[fold]], !factor_cols, drop = FALSE]), 
         id.vars = 'obs', variable.factor = FALSE
       )
-      preds_x_cnt <- merge(preds, x_long_cnt, by = 'obs', sort = FALSE, allow.cartesian = TRUE)
-      params_x_cnt <- merge(params[family != 'multinom', .(tree, leaf, cvg, variable, min, max, mu, sigma)], 
-                            preds_x_cnt, by = c('tree', 'leaf', 'variable'), sort = FALSE)
-      family <- unique(params[family != "multinom", family])
-      if (family == 'truncnorm') {
+      preds_x_cnt <- merge(preds, x_long_cnt, by = 'obs', sort = FALSE, 
+                           allow.cartesian = TRUE)
+      params_x_cnt <- merge(params$cnt, preds_x_cnt, 
+                            by = c('f_idx', 'variable'), sort = FALSE)
+      if (fam == 'truncnorm') {
         params_x_cnt[, lik := truncnorm::dtruncnorm(value, a = min, b = max, mean = mu, sd = sigma)]
-      } else if (family == 'unif') {
+      } else if (fam == 'unif') {
         params_x_cnt[, lik := stats::dunif(value, min = min, max = max)]
-      } 
+      }
       params_x_cnt <- params_x_cnt[, .(tree, obs, cvg, lik)]
       rm(x_long_cnt, preds_x_cnt)
     }
     # Categorical data
-    if (any(factor_cols)) {
+    if ('multinom' %in% fams) {
       x_long_cat <- melt(
         data.table(obs = batch_idx[[fold]], 
                    x[batch_idx[[fold]], factor_cols, drop = FALSE]), 
-        id.vars = 'obs', value.name = 'cat', variable.factor = FALSE
+        id.vars = 'obs', value.name = 'val', variable.factor = FALSE
       )
-      preds_x_cat <- merge(preds, x_long_cat, by = 'obs', sort = FALSE, allow.cartesian = TRUE)
-      params_x_cat <- merge(params[family == 'multinom', .(tree, leaf, cvg, variable, cat, prob)], 
-                            preds_x_cat, by = c('tree', 'leaf', 'variable', 'cat'), 
+      preds_x_cat <- merge(preds, x_long_cat, by = 'obs', sort = FALSE, 
+                           allow.cartesian = TRUE)
+      params_x_cat <- merge(params$cat, preds_x_cat, 
+                            by = c('f_idx', 'variable', 'val'), 
                             sort = FALSE, allow.cartesian = TRUE)
       params_x_cat[, lik := prob]
       params_x_cat <- params_x_cat[, .(tree, obs, cvg, lik)]
       rm(x_long_cat, preds_x_cat)
-    } 
+    }
     rm(preds)
     # Put it together
     params_x <- rbind(params_x_cnt, params_x_cat)
     rm(params_x_cnt, params_x_cat)
-    # Compute per-sample log-likelihoods
-    lik <- unique(params_x[, prod(lik) * cvg, by = .(obs, tree)])
+    # Compute per-sample likelihoods
+    lik <- unique(params_x[, sum(log(lik)) + log(cvg), by = .(obs, tree)])
     lik[is.na(V1), V1 := 0]
     if (isTRUE(log)) {
-      out <- lik[, log(mean(V1)), by = obs]
+      out <- lik[, -log(.N) + matrixStats::logSumExp(V1), by = obs]
     } else {
-      out <- lik[, mean(V1), by = obs]
+      out <- lik[, mean(exp(V1)), by = obs]
     }
     return(out)
   }

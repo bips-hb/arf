@@ -7,17 +7,17 @@
 lik(arf, params, x, oob = FALSE, log = TRUE, batch = NULL, parallel = TRUE)
 }
 \arguments{
-\item{arf}{Pre-trained adversarial random forest. Alternatively, any object
-of class \code{ranger}.}
+\item{arf}{Pre-trained \code{\link{adversarial_rf}}. Alternatively, any
+object of class \code{ranger}.}
 
-\item{params}{Parameters learned via \code{forde}.}
+\item{params}{Parameters learned via \code{\link{forde}}.}
 
-\item{x}{Input data. Function outputs densities for each sample.}
+\item{x}{Input data. Densities will be computed for each sample.}
 
 \item{oob}{Only use out-of-bag leaves for likelihood estimation? If
-\code{TRUE}, \code{x} must be the same dataset used to train \code{rf}.}
+\code{TRUE}, \code{x} must be the same dataset used to train \code{arf}.}
 
-\item{log}{Return likelihoods on log scale?}
+\item{log}{Return likelihoods on log scale? Recommended to prevent underflow.}
 
 \item{batch}{Batch size. The default is to compute densities for all of
 \code{x} in one round, which is always the fastest option if memory allows.
@@ -38,7 +38,7 @@ This function computes the density of input data according to a FORDE model
 using a pre-trained ARF. Each sample's likelihood is a weighted average of
 its likelihood in all leaves whose split criteria it satisfies. Intra-leaf
 densities are fully factorized, since ARFs satisfy the local independence
-criterion by construction.
+criterion by construction. See Watson et al. (2022).
 }
 \examples{
 # Estimate average log-likelihood
