@@ -2,7 +2,7 @@
 #' 
 #' Uses pre-trained FORDE model to simulate synthetic data.
 #' 
-#' @param params Parameters learned via \code{forde}. 
+#' @param params Parameters learned via \code{\link{forde}}. 
 #' @param n_synth Number of synthetic samples to generate.
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
 #'   via \code{doParallel}.
@@ -12,14 +12,12 @@
 #' leaves are sampled in proportion to their coverage. Then, each feature is
 #' sampled independently within each leaf according to the probability mass or
 #' density function learned by \code{\link{forde}}. This will create realistic
-#' data so long as the random forest used in the previous step satisfies the 
-#' local independence criterion. 
+#' data so long as the adversarial RF used in the previous step satisfies the 
+#' local independence criterion. See Watson et al. (2022).
 #' 
 #' 
 #' @return  
-#' A dataset of \code{n_synth} synthetic samples. Because continuous and 
-#' categorical features are treated separately, columns may not be in the same
-#' order as the input data passed to \code{adversarial_rf}.
+#' A dataset of \code{n_synth} synthetic samples. 
 #' 
 #' 
 #' @references 
@@ -32,6 +30,7 @@
 #' arf <- adversarial_rf(iris)
 #' psi <- forde(arf, iris)
 #' x_synth <- forge(psi, n_synth = 100)
+#'
 #'
 #' @seealso
 #' \code{\link{adversarial_rf}}, \code{\link{forde}}
@@ -52,48 +51,61 @@ forge <- function(
   tree <- cvg <- leaf <- idx <- family <- mu <- sigma <- prob <- dat <- variable <- j <- . <- NULL
   
   # Draw random leaves with probability proportional to coverage
-  num_trees <- params[, max(tree)]
-  omega <- unique(params[, .(tree, leaf, cvg)])[, idx := .I]
-  draws <- data.table('idx' = sample(omega$idx, size = n_synth, replace = TRUE, 
-                                     prob = omega$cvg / num_trees))
+  omega <- params$forest
+  draws <- data.table(
+    'f_idx' = omega[, sample(f_idx, size = n_synth, replace = TRUE, prob = cvg)]
+  )
   omega <- merge(draws, omega, sort = FALSE)[, idx := .I]
-  params_idx <- merge(omega, params, by = c('tree', 'leaf', 'cvg'), sort = FALSE, 
-                      allow.cartesian = TRUE)
   
   # Simulate data
   synth_cnt <- synth_cat <- NULL
-  if (params[family != 'multinom', .N > 0L]) {  # Continuous
-    params_cnt <- params_idx[family != 'multinom']
-    fams <- params_cnt[, unique(family)]
-    if ('truncnorm' %in% fams) {
-      params_cnt[family == 'truncnorm', 
-                 dat := truncnorm::rtruncnorm(.N, a = min, b = max, mean = mu, sd = sigma)]
-    } 
-    if ('unif' %in% fams) {
-      params_cnt[family == 'unif', dat := stats::runif(.N, min = min, max = max)]
+  if (!is.null(params$cnt)) {
+    psi <- merge(omega, params$cnt, by = 'f_idx', sort = FALSE, allow.cartesian = TRUE)
+    if (fam == 'truncnorm') {
+      psi[, dat := truncnorm::rtruncnorm(.N, a = min, b = max, mean = mu, sd = sigma)]
+    } else if (fam == 'unif') {
+      psi[, dat := stats::runif(.N, min = min, max = max)]
     }
-    synth_cnt <- dcast(params_cnt, idx ~ variable, value.var = 'dat')
-    synth_cnt[, idx := NULL]
+    synth_cnt <- dcast(psi, idx ~ variable, value.var = 'dat')[, idx := NULL]
   }
-  if (params[family == 'multinom', .N > 0L]) {  # Categorical
-    params_idx[prob == 1, dat := cat]
-    synth_cat_fn <- function(j) {
-      params_j <- params_idx[variable == j]
-      params_j[prob < 1, dat := sample(cat, 1, prob = prob), by = idx]
-      out <- data.table(unique(params_j[, .(idx, dat)])[, dat])
-      colnames(out) <- j
-      return(out)
+  if (!is.null(params$cat)) {
+    sim_cat <- function(j) {
+      psi <- merge(omega, params$cat[variable == j], by = 'f_idx', sort = FALSE, 
+                   allow.cartesian = TRUE)
+      psi[prob == 1, dat := val]
+      psi[prob < 1, dat := sample(val, 1, prob = prob), by = idx]
+      setnames(data.table(unique(psi[, .(idx, dat)])[, dat]), j)
     }
-    cat_vars <- params[family == 'multinom', unique(variable)]
-    if (isTRUE(parallel) & length(cat_vars) > 1) {
-      synth_cat <- foreach(j = cat_vars, .combine = cbind) %dopar% synth_cat_fn(j)
+    cat_vars <- params$meta[family == 'multinom', variable]
+    if (isTRUE(parallel)) {
+      synth_cat <- foreach(j = cat_vars, .combine = cbind) %dopar% sim_cat(j)
     } else {
-      synth_cat <- foreach(j = cat_vars, .combine = cbind) %do% synth_cat_fn(j)
+      synth_cat <- foreach(j = cat_vars, .combine = cbind) %do% sim_cat(j)
     }
   }
   
-  # Export
+  # Clean up, export
   x_synth <- cbind(synth_cnt, synth_cat)
+  setcolorder(x_synth, params$meta$variable)
+  setDF(x_synth)
+  idx_char <- params$meta[, which(class == 'character')]
+  idx_logical <- params$meta[, which(class == 'logical')]
+  idx_integer <- params$meta[, which(class == 'integer')]
+  if (sum(idx_char) > 0L) {
+    x_synth[, idx_char] <- as.data.frame(
+      lapply(x_synth[, idx_char, drop = FALSE], as.character)
+    )
+  }
+  if (sum(idx_logical) > 0L) {
+    x_synth[, idx_logical] <- as.data.frame(
+      lapply(x_synth[, idx_logical, drop = FALSE], function(x) {x == "TRUE"})
+    )
+  }
+  if (sum(idx_integer) > 0L) {
+    x_synth[, idx_integer] <- as.data.frame(
+      lapply(x_synth[, idx_integer, drop = FALSE], function(x) as.integer(levels(x))[x]) 
+    )
+  }
   return(x_synth)
 }
 

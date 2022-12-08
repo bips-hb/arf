@@ -7,7 +7,7 @@
 forge(params, n_synth, parallel = TRUE)
 }
 \arguments{
-\item{params}{Parameters learned via \code{forde}.}
+\item{params}{Parameters learned via \code{\link{forde}}.}
 
 \item{n_synth}{Number of synthetic samples to generate.}
 
@@ -15,9 +15,7 @@ forge(params, n_synth, parallel = TRUE)
 via \code{doParallel}.}
 }
 \value{
-A dataset of \code{n_synth} synthetic samples. Because continuous and
-categorical features are treated separately, columns may not be in the same
-order as the input data passed to \code{adversarial_rf}.
+A dataset of \code{n_synth} synthetic samples.
 }
 \description{
 Uses pre-trained FORDE model to simulate synthetic data.
@@ -27,13 +25,14 @@ Uses pre-trained FORDE model to simulate synthetic data.
 leaves are sampled in proportion to their coverage. Then, each feature is
 sampled independently within each leaf according to the probability mass or
 density function learned by \code{\link{forde}}. This will create realistic
-data so long as the random forest used in the previous step satisfies the
-local independence criterion.
+data so long as the adversarial RF used in the previous step satisfies the
+local independence criterion. See Watson et al. (2022).
 }
 \examples{
 arf <- adversarial_rf(iris)
 psi <- forde(arf, iris)
 x_synth <- forge(psi, n_synth = 100)
+
 
 }
 \references{
