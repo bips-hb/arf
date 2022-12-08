@@ -61,7 +61,7 @@
     <div class="section level2">
     <h2 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h2>
     <dl><dt>params</dt>
-<dd><p>Parameters learned via <code>forde</code>.</p></dd>
+<dd><p>Parameters learned via <code><a href="forde.html">forde</a></code>.</p></dd>
 
 
 <dt>n_synth</dt>
@@ -77,9 +77,7 @@ via <code>doParallel</code>.</p></dd>
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     
 
-<p>A dataset of <code>n_synth</code> synthetic samples. Because continuous and
-categorical features are treated separately, columns may not be in the same
-order as the input data passed to <code>adversarial_rf</code>.</p>
+<p>A dataset of <code>n_synth</code> synthetic samples.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -87,8 +85,8 @@ order as the input data passed to <code>adversarial_rf</code>.</p>
 leaves are sampled in proportion to their coverage. Then, each feature is
 sampled independently within each leaf according to the probability mass or
 density function learned by <code><a href="forde.html">forde</a></code>. This will create realistic
-data so long as the random forest used in the previous step satisfies the
-local independence criterion.</p>
+data so long as the adversarial RF used in the previous step satisfies the
+local independence criterion. See Watson et al. (2022).</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
@@ -104,11 +102,11 @@ forests for density estimation and generative modeling. <em>arXiv</em> preprint,
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">arf</span> <span class="op">&lt;-</span> <span class="fu"><a href="adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">iris</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 0, Accuracy: 84.12%</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 1, Accuracy: 51.01%</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 2, Accuracy: 42.09%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 0, Accuracy: 89.19%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 1, Accuracy: 41.61%</span>
 <span class="r-in"><span><span class="va">psi</span> <span class="op">&lt;-</span> <span class="fu"><a href="forde.html">forde</a></span><span class="op">(</span><span class="va">arf</span>, <span class="va">iris</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">x_synth</span> <span class="op">&lt;-</span> <span class="fu">forge</span><span class="op">(</span><span class="va">psi</span>, n_synth <span class="op">=</span> <span class="fl">100</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
     </div>

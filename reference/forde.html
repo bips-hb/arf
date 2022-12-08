@@ -68,8 +68,8 @@
     <div class="section level2">
     <h2 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h2>
     <dl><dt>arf</dt>
-<dd><p>Pre-trained adversarial random forest. Alternatively, any object
-of class <code>ranger</code>.</p></dd>
+<dd><p>Pre-trained <code><a href="adversarial_rf.html">adversarial_rf</a></code>. Alternatively, any
+object of class <code>ranger</code>.</p></dd>
 
 
 <dt>x</dt>
@@ -105,9 +105,10 @@ via <code>doParallel</code>.</p></dd>
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     
 
-<p>A <code>data.table</code> with leaf and distribution parameters for each feature.
-These are used for estimating likelihoods with <code><a href="lik.html">lik</a></code> and
-generating data with <code><a href="forge.html">forge</a></code>.</p>
+<p>A <code>list</code> with 4 elements: (1) parameters for continuous data; (2)
+parameters for discrete data; (3) leaf indices and coverage; and (4) metadata
+on variables. This list is used for estimating likelihoods with
+<code><a href="lik.html">lik</a></code> and generating data with <code><a href="forge.html">forge</a></code>.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -120,7 +121,7 @@ can be used as input to various other functions.</p>
 <p>Currently, <code>forde</code> only provides support for a limited number of
 distributional families: truncated normal or uniform for continuous data,
 and multinomial for discrete data. Future releases will accommodate a larger
-class of options.</p>
+set of options.</p>
 <p>Though <code>forde</code> was designed to take an adversarial random forest as
 input, the function's first argument can in principle be any object of class
 <code>ranger</code>. This allows users to test performance with alternative
@@ -146,24 +147,60 @@ treatment effects using random forests. <em>J. Am. Stat. Assoc.</em>,
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">arf</span> <span class="op">&lt;-</span> <span class="fu"><a href="adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">iris</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 0, Accuracy: 87.41%</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 1, Accuracy: 44.59%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 0, Accuracy: 82.27%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 1, Accuracy: 41.16%</span>
 <span class="r-in"><span><span class="va">psi</span> <span class="op">&lt;-</span> <span class="fu">forde</span><span class="op">(</span><span class="va">arf</span>, <span class="va">iris</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">psi</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    tree leaf     variable    cat prob    mu      sigma    family  min  max</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1:    1    2 Petal.Length   &lt;NA&gt;   NA 1.125 0.09574271 truncnorm -Inf 1.25</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2:    1    2  Petal.Width   &lt;NA&gt;   NA 0.175 0.05000000 truncnorm -Inf  Inf</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3:    1    2 Sepal.Length   &lt;NA&gt;   NA 4.925 0.65000000 truncnorm -Inf  Inf</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4:    1    2  Sepal.Width   &lt;NA&gt;   NA 3.450 0.44347116 truncnorm -Inf  Inf</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5:    1    2      Species setosa    1    NA         NA  multinom -Inf  Inf</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6:    1   15 Petal.Length   &lt;NA&gt;   NA 6.550 0.21213203 truncnorm -Inf  Inf</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>           cvg</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1: 0.02666667</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2: 0.02666667</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3: 0.02666667</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4: 0.02666667</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5: 0.02666667</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6: 0.01333333</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $cnt</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>          variable       mu      sigma  min  max f_idx</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   1: Sepal.Length 5.304348 0.21632942 5.05 5.75    20</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   2: Sepal.Length 4.906250 0.08539126 4.75 5.05    18</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   3: Sepal.Length 4.700000 0.00000000 4.65 4.75     8</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   4: Sepal.Length 4.488889 0.11666667 -Inf  Inf    13</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   5: Sepal.Length 5.340000 0.34351128 -Inf  Inf    11</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  ---                                                 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 736:  Petal.Width 1.500000 0.00000000 -Inf  Inf   177</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 737:  Petal.Width 1.750000 0.22038927 1.35  Inf   182</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 738:  Petal.Width 1.933333 0.30550505 1.35 2.25   180</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 739:  Petal.Width 1.250000 0.07071068 -Inf  Inf   176</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 740:  Petal.Width 2.400000 0.10000000 2.25  Inf   181</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $cat</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      variable       val count      prob f_idx</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   1:  Species    setosa    23 0.8260870    20</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   2:  Species    setosa    16 0.9375000    18</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   3:  Species    setosa     2 1.0000000     8</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   4:  Species    setosa     9 1.0000000    13</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   5:  Species    setosa     5 1.0000000    11</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  ---                                         </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 228:  Species virginica     3 1.0000000   181</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 229:  Species virginica     8 0.5000000   183</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 230:  Species virginica     3 0.6666667   180</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 231:  Species virginica     2 0.5000000   177</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 232:  Species virginica     3 0.3333333   184</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $forest</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      f_idx tree leaf        cvg</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   1:     1    1   15 0.02000000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   2:     2    1   34 0.06666667</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   3:     3    1   37 0.01333333</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   4:     4    1   39 0.11333333</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   5:     5    1   46 0.01333333</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  ---                           </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 181:   181   10   63 0.02000000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 182:   182   10   64 0.05333333</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 183:   183   10   66 0.05333333</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 184:   184   10   70 0.02000000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 185:   185   10   72 0.03333333</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $meta</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>        variable   class    family</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1: Sepal.Length numeric truncnorm</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2:  Sepal.Width numeric truncnorm</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3: Petal.Length numeric truncnorm</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4:  Petal.Width numeric truncnorm</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5:      Species  factor  multinom</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
