@@ -1,7 +1,12 @@
+# Allow arbitrary queries for total evidence, marginals, MAP, etc.
+# e.g. p(x1), p(x1, x2), p(x1 | x2). Problem: need to accommodate both
+# equalities and inequalities on either side of the conditioning bar.
+# Also conjunctions and disjunctions.
+
+# Add conditional sampling option to forge
+
 # Other exponential family options, with normalization constant?
 
-# Either keep continuous/categorical psi separate or maybe allow different
-# distributions for each feature? Then psi would be a list with d elements.
 # Add KDE option?
 
 # Idea: let each tree have its own synthetic dataset?
@@ -13,9 +18,4 @@
 
 # Fully adversarial with alternating rounds at each node?
 
-# Allow arbitrary queries for total evidence, marginals, MAP, etc.
-# e.g. p(x1), p(x1, x2), p(x1 | x2). Problem: need to accommodate both
-# equalities and inequalities on either side of the conditioning bar.
-# Also conjunctions and disjunctions.
 
-# Add conditional sampling option to forge
