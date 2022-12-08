@@ -2,8 +2,8 @@
 #' 
 #' Uses a pre-trained ARF model to estimate leaf and distribution parameters.
 #' 
-#' @param arf Pre-trained adversarial random forest. Alternatively, any object
-#'   of class \code{ranger}.
+#' @param arf Pre-trained \code{\link{adversarial_rf}}. Alternatively, any 
+#'   object of class \code{ranger}.
 #' @param x Training data for estimating parameters.
 #' @param oob Only use out-of-bag samples for parameter estimation? If 
 #'   \code{TRUE}, \code{x} must be the same dataset used to train \code{arf}.
@@ -31,7 +31,7 @@
 #' Currently, \code{forde} only provides support for a limited number of 
 #' distributional families: truncated normal or uniform for continuous data,
 #' and multinomial for discrete data. Future releases will accommodate a larger 
-#' class of options.
+#' set of options.
 #' 
 #' Though \code{forde} was designed to take an adversarial random forest as 
 #' input, the function's first argument can in principle be any object of class 
@@ -43,9 +43,10 @@
 #' 
 #' 
 #' @return 
-#' A \code{data.table} with leaf and distribution parameters for each feature. 
-#' These are used for estimating likelihoods with \code{\link{lik}} and 
-#' generating data with \code{\link{forge}}.
+#' A \code{list} with 4 elements: (1) parameters for continuous data; (2) 
+#' parameters for discrete data; (3) leaf indices and coverage; and (4) metadata
+#' on variables. This list is used for estimating likelihoods with 
+#' \code{\link{lik}} and generating data with \code{\link{forge}}.
 #' 
 #' 
 #' @references 
@@ -98,6 +99,7 @@ forde <- function(
   x <- as.data.frame(x)
   n <- nrow(x)
   d <- ncol(x)
+  classes <- sapply(x, class)
   idx_char <- sapply(x, is.character)
   if (any(idx_char)) {
     x[, idx_char] <- as.data.frame(
@@ -110,11 +112,11 @@ forde <- function(
       lapply(x[, idx_logical, drop = FALSE], as.factor)
     )
   }
-  idx_intgr <- sapply(x, is.integer)
-  if (any(idx_intgr)) {
+  idx_integer <- sapply(x, is.integer)
+  if (any(idx_integer)) {
     warning('Recoding integer data as ordered factors. To override this behavior, ',
             'explicitly code these variables as numeric.')
-    for (j in which(idx_intgr)) {
+    for (j in which(idx_integer)) {
       lvls <- sort(unique(x[, j]))
       x[, j] <- factor(x[, j], levels = lvls, ordered = TRUE)
     }
@@ -175,8 +177,14 @@ forde <- function(
   if (any(!factor_cols)) {
     bnds[cvg == 1/n, cvg := 0]
   }
+  # No parameters to learn for zero coverage leaves
+  bnds <- bnds[cvg > 0]
+  # Create forest index
+  setkey(bnds, tree, leaf)
+  bnds[, f_idx := .GRP, by = key(bnds)]
   
-  # Calculate distribution parameters
+  # Calculate distribution parameters for each variable
+  fams <- ifelse(factor_cols, 'multinom', family)
   psi_cnt <- psi_cat <- NULL
   # Continuous case
   if (any(!factor_cols)) {
@@ -185,17 +193,14 @@ forde <- function(
       if (isTRUE(oob)) {
         dt <- dt[!is.na(leaf)]
       }
-      long <- melt(dt, id.vars = 'leaf', variable.factor = FALSE)
+      dt <- melt(dt, id.vars = 'leaf', variable.factor = FALSE)[, tree := tree]
       if (family == 'truncnorm') {
-        long[, list(cat = NA_character_, prob = NA_real_, 
-                    mu = mean(value), sigma = sd(value), 
-                    family = 'truncnorm', tree = tree), 
-             by = .(leaf, variable)]
-      } else if (family == 'unif') {
-        long[, list(tree = tree, cat = NA_character_, prob = NA_real_, 
-                    mu = NA_real_, sigma = NA_real_, family = 'unif'), 
-             by = .(leaf, variable)]
+        dt[, c('mu', 'sigma') := .(mean(value), sd(value)), by = .(leaf, variable)]
       }
+      dt <- unique(dt[, value := NULL])
+      dt <- merge(dt, bnds[, .(tree, leaf, variable, min, max, f_idx)],
+                  by = c('tree', 'leaf', 'variable'), sort = FALSE)
+      dt[, c('tree', 'leaf') := NULL]
     }
     if (isTRUE(parallel)) {
       psi_cnt <- foreach(tree = 1:num_trees, .combine = rbind) %dopar% psi_cnt_fn(tree)
@@ -210,24 +215,27 @@ forde <- function(
       if (isTRUE(oob)) {
         dt <- dt[!is.na(leaf)]
       }
-      long <- melt(dt, id.vars = 'leaf', variable.factor = FALSE,
-                   value.factor = FALSE, value.name = 'cat')
-      long[, count := .N, by = .(leaf, variable)]
-      unique(long[, list(prob = .N/count, mu = NA_real_, sigma = NA_real_, 
-                         family = 'multinom', tree = tree), 
-                  by = .(leaf, variable, cat)])
+      dt <- melt(dt, id.vars = 'leaf', variable.factor = FALSE,
+                 value.factor = FALSE, value.name = 'val')[, tree := tree]
+      dt[, count := .N, by = .(leaf, variable)]
+      dt <- unique(dt[, prob := .N/count, by = .(leaf, variable, val)])
+      dt <- merge(dt, bnds[, .(tree, leaf, variable, f_idx)],
+                  by = c('tree', 'leaf', 'variable'), sort = FALSE)
+      dt[, c('tree', 'leaf') := NULL]
     }
     if (isTRUE(parallel)) {
       psi_cat <- foreach(tree = 1:num_trees, .combine = rbind) %dopar% psi_cat_fn(tree)
     } else {
       psi_cat <- foreach(tree = 1:num_trees, .combine = rbind) %do% psi_cat_fn(tree)
     }
-  } 
-  psi_tmp <- rbind(psi_cnt, psi_cat)
-  psi <- merge(psi_tmp, bnds, by = c('tree', 'leaf', 'variable'))
-  rm(psi_cnt, psi_cat, psi_tmp)
+  }
   
-  # Export
+  # Add metadata, export
+  psi <- list(
+    'cnt' = psi_cnt, 'cat' = psi_cat, 
+    'forest' = unique(bnds[, .(f_idx, tree, leaf, cvg)]),
+    'meta' = data.table(variable = colnames(x), class = classes, family = fams)
+  )
   return(psi)
 }
 

@@ -14,8 +14,8 @@ forde(
 )
 }
 \arguments{
-\item{arf}{Pre-trained adversarial random forest. Alternatively, any object
-of class \code{ranger}.}
+\item{arf}{Pre-trained \code{\link{adversarial_rf}}. Alternatively, any
+object of class \code{ranger}.}
 
 \item{x}{Training data for estimating parameters.}
 
@@ -37,9 +37,10 @@ splitting.}
 via \code{doParallel}.}
 }
 \value{
-A \code{data.table} with leaf and distribution parameters for each feature.
-These are used for estimating likelihoods with \code{\link{lik}} and
-generating data with \code{\link{forge}}.
+A \code{list} with 4 elements: (1) parameters for continuous data; (2)
+parameters for discrete data; (3) leaf indices and coverage; and (4) metadata
+on variables. This list is used for estimating likelihoods with
+\code{\link{lik}} and generating data with \code{\link{forge}}.
 }
 \description{
 Uses a pre-trained ARF model to estimate leaf and distribution parameters.
@@ -55,7 +56,7 @@ can be used as input to various other functions.
 Currently, \code{forde} only provides support for a limited number of
 distributional families: truncated normal or uniform for continuous data,
 and multinomial for discrete data. Future releases will accommodate a larger
-class of options.
+set of options.
 
 Though \code{forde} was designed to take an adversarial random forest as
 input, the function's first argument can in principle be any object of class
