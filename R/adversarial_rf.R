@@ -166,12 +166,12 @@ adversarial_rf <- function(
       }
       # Evaluate
       acc <- 1 - rf1$prediction.error
+      iters <- iters + 1L
       if (acc <= 0.5 + delta | iters >= max_iters) {
         converged <- TRUE
       } else {
         rf0 <- rf1
       }
-      iters <- iters + 1L
       if (isTRUE(verbose)) {
         cat(paste0('Iteration: ', iters, 
                      ', Accuracy: ', round(acc * 100, 2), '%\n'))
