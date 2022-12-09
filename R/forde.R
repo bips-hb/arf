@@ -72,6 +72,7 @@
 #' @export
 #' @import ranger 
 #' @import data.table
+#' @importFrom stats predict
 #' @importFrom foreach foreach %do% %dopar%
 #' 
 
@@ -125,7 +126,7 @@ forde <- function(
   
   # Compute leaf bounds and coverage
   num_trees <- arf$num.trees
-  pred <- predict(arf, x, type = 'terminalNodes')$predictions + 1L
+  pred <- stats::predict(arf, x, type = 'terminalNodes')$predictions + 1L
   bnd_fn <- function(tree) {
     num_nodes <- length(arf$forest$split.varIDs[[tree]])
     lb <- matrix(-Inf, nrow = num_nodes, ncol = d)

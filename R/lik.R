@@ -50,6 +50,7 @@
 #' @export
 #' @import ranger 
 #' @import data.table
+#' @importFrom stats predict
 #' @importFrom foreach foreach %do% %dopar%
 #' @importFrom truncnorm dtruncnorm 
 #' @importFrom matrixStats logSumExp
@@ -90,7 +91,7 @@ lik <- function(
     }
   }
   factor_cols <- sapply(x, is.factor)
-  pred <- predict(arf, x, type = 'terminalNodes')$predictions + 1L
+  pred <- stats::predict(arf, x, type = 'terminalNodes')$predictions + 1L
   
   # Optional batch index
   if (is.null(batch)) {
