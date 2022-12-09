@@ -1,3 +1,9 @@
+# What to do when y is a column name?
+# Problem: Sometimes pruning doesn't solve the no-variance problem b/c
+# all samples in a leaf share the same value for a variable.
+
+# Hexsticker: https://github.com/GuangchuangYu/hexSticker 
+
 # Allow arbitrary queries for total evidence, marginals, MAP, etc.
 # e.g. p(x1), p(x1, x2), p(x1 | x2). Problem: need to accommodate both
 # equalities and inequalities on either side of the conditioning bar.
@@ -17,5 +23,4 @@
 # Localized version, where we only regrow nodes that split too well
 
 # Fully adversarial with alternating rounds at each node?
-
 
