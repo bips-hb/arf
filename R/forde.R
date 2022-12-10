@@ -100,6 +100,7 @@ forde <- function(
   x <- as.data.frame(x)
   n <- nrow(x)
   d <- ncol(x)
+  colnames_x <- colnames(x)
   if ('y' %in% colnames(x)) {
     y_idx <- which(colnames(x) == 'y')
     k <- 1L
@@ -211,9 +212,16 @@ forde <- function(
       if (family == 'truncnorm') {
         dt[, c('mu', 'sigma') := .(mean(value), sd(value)), by = .(leaf, variable)]
       }
-      dt <- unique(dt[, value := NULL])
       dt <- merge(dt, bnds[, .(tree, leaf, variable, min, max, f_idx)],
                   by = c('tree', 'leaf', 'variable'), sort = FALSE)
+      if (dt[sigma == 0, .N] > 0L) {
+        dt[sigma == 0, new_min := ifelse(!is.finite(min), min(value), min), by = variable]
+        dt[sigma == 0, new_max := ifelse(!is.finite(max), max(value), max), by = variable]
+        dt[sigma == 0, value := runif(.N, min = new_min, max = new_max)]
+        dt[sigma == 0, sigma := sd(value), by = .(leaf, variable)]
+        dt[, c('new_min', 'new_max') := NULL]
+      }
+      dt <- unique(dt[, value := NULL])
       dt[, c('tree', 'leaf') := NULL]
     }
     if (isTRUE(parallel)) {
@@ -221,7 +229,7 @@ forde <- function(
     } else {
       psi_cnt <- foreach(tree = 1:num_trees, .combine = rbind) %do% psi_cnt_fn(tree)
     }
-    if (new_name %in% psi_cnt[, unique(variable)]) {
+    if (!is.null(new_name)) {
       psi_cnt[variable == new_name, variable := 'y']
     }
   } 
@@ -245,7 +253,7 @@ forde <- function(
     } else {
       psi_cat <- foreach(tree = 1:num_trees, .combine = rbind) %do% psi_cat_fn(tree)
     }
-    if (new_name %in% psi_cat[, unique(variable)]) {
+    if (!is.null(new_name)) {
       psi_cat[variable == new_name, variable := 'y']
     }
   }
@@ -254,7 +262,7 @@ forde <- function(
   psi <- list(
     'cnt' = psi_cnt, 'cat' = psi_cat, 
     'forest' = unique(bnds[, .(f_idx, tree, leaf, cvg)]),
-    'meta' = data.table(variable = colnames(x), class = classes, family = fams)
+    'meta' = data.table(variable = colnames_x, class = classes, family = fams)
   )
   return(psi)
 }
