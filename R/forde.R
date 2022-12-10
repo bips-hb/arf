@@ -86,7 +86,7 @@ forde <- function(
     parallel = TRUE) {
   
   # To avoid data.table check issues
-  tree <- n_oob <- cvg <- leaf <- variable <- count <- sd <- value <- . <- NULL
+  tree <- n_oob <- cvg <- leaf <- variable <- count <- sd <- value <- . <- new_name <- psi_cnt <- psi_cat <- NULL
   
   # Prelimz
   if (isTRUE(oob) & !nrow(x) %in% c(arf$num.samples, arf$num.samples/2)) {
@@ -100,6 +100,20 @@ forde <- function(
   x <- as.data.frame(x)
   n <- nrow(x)
   d <- ncol(x)
+  if ('y' %in% colnames(x)) {
+    y_idx <- which(colnames(x) == 'y')
+    k <- 1L
+    converged <- FALSE
+    while (!isTRUE(converged)) {
+      new_name <- rep('a', times = k)
+      if (!new_name %in% colnames(x)) {
+        colnames(x)[y_idx] <- new_name
+        converged <- TRUE
+      } else {
+        k <- k + 1L
+      }
+    }
+  }
   classes <- sapply(x, class)
   idx_char <- sapply(x, is.character)
   if (any(idx_char)) {
@@ -186,7 +200,6 @@ forde <- function(
   
   # Calculate distribution parameters for each variable
   fams <- ifelse(factor_cols, 'multinom', family)
-  psi_cnt <- psi_cat <- NULL
   # Continuous case
   if (any(!factor_cols)) {
     psi_cnt_fn <- function(tree) {
@@ -208,6 +221,9 @@ forde <- function(
     } else {
       psi_cnt <- foreach(tree = 1:num_trees, .combine = rbind) %do% psi_cnt_fn(tree)
     }
+    if (new_name %in% psi_cnt[, unique(variable)]) {
+      psi_cnt[variable == new_name, variable := 'y']
+    }
   } 
   # Categorical case
   if (any(factor_cols)) {
@@ -228,6 +244,9 @@ forde <- function(
       psi_cat <- foreach(tree = 1:num_trees, .combine = rbind) %dopar% psi_cat_fn(tree)
     } else {
       psi_cat <- foreach(tree = 1:num_trees, .combine = rbind) %do% psi_cat_fn(tree)
+    }
+    if (new_name %in% psi_cat[, unique(variable)]) {
+      psi_cat[variable == new_name, variable := 'y']
     }
   }
   

@@ -88,6 +88,20 @@ adversarial_rf <- function(
   # Prep data
   x_real <- as.data.frame(x)
   n <- nrow(x_real)
+  if ('y' %in% colnames(x_real)) {
+    y_idx <- which(colnames(x_real) == 'y')
+    k <- 1L
+    converged <- FALSE
+    while (!isTRUE(converged)) {
+      new_name <- rep('a', times = k)
+      if (!new_name %in% colnames(x_real)) {
+        colnames(x_real)[y_idx] <- new_name
+        converged <- TRUE
+      } else {
+        k <- k + 1L
+      }
+    }
+  }
   idx_char <- sapply(x_real, is.character)
   if (any(idx_char)) {
     x_real[, idx_char] <- as.data.frame(
