@@ -71,6 +71,20 @@ lik <- function(
   # Prep data
   x <- as.data.frame(x)
   n <- nrow(x)
+  if ('y' %in% colnames(x)) {
+    y_idx <- which(colnames(x) == 'y')
+    k <- 1L
+    converged <- FALSE
+    while (!isTRUE(converged)) {
+      new_name <- rep('a', times = k)
+      if (!new_name %in% colnames(x)) {
+        colnames(x)[y_idx] <- new_name
+        converged <- TRUE
+      } else {
+        k <- k + 1L
+      }
+    }
+  }
   idx_char <- sapply(x, is.character)
   if (any(idx_char)) {
     x[, idx_char] <- as.data.frame(
