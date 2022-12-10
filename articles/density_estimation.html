@@ -82,12 +82,12 @@
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/bips-hb/arf" class="external-link">arf</a></span><span class="op">)</span></span></code></pre></div>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">arf</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">iris</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Iteration: 0, Accuracy: 86.96%</span></span>
+<span><span class="co">#&gt; Iteration: 0, Accuracy: 83.22%</span></span>
 <span><span class="co">#&gt; Warning: executing %dopar% sequentially: no parallel backend registered</span></span>
-<span><span class="co">#&gt; Iteration: 1, Accuracy: 37.92%</span></span>
+<span><span class="co">#&gt; Iteration: 1, Accuracy: 42.32%</span></span>
 <span><span class="va">psi</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/forde.html">forde</a></span><span class="op">(</span><span class="va">arf</span>, <span class="va">iris</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="fu"><a href="../reference/lik.html">lik</a></span><span class="op">(</span><span class="va">arf</span>, <span class="va">psi</span>, <span class="va">iris</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] -1.150006</span></span></code></pre></div>
+<span><span class="co">#&gt; [1] -0.8063705</span></span></code></pre></div>
   </main>
 </div>
 

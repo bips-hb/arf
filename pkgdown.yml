@@ -4,7 +4,7 @@ pkgdown_sha: ~
 articles:
   density_estimation: density_estimation.html
   generative_modeling: generative_modeling.html
-last_built: 2022-12-09T14:11Z
+last_built: 2022-12-10T11:54Z
 urls:
   reference: https://bips-hb.github.io/arf/reference
   article: https://bips-hb.github.io/arf/articles
