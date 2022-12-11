@@ -246,7 +246,7 @@ forde <- function(
       dt <- unique(dt[, prob := .N/count, by = .(leaf, variable, val)])
       dt <- merge(dt, bnds[, .(tree, leaf, variable, f_idx)],
                   by = c('tree', 'leaf', 'variable'), sort = FALSE)
-      dt[, c('tree', 'leaf') := NULL]
+      dt[, c('count', 'tree', 'leaf') := NULL]
     }
     if (isTRUE(parallel)) {
       psi_cat <- foreach(tree = 1:num_trees, .combine = rbind) %dopar% psi_cat_fn(tree)
