@@ -89,12 +89,12 @@ forge <- function(
   x_synth <- cbind(synth_cnt, synth_cat)
   setcolorder(x_synth, params$meta$variable)
   setDF(x_synth)
-  idx_char <- params$meta[, which(class == 'character')]
+  idx_factor <- params$meta[, which(class == 'factor')]
   idx_logical <- params$meta[, which(class == 'logical')]
   idx_integer <- params$meta[, which(class == 'integer')]
-  if (sum(idx_char) > 0L) {
-    x_synth[, idx_char] <- as.data.frame(
-      lapply(x_synth[, idx_char, drop = FALSE], as.character)
+  if (sum(idx_factor) > 0L) {
+    x_synth[, idx_factor] <- as.data.frame(
+      lapply(x_synth[, idx_factor, drop = FALSE], as.factor)
     )
   }
   if (sum(idx_logical) > 0L) {
