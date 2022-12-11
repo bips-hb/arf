@@ -74,10 +74,10 @@
 
 adversarial_rf <- function(
     x, 
-    num_trees = 10, 
-    min_node_size = 2, 
+    num_trees = 10L, 
+    min_node_size = 2L, 
     delta = 0,
-    max_iters = 10,
+    max_iters = 10L,
     verbose = TRUE,
     parallel = TRUE,
     ...) {
@@ -124,47 +124,53 @@ adversarial_rf <- function(
     }
   }
   factor_cols <- sapply(x_real, is.factor)
+  if (any(!factor_cols) & min_node_size == 1L) {
+    warning('Variance is undefined when a leaf contains just a single observation. ', 
+            'Consider increasing min_node_size.')
+  }
   # Sample from marginals to get naive synthetic data
-  x_synth <- as.data.frame(lapply(x_real, function(x) {
-    sample(x, n, replace = TRUE)
-  }))
+  x_synth <- as.data.frame(lapply(x_real, sample, n, replace = TRUE))
   # Merge real and synthetic data
   dat <- rbind(data.frame(y = 1L, x_real),
                data.frame(y = 0L, x_synth))
   # Train unsupervised random forest
   if (isTRUE(parallel)) {
     rf0 <- ranger(y ~ ., dat, keep.inbag = TRUE, classification = TRUE, 
-                  num.trees = num_trees, min.node.size = 2 * min_node_size, 
+                  num.trees = num_trees, min.node.size = 2L * min_node_size, 
                   respect.unordered.factors = TRUE, ...)
   } else {
     rf0 <- ranger(y ~ ., dat, keep.inbag = TRUE, classification = TRUE, 
-                  num.trees = num_trees, min.node.size = 2 * min_node_size, 
-                  respect.unordered.factors = TRUE, num.threads = 1, ...)
+                  num.trees = num_trees, min.node.size = 2L * min_node_size, 
+                  respect.unordered.factors = TRUE, num.threads = 1L, ...)
   }
   
   # Recurse
   iters <- 0L
-  acc <- 1 - rf0$prediction.error
+  acc <- acc0 <- 1 - rf0$prediction.error
   if (isTRUE(verbose)) {
     cat(paste0('Iteration: ', iters, 
-                 ', Accuracy: ', round(acc * 100, 2), '%\n'))
+                 ', Accuracy: ', round(acc0 * 100, 2), '%\n'))
   }
-  if (acc > 0.5 + delta & iters < max_iters) {
+  if (acc0 > 0.5 + delta & iters < max_iters) {
     converged <- FALSE
     while (!isTRUE(converged)) {
       nodeIDs <- stats::predict(rf0, x_real, type = 'terminalNodes')$predictions
       # Create synthetic data
-      trees <- sample(1:num_trees, n, replace = TRUE)
-      leaves <- sapply(1:n, function(i) sample(nodeIDs[, trees[i]], 1))
+      tmp <- melt(as.data.table(nodeIDs), measure.vars = 1:num_trees, 
+                  variable.name = 'tree', value.name = 'leaf')
+      tmp[, tree := as.numeric(gsub('V', '', tree))]
+      tmp <- tmp[sample(.N, n, replace = TRUE)]
+      tmp <- unique(tmp[, no := .N, by = .(tree, leaf)])
       synth <- function(i) {
-        idx <- nodeIDs[, trees[i]] == leaves[i]
-        as.data.frame(lapply(x_real[idx, ], function(x) sample(x, 1)))
+        idx <- nodeIDs[, tmp$tree[i]] == tmp$leaf[i]
+        as.data.frame(lapply(x_real[idx, ], sample, tmp$no[i], replace = TRUE))
       }
       if (isTRUE(parallel)) {
-        x_synth <- foreach(i = 1:n, .combine = rbind) %dopar% synth(i)
+        x_synth <- foreach(i = 1:nrow(tmp), .combine = rbind) %dopar% synth(i)
       } else {
-        x_synth <- foreach(i = 1:n, .combine = rbind) %do% synth(i)
+        x_synth <- foreach(i = 1:nrow(tmp), .combine = rbind) %do% synth(i)
       }
+      rm(nodeIDs, tmp)
       # Merge real and synthetic data
       dat <- rbind(data.frame(y = 1L, x_real),
                    data.frame(y = 0L, x_synth))
@@ -179,16 +185,17 @@ adversarial_rf <- function(
                       respect.unordered.factors = TRUE, num.threads = 1, ...)
       }
       # Evaluate
-      acc <- 1 - rf1$prediction.error
+      acc0 <- 1 - rf1$prediction.error
+      acc <- c(acc, acc0)
       iters <- iters + 1L
-      if (acc <= 0.5 + delta | iters >= max_iters) {
+      if (acc0 <= 0.5 + delta | iters >= max_iters) {
         converged <- TRUE
       } else {
         rf0 <- rf1
       }
       if (isTRUE(verbose)) {
         cat(paste0('Iteration: ', iters, 
-                     ', Accuracy: ', round(acc * 100, 2), '%\n'))
+                     ', Accuracy: ', round(acc0 * 100, 2), '%\n'))
       }
     }
   }
@@ -216,6 +223,7 @@ adversarial_rf <- function(
   }
   
   # Export
+  rf0$acc <- acc
   return(rf0)
 }
 
