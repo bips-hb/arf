@@ -97,9 +97,9 @@ accuracy at each iteration.</p>
 <span></span>
 <span><span class="co"># Train ARF</span></span>
 <span><span class="va">arf</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">iris</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Iteration: 0, Accuracy: 88%</span></span>
+<span><span class="co">#&gt; Iteration: 0, Accuracy: 86.33%</span></span>
 <span><span class="co">#&gt; Warning: executing %dopar% sequentially: no parallel backend registered</span></span>
-<span><span class="co">#&gt; Iteration: 1, Accuracy: 39.86%</span></span></code></pre></div>
+<span><span class="co">#&gt; Iteration: 1, Accuracy: 43.43%</span></span></code></pre></div>
 <p>The printouts can be turned off by setting
 <code>verbose = FALSE</code>. Accuracy is still stored within the
 <code>arf</code> object, so you can evaluate convergence after the
@@ -137,8 +137,8 @@ works on Unix machines.</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Rerun ARF, now in parallel and with more trees</span></span>
 <span><span class="va">arf</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">iris</span>, num_trees <span class="op">=</span> <span class="fl">100</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Iteration: 0, Accuracy: 90.67%</span></span>
-<span><span class="co">#&gt; Iteration: 1, Accuracy: 34.33%</span></span></code></pre></div>
+<span><span class="co">#&gt; Iteration: 0, Accuracy: 94%</span></span>
+<span><span class="co">#&gt; Iteration: 1, Accuracy: 35.67%</span></span></code></pre></div>
 <p>The result is an object of class <code>ranger</code>, which we can
 input to downstream functions.</p>
 <p>The next step is to learn the leaf and distribution parameters using
@@ -171,45 +171,45 @@ parameters; and (4) variable metadata.</p>
 <code class="sourceCode R"><span><span class="va">params</span></span>
 <span><span class="co">#&gt; $cnt</span></span>
 <span><span class="co">#&gt;           variable  min  max f_idx       mu      sigma</span></span>
-<span><span class="co">#&gt;    1: Sepal.Length -Inf  Inf     9 5.004000 0.27306898</span></span>
-<span><span class="co">#&gt;    2: Sepal.Length -Inf 5.25     1 4.612500 0.26958964</span></span>
-<span><span class="co">#&gt;    3: Sepal.Length -Inf  Inf     8 5.040000 0.23664319</span></span>
-<span><span class="co">#&gt;    4: Sepal.Length -Inf  Inf     2 5.566667 0.20816660</span></span>
-<span><span class="co">#&gt;    5: Sepal.Length -Inf  Inf     4 5.700000 0.10314940</span></span>
+<span><span class="co">#&gt;    1: Sepal.Length 4.95 6.45    10 5.261538 0.23845658</span></span>
+<span><span class="co">#&gt;    2: Sepal.Length 4.75  Inf    14 4.850000 0.05270463</span></span>
+<span><span class="co">#&gt;    3: Sepal.Length -Inf  Inf    18 4.527273 0.13483997</span></span>
+<span><span class="co">#&gt;    4: Sepal.Length -Inf  Inf    17 5.025000 0.05000000</span></span>
+<span><span class="co">#&gt;    5: Sepal.Length 6.90  Inf     5 7.458333 0.29374799</span></span>
 <span><span class="co">#&gt;   ---                                                 </span></span>
-<span><span class="co">#&gt; 6820:  Petal.Width -Inf  Inf  1706 1.342857 0.05345225</span></span>
-<span><span class="co">#&gt; 6821:  Petal.Width -Inf  Inf  1699 1.200000 0.35361911</span></span>
-<span><span class="co">#&gt; 6822:  Petal.Width 1.45  Inf  1701 2.082143 0.26112800</span></span>
-<span><span class="co">#&gt; 6823:  Petal.Width -Inf  Inf  1703 1.966667 0.22509257</span></span>
-<span><span class="co">#&gt; 6824:  Petal.Width -Inf  Inf  1688 2.114286 0.15735916</span></span>
+<span><span class="co">#&gt; 6540:  Petal.Width -Inf  Inf  1629 2.033333 0.28202877</span></span>
+<span><span class="co">#&gt; 6541:  Petal.Width -Inf  Inf  1624 1.766667 0.05773503</span></span>
+<span><span class="co">#&gt; 6542:  Petal.Width -Inf 1.95  1632 1.833333 0.05773503</span></span>
+<span><span class="co">#&gt; 6543:  Petal.Width -Inf  Inf  1623 1.800000 0.21602469</span></span>
+<span><span class="co">#&gt; 6544:  Petal.Width -Inf  Inf  1625 2.233333 0.25166115</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $cat</span></span>
-<span><span class="co">#&gt;       variable       val      prob f_idx</span></span>
-<span><span class="co">#&gt;    1:  Species    setosa 1.0000000     9</span></span>
-<span><span class="co">#&gt;    2:  Species    setosa 1.0000000     1</span></span>
-<span><span class="co">#&gt;    3:  Species    setosa 1.0000000     8</span></span>
-<span><span class="co">#&gt;    4:  Species    setosa 1.0000000     2</span></span>
-<span><span class="co">#&gt;    5:  Species    setosa 1.0000000     4</span></span>
-<span><span class="co">#&gt;   ---                                   </span></span>
-<span><span class="co">#&gt; 2135:  Species virginica 1.0000000  1703</span></span>
-<span><span class="co">#&gt; 2136:  Species virginica 0.8333333  1695</span></span>
-<span><span class="co">#&gt; 2137:  Species virginica 1.0000000  1688</span></span>
-<span><span class="co">#&gt; 2138:  Species virginica 0.6000000  1700</span></span>
-<span><span class="co">#&gt; 2139:  Species virginica 0.1428571  1706</span></span>
+<span><span class="co">#&gt;       variable        val       prob f_idx</span></span>
+<span><span class="co">#&gt;    1:  Species     setosa 1.00000000    10</span></span>
+<span><span class="co">#&gt;    2:  Species     setosa 0.90000000    14</span></span>
+<span><span class="co">#&gt;    3:  Species     setosa 1.00000000    18</span></span>
+<span><span class="co">#&gt;    4:  Species     setosa 1.00000000    17</span></span>
+<span><span class="co">#&gt;    5:  Species versicolor 0.08333333     5</span></span>
+<span><span class="co">#&gt;   ---                                     </span></span>
+<span><span class="co">#&gt; 2003:  Species  virginica 1.00000000  1629</span></span>
+<span><span class="co">#&gt; 2004:  Species  virginica 1.00000000  1624</span></span>
+<span><span class="co">#&gt; 2005:  Species  virginica 1.00000000  1632</span></span>
+<span><span class="co">#&gt; 2006:  Species  virginica 1.00000000  1623</span></span>
+<span><span class="co">#&gt; 2007:  Species  virginica 1.00000000  1625</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $forest</span></span>
 <span><span class="co">#&gt;       f_idx tree leaf        cvg</span></span>
-<span><span class="co">#&gt;    1:     1    1    8 0.05333333</span></span>
-<span><span class="co">#&gt;    2:     2    1   14 0.02000000</span></span>
-<span><span class="co">#&gt;    3:     3    1   25 0.02000000</span></span>
-<span><span class="co">#&gt;    4:     4    1   33 0.01333333</span></span>
-<span><span class="co">#&gt;    5:     5    1   35 0.02000000</span></span>
+<span><span class="co">#&gt;    1:     1    1   13 0.02000000</span></span>
+<span><span class="co">#&gt;    2:     2    1   20 0.02000000</span></span>
+<span><span class="co">#&gt;    3:     3    1   37 0.02000000</span></span>
+<span><span class="co">#&gt;    4:     4    1   38 0.09333333</span></span>
+<span><span class="co">#&gt;    5:     5    1   41 0.08000000</span></span>
 <span><span class="co">#&gt;   ---                           </span></span>
-<span><span class="co">#&gt; 1702:  1702  100   82 0.09333333</span></span>
-<span><span class="co">#&gt; 1703:  1703  100   85 0.04000000</span></span>
-<span><span class="co">#&gt; 1704:  1704  100   87 0.02666667</span></span>
-<span><span class="co">#&gt; 1705:  1705  100   88 0.05333333</span></span>
-<span><span class="co">#&gt; 1706:  1706  100   90 0.04666667</span></span>
+<span><span class="co">#&gt; 1632:  1632  100   60 0.02000000</span></span>
+<span><span class="co">#&gt; 1633:  1633  100   61 0.04666667</span></span>
+<span><span class="co">#&gt; 1634:  1634  100   64 0.10000000</span></span>
+<span><span class="co">#&gt; 1635:  1635  100   67 0.08666667</span></span>
+<span><span class="co">#&gt; 1636:  1636  100   68 0.07333333</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $meta</span></span>
 <span><span class="co">#&gt;        variable   class    family</span></span>
@@ -228,9 +228,9 @@ data whose likelihood we want to evaluate.</p>
 <span></span>
 <span><span class="co"># Compare average negative log-likelihood (lower is better)</span></span>
 <span><span class="op">-</span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">ll</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] 0.6161535</span></span>
+<span><span class="co">#&gt; [1] 0.6631204</span></span>
 <span><span class="op">-</span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">ll_unif</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] 5.969626</span></span></code></pre></div>
+<span><span class="co">#&gt; [1] 6.013431</span></span></code></pre></div>
 <p>Note that the piecewise constant estimator does considerably worse in
 this experiment.</p>
 <div class="section level2">
@@ -287,8 +287,9 @@ the feature as numeric.</p>
 <span></span>
 <span><span class="co"># Just taking first 100 observations as an example</span></span>
 <span><span class="va">arf</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">diamonds</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">100</span>, <span class="op">]</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Iteration: 0, Accuracy: 79.9%</span></span>
-<span><span class="co">#&gt; Iteration: 1, Accuracy: 42.13%</span></span>
+<span><span class="co">#&gt; Iteration: 0, Accuracy: 78.39%</span></span>
+<span><span class="co">#&gt; Iteration: 1, Accuracy: 51.27%</span></span>
+<span><span class="co">#&gt; Iteration: 2, Accuracy: 43.22%</span></span>
 <span></span>
 <span><span class="co"># Fit density</span></span>
 <span><span class="va">params</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/forde.html">forde</a></span><span class="op">(</span><span class="va">arf</span>, <span class="va">diamonds</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">100</span>, <span class="op">]</span><span class="op">)</span></span>
