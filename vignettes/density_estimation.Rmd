@@ -14,23 +14,21 @@ knitr::opts_chunk$set(
 )
 ```
 
-```{r setup}
-library(arf)
-library(ggplot2)
-```
-
-# Introduction
-
-The first step of the \code{arf} pipeline is to fit an adversarial random forest (ARF). The ARF algorithm is an iterative procedure. In the first instance, we generate synthetic data by independently sampling from the marginals of each feature and training a RF to distinguish original from synthetic samples. If accuracy is greater than $0.5 + \delta$, we create a new dataset by sampling from the marginals within each leaf and training another RF classifier. The procedure repeats until original and synthetic samples are indistinguishable. With the default \code{verbose = TRUE}, the algorithm will print accuracy at each iteration. 
+The first step of the `arf` pipeline is to fit an adversarial random forest (ARF). The ARF algorithm is an iterative procedure. In the first instance, we generate synthetic data by independently sampling from the marginals of each feature and training a RF to distinguish original from synthetic samples. If accuracy is greater than $0.5 + \delta$ (where `delta` is a user-controlled tolerance parameter, generally set to 0), we create a new dataset by sampling from the marginals within each leaf and training another RF classifier. The procedure repeats until original and synthetic samples cannot be reliably distinguished. With the default `verbose = TRUE`, the algorithm will print accuracy at each iteration. 
 
 ```{r arf}
+# Load libraries
+library(arf)
+library(ggplot2)
+
+# Train ARF
 arf <- adversarial_rf(iris)
 ```
 
-The printouts can be turned off by setting \code{verbose = FALSE}. Accuracy is still stored within the \code{arf} object, so you can evaluate convergence after the fact. 
+The printouts can be turned off by setting `verbose = FALSE`. Accuracy is still stored within the `arf` object, so you can evaluate convergence after the fact. 
 
-```{r arf2}
-# Fit ARF
+```{r arf2, fig.height=5, fig.width=5}
+# Train ARF with no print outs
 arf <- adversarial_rf(iris, verbose = FALSE)
 
 # Plot accuracy against iterations (model converges when accuracy <= 0.5)
@@ -43,9 +41,7 @@ ggplot(tmp, aes(iter, acc)) +
 
 We find a quick drop in accuracy following the resampling procedure, as desired. If the ARF has converged, then resulting splits should identify fully factorized leaves, i.e. subregions of the feature space where variables are locally independent. 
 
-# Forests for density estimation
-
-For density estimation tasks, we recommend increasing the default number of trees. We generally use 100 in our experiments, though this may be suboptimal for some datasets. Likelihood estimations are not very sensitive to this parameter above a certain threshold, but larger models incur extra costs in time and memory. We can speed up computations by registering a parallel backend, in which case ARF training is distributed across cores using the \code{ranger} package. Much like with \code{ranger}, the default behavior of \code{adversarial_rf} is to compute in parallel if possible.
+For density estimation tasks, we recommend increasing the default number of trees. We generally use 100 in our experiments, though this may be suboptimal for some datasets. Likelihood estimations are not very sensitive to this parameter above a certain threshold, but larger models incur extra costs in time and memory. We can speed up computations by registering a parallel backend, in which case ARF training is distributed across cores using the `ranger` package. Much like with `ranger`, the default behavior of `adversarial_rf` is to compute in parallel if possible.
 
 ```{r arf_par}
 library(doParallel)
@@ -53,15 +49,15 @@ registerDoParallel(cores = 2)
 arf <- adversarial_rf(iris, num_trees = 100)
 ```
 
-The result is an object of class \code{ranger}, which we can input to downstream functions. 
+The result is an object of class `ranger`, which we can input to downstream functions. 
 
-The next step is to learn the leaf and distribution parameters using forests for density estimation (FORDE). This function calculates the coverage, bounds, and pdf/pmf parameters for every variable in every leaf. This can be an expensive computation for large datasets, as it requires $\mathcal{O}(B d n log(n))$ operations, where $B$ is the number of trees, $n$ is sample size, and $d$ is the data dimensionality. Once again, the process is parallelized by default. 
+The next step is to learn the leaf and distribution parameters using forests for density estimation (FORDE). This function calculates the coverage, bounds, and pdf/pmf parameters for every variable in every leaf. This can be an expensive computation for large datasets, as it requires $\mathcal{O}\big(B \cdot d \cdot n \cdot log(n)\big)$ operations, where $B$ is the number of trees, $n$ is sample size, and $d$ is the data dimensionality. Once again, the process is parallelized by default. 
 
 ```{r forde}
 params <- forde(arf, iris)
 ```
 
-Default behavior is to use a truncated normal distribution for continuous data and a multinomial distribution for categorical data. Our experiments suggest that this produces solid results in a wide range of settings. You can also use a uniform distribution for continuous features by setting \code{family = 'unif'}, thereby instantiating a piecewise constant density estimator. 
+Default behavior is to use a truncated normal distribution for continuous data (with boundaries given by the tree's split parameters) and a multinomial distribution for categorical data. We find that this produces solid results in a wide range of settings. You can also use a uniform distribution for continuous features by setting `family = 'unif'`, thereby instantiating a piecewise constant density estimator. 
 
 ```{r forde_unif}
 params_unif <- forde(arf, iris, family = 'unif')
@@ -69,13 +65,13 @@ params_unif <- forde(arf, iris, family = 'unif')
 
 This method tends to perform poorly in practice, and we do not recommend it. The option is implemented primarily for benchmarking purposes. Alternative families, e.g. truncated Poisson or beta distributions, may be useful for certain problems; future releases will expand the range of options for this argument.
 
-The \code{forde} function outputs a list of length 4, with entries for (1) continuous features; (2) categorical features; (3) leaf parameters; and (4) variable metadata. 
+The `forde` function outputs a list of length 4, with entries for (1) continuous features; (2) categorical features; (3) leaf parameters; and (4) variable metadata. 
 
 ```{r forde2}
 params
 ```
 
-To calculate log-likelihoods, we pass \code{arf} and \code{params} on to the \code{lik} function, along with the data whose likelihood we intend to evaluate.
+To calculate log-likelihoods, we pass `arf` and `params` on to the `lik` function, along with the data whose likelihood we want to evaluate.
 
 ```{r lik}
 # Compute likelihood under truncated normal and uniform distributions
@@ -89,13 +85,13 @@ ll_unif <- lik(arf, params_unif, iris)
 
 Note that the piecewise constant estimator does considerably worse in this experiment.
 
-# Some words of caution
+## Some words of caution
 
-In this example, we have used the same data throughout. This may lead to overfitting in practice. With sufficient data, it is preferable to use a training set for \code{adversarial_rf}, a validation set for \code{forde}, and a test set for \code{lik}. Alternatively, we can set the \code{oob} argument to \code{TRUE} for either of the latter two functions, in which case computations are performed only on out-of-bag (OOB) data. These are samples that are randomly excluded from a given tree due to the bootstrapping subroutine of the RF classifier. Note that this only works when the dataset \code{x} passed to \code{forde} or \code{lik} is the same one used to train the \code{arf}. Recall that a sample's probability of being excluded from a single tree is $e^-1 \approx 0.368$. When using \code{oob = TRUE}, be sure to include enough trees so that every observation is likely to be OOB at least a few times. 
+In this example, we have used the same data throughout. This may lead to overfitting in practice. With sufficient data, it is preferable to use a training set for `adversarial_rf`, a validation set for `forde`, and a test set for `lik`. Alternatively, we can set the `oob` argument to `TRUE` for either of the latter two functions, in which case computations are performed only on out-of-bag (OOB) data. These are samples that are randomly excluded from a given tree due to the bootstrapping subroutine of the RF classifier. Note that this only works when the dataset `x` passed to `forde` or `lik` is the same one used to train the `arf`. Recall that a sample's probability of being excluded from a single tree is $e^{-1} \approx 0.368$. When using `oob = TRUE`, be sure to include enough trees so that every observation is likely to be OOB at least a few times. 
 
-The default behavior of \code{adversarial_rf} is to treat integers as ordered factors, with a warning. This makes sense for, say, count data with limited support (e.g., number of petals on a plant). However, this is probably not the desired behavior for other integer variables. Consider the \code{diamonds} dataset, where \code{price} is classed as an integer.
+The default behavior of `adversarial_rf` is to treat integers as ordered factors, with a warning. This makes sense for, say, count data with limited support (e.g., number of petals on a plant). However, this is probably not the desired behavior for other integer variables. Consider the `diamonds` dataset, where `price` is classed as an integer.
 
-```{r price}
+```{r price, fig.height=5, fig.width=5}
 # Check data
 head(diamonds)
 
@@ -118,11 +114,11 @@ arf <- adversarial_rf(diamonds[1:100, ])
 # Fit density
 params <- forde(arf, diamonds[1:100, ])
 
-# Check distributional family for price
+# Check distributional families
 params$meta
 ```
 
-Using \code{family = 'truncnorm'}, the distribution for \code{price} will now be modeled as a (truncated) Gaussian mixture. 
+Using `family = 'truncnorm'`, the distribution for `price` will now be modeled with a truncated Gaussian mixture. 
 
 
 
