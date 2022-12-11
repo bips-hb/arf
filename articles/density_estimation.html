@@ -78,16 +78,236 @@
 
     
     
+<p>The first step of the <code>arf</code> pipeline is to fit an
+adversarial random forest (ARF). The ARF algorithm is an iterative
+procedure. In the first instance, we generate synthetic data by
+independently sampling from the marginals of each feature and training a
+RF to distinguish original from synthetic samples. If accuracy is
+greater than <span class="math inline">\(0.5 + \delta\)</span> (where
+<code>delta</code> is a user-controlled tolerance parameter, generally
+set to 0), we create a new dataset by sampling from the marginals within
+each leaf and training another RF classifier. The procedure repeats
+until original and synthetic samples cannot be reliably distinguished.
+With the default <code>verbose = TRUE</code>, the algorithm will print
+accuracy at each iteration.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/bips-hb/arf" class="external-link">arf</a></span><span class="op">)</span></span></code></pre></div>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">arf</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">iris</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Iteration: 0, Accuracy: 87.12%</span></span>
+<code class="sourceCode R"><span><span class="co"># Load libraries</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/bips-hb/arf" class="external-link">arf</a></span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ggplot2.tidyverse.org" class="external-link">ggplot2</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Train ARF</span></span>
+<span><span class="va">arf</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">iris</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Iteration: 0, Accuracy: 82.94%</span></span>
 <span><span class="co">#&gt; Warning: executing %dopar% sequentially: no parallel backend registered</span></span>
-<span><span class="co">#&gt; Iteration: 1, Accuracy: 35.81%</span></span>
-<span><span class="va">psi</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/forde.html">forde</a></span><span class="op">(</span><span class="va">arf</span>, <span class="va">iris</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="fu"><a href="../reference/lik.html">lik</a></span><span class="op">(</span><span class="va">arf</span>, <span class="va">psi</span>, <span class="va">iris</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] -0.7874659</span></span></code></pre></div>
+<span><span class="co">#&gt; Iteration: 1, Accuracy: 42.62%</span></span></code></pre></div>
+<p>The printouts can be turned off by setting
+<code>verbose = FALSE</code>. Accuracy is still stored within the
+<code>arf</code> object, so you can evaluate convergence after the
+fact.</p>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Train ARF with no print outs</span></span>
+<span><span class="va">arf</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">iris</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Plot accuracy against iterations (model converges when accuracy &lt;= 0.5)</span></span>
+<span><span class="va">tmp</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span><span class="st">'acc'</span> <span class="op">=</span> <span class="va">arf</span><span class="op">$</span><span class="va">acc</span>, <span class="st">'iter'</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">arf</span><span class="op">$</span><span class="va">acc</span><span class="op">)</span><span class="op">)</span> <span class="op">-</span> <span class="fl">1</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">tmp</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span><span class="va">iter</span>, <span class="va">acc</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span> </span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_point.html" class="external-link">geom_point</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> </span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_path.html" class="external-link">geom_path</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_abline.html" class="external-link">geom_hline</a></span><span class="op">(</span>yintercept <span class="op">=</span> <span class="fl">0.5</span>, linetype <span class="op">=</span> <span class="st">'dashed'</span>, color <span class="op">=</span> <span class="st">'red'</span><span class="op">)</span> </span></code></pre></div>
+<p><img src="density_estimation_files/figure-html/arf2-1.png" width="480"></p>
+<p>We find a quick drop in accuracy following the resampling procedure,
+as desired. If the ARF has converged, then resulting splits should
+identify fully factorized leaves, i.e. subregions of the feature space
+where variables are locally independent.</p>
+<p>For density estimation tasks, we recommend increasing the default
+number of trees. We generally use 100 in our experiments, though this
+may be suboptimal for some datasets. Likelihood estimations are not very
+sensitive to this parameter above a certain threshold, but larger models
+incur extra costs in time and memory. We can speed up computations by
+registering a parallel backend, in which case ARF training is
+distributed across cores using the <code>ranger</code> package. Much
+like with <code>ranger</code>, the default behavior of
+<code>adversarial_rf</code> is to compute in parallel if possible.</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/RevolutionAnalytics/doparallel" class="external-link">doParallel</a></span><span class="op">)</span></span>
+<span><span class="co">#&gt; Loading required package: foreach</span></span>
+<span><span class="co">#&gt; Loading required package: iterators</span></span>
+<span><span class="co">#&gt; Loading required package: parallel</span></span>
+<span><span class="fu"><a href="https://rdrr.io/pkg/doParallel/man/registerDoParallel.html" class="external-link">registerDoParallel</a></span><span class="op">(</span>cores <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span>
+<span><span class="va">arf</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">iris</span>, num_trees <span class="op">=</span> <span class="fl">100</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Iteration: 0, Accuracy: 93.67%</span></span>
+<span><span class="co">#&gt; Iteration: 1, Accuracy: 42%</span></span></code></pre></div>
+<p>The result is an object of class <code>ranger</code>, which we can
+input to downstream functions.</p>
+<p>The next step is to learn the leaf and distribution parameters using
+forests for density estimation (FORDE). This function calculates the
+coverage, bounds, and pdf/pmf parameters for every variable in every
+leaf. This can be an expensive computation for large datasets, as it
+requires <span class="math inline">\(\mathcal{O}\big(B \cdot d \cdot n
+\cdot log(n)\big)\)</span> operations, where <span class="math inline">\(B\)</span> is the number of trees, <span class="math inline">\(n\)</span> is sample size, and <span class="math inline">\(d\)</span> is the data dimensionality. Once again,
+the process is parallelized by default.</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">params</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/forde.html">forde</a></span><span class="op">(</span><span class="va">arf</span>, <span class="va">iris</span><span class="op">)</span></span></code></pre></div>
+<p>Default behavior is to use a truncated normal distribution for
+continuous data (with boundaries given by the tree’s split parameters)
+and a multinomial distribution for categorical data. We find that this
+produces solid results in a wide range of settings. You can also use a
+uniform distribution for continuous features by setting
+<code>family = 'unif'</code>, thereby instantiating a piecewise constant
+density estimator.</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">params_unif</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/forde.html">forde</a></span><span class="op">(</span><span class="va">arf</span>, <span class="va">iris</span>, family <span class="op">=</span> <span class="st">'unif'</span><span class="op">)</span></span></code></pre></div>
+<p>This method tends to perform poorly in practice, and we do not
+recommend it. The option is implemented primarily for benchmarking
+purposes. Alternative families, e.g. truncated Poisson or beta
+distributions, may be useful for certain problems; future releases will
+expand the range of options for this argument.</p>
+<p>The <code>forde</code> function outputs a list of length 4, with
+entries for (1) continuous features; (2) categorical features; (3) leaf
+parameters; and (4) variable metadata.</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">params</span></span>
+<span><span class="co">#&gt; $cnt</span></span>
+<span><span class="co">#&gt;           variable  min max f_idx       mu      sigma</span></span>
+<span><span class="co">#&gt;    1: Sepal.Length -Inf Inf     8 4.937500 0.21960375</span></span>
+<span><span class="co">#&gt;    2: Sepal.Length -Inf Inf     7 4.657143 0.28199966</span></span>
+<span><span class="co">#&gt;    3: Sepal.Length -Inf Inf    19 5.475000 0.15000000</span></span>
+<span><span class="co">#&gt;    4: Sepal.Length -Inf Inf    18 5.433333 0.05773503</span></span>
+<span><span class="co">#&gt;    5: Sepal.Length 5.35 Inf     9 5.666667 0.15275252</span></span>
+<span><span class="co">#&gt;   ---                                                </span></span>
+<span><span class="co">#&gt; 6312:  Petal.Width -Inf Inf  1571 2.145455 0.25441555</span></span>
+<span><span class="co">#&gt; 6313:  Petal.Width -Inf Inf  1578 1.983333 0.23166067</span></span>
+<span><span class="co">#&gt; 6314:  Petal.Width -Inf Inf  1574 2.052941 0.30642627</span></span>
+<span><span class="co">#&gt; 6315:  Petal.Width 1.90 Inf  1568 2.100000 0.14142136</span></span>
+<span><span class="co">#&gt; 6316:  Petal.Width 1.95 Inf  1575 2.200000 0.17320508</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $cat</span></span>
+<span><span class="co">#&gt;       variable       val      prob f_idx</span></span>
+<span><span class="co">#&gt;    1:  Species    setosa 1.0000000     8</span></span>
+<span><span class="co">#&gt;    2:  Species    setosa 1.0000000     7</span></span>
+<span><span class="co">#&gt;    3:  Species    setosa 1.0000000    19</span></span>
+<span><span class="co">#&gt;    4:  Species    setosa 1.0000000    18</span></span>
+<span><span class="co">#&gt;    5:  Species    setosa 1.0000000     9</span></span>
+<span><span class="co">#&gt;   ---                                   </span></span>
+<span><span class="co">#&gt; 1870:  Species virginica 0.2857143  1579</span></span>
+<span><span class="co">#&gt; 1871:  Species virginica 0.3076923  1577</span></span>
+<span><span class="co">#&gt; 1872:  Species virginica 1.0000000  1568</span></span>
+<span><span class="co">#&gt; 1873:  Species virginica 0.2000000  1573</span></span>
+<span><span class="co">#&gt; 1874:  Species virginica 1.0000000  1575</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $forest</span></span>
+<span><span class="co">#&gt;       f_idx tree leaf        cvg</span></span>
+<span><span class="co">#&gt;    1:     1    1   20 0.03333333</span></span>
+<span><span class="co">#&gt;    2:     2    1   22 0.03333333</span></span>
+<span><span class="co">#&gt;    3:     3    1   31 0.02000000</span></span>
+<span><span class="co">#&gt;    4:     4    1   40 0.08000000</span></span>
+<span><span class="co">#&gt;    5:     5    1   41 0.02666667</span></span>
+<span><span class="co">#&gt;   ---                           </span></span>
+<span><span class="co">#&gt; 1575:  1575  100   69 0.02000000</span></span>
+<span><span class="co">#&gt; 1576:  1576  100   72 0.08000000</span></span>
+<span><span class="co">#&gt; 1577:  1577  100   77 0.17333333</span></span>
+<span><span class="co">#&gt; 1578:  1578  100   80 0.04000000</span></span>
+<span><span class="co">#&gt; 1579:  1579  100   84 0.04666667</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $meta</span></span>
+<span><span class="co">#&gt;        variable   class    family</span></span>
+<span><span class="co">#&gt; 1: Sepal.Length numeric truncnorm</span></span>
+<span><span class="co">#&gt; 2:  Sepal.Width numeric truncnorm</span></span>
+<span><span class="co">#&gt; 3: Petal.Length numeric truncnorm</span></span>
+<span><span class="co">#&gt; 4:  Petal.Width numeric truncnorm</span></span>
+<span><span class="co">#&gt; 5:      Species  factor  multinom</span></span></code></pre></div>
+<p>To calculate log-likelihoods, we pass <code>arf</code> and
+<code>params</code> on to the <code>lik</code> function, along with the
+data whose likelihood we want to evaluate.</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Compute likelihood under truncated normal and uniform distributions</span></span>
+<span><span class="va">ll</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/lik.html">lik</a></span><span class="op">(</span><span class="va">arf</span>, <span class="va">params</span>, <span class="va">iris</span><span class="op">)</span></span>
+<span><span class="va">ll_unif</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/lik.html">lik</a></span><span class="op">(</span><span class="va">arf</span>, <span class="va">params_unif</span>, <span class="va">iris</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Compare average negative log-likelihood (lower is better)</span></span>
+<span><span class="op">-</span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">ll</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] 0.6705894</span></span>
+<span><span class="op">-</span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">ll_unif</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] 5.956625</span></span></code></pre></div>
+<p>Note that the piecewise constant estimator does considerably worse in
+this experiment.</p>
+<div class="section level2">
+<h2 id="some-words-of-caution">Some words of caution<a class="anchor" aria-label="anchor" href="#some-words-of-caution"></a>
+</h2>
+<p>In this example, we have used the same data throughout. This may lead
+to overfitting in practice. With sufficient data, it is preferable to
+use a training set for <code>adversarial_rf</code>, a validation set for
+<code>forde</code>, and a test set for <code>lik</code>. Alternatively,
+we can set the <code>oob</code> argument to <code>TRUE</code> for either
+of the latter two functions, in which case computations are performed
+only on out-of-bag (OOB) data. These are samples that are randomly
+excluded from a given tree due to the bootstrapping subroutine of the RF
+classifier. Note that this only works when the dataset <code>x</code>
+passed to <code>forde</code> or <code>lik</code> is the same one used to
+train the <code>arf</code>. Recall that a sample’s probability of being
+excluded from a single tree is <span class="math inline">\(e^{-1}
+\approx 0.368\)</span>. When using <code>oob = TRUE</code>, be sure to
+include enough trees so that every observation is likely to be OOB at
+least a few times.</p>
+<p>The default behavior of <code>adversarial_rf</code> is to treat
+integers as ordered factors, with a warning. This makes sense for, say,
+count data with limited support (e.g., number of petals on a plant).
+However, this is probably not the desired behavior for other integer
+variables. Consider the <code>diamonds</code> dataset, where
+<code>price</code> is classed as an integer.</p>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Check data</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">diamonds</span><span class="op">)</span></span>
+<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 6 × 10</span></span></span>
+<span><span class="co">#&gt;   carat cut       color clarity depth table price     x     y     z</span></span>
+<span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;ord&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;ord&gt;</span> <span style="color: #949494; font-style: italic;">&lt;ord&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span>  0.23 Ideal     E     SI2      61.5    55   326  3.95  3.98  2.43</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span>  0.21 Premium   E     SI1      59.8    61   326  3.89  3.84  2.31</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">3</span>  0.23 Good      E     VS1      56.9    65   327  4.05  4.07  2.31</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">4</span>  0.29 Premium   I     VS2      62.4    58   334  4.2   4.23  2.63</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">5</span>  0.31 Good      J     SI2      63.3    58   335  4.34  4.35  2.75</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">6</span>  0.24 Very Good J     VVS2     62.8    57   336  3.94  3.96  2.48</span></span>
+<span></span>
+<span><span class="co"># View the distribution</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/hist.html" class="external-link">hist</a></span><span class="op">(</span><span class="va">diamonds</span><span class="op">$</span><span class="va">price</span><span class="op">)</span></span></code></pre></div>
+<p><img src="density_estimation_files/figure-html/price-1.png" width="480"></p>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span></span>
+<span><span class="co"># How many unique prices?</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/unique.html" class="external-link">unique</a></span><span class="op">(</span><span class="va">diamonds</span><span class="op">$</span><span class="va">price</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] 11602</span></span></code></pre></div>
+<p>This variable should clearly not be treated as a factor with 11602
+levels. To make sure we fit a continuous density for price, we re-class
+the feature as numeric.</p>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Re-class </span></span>
+<span><span class="va">diamonds</span><span class="op">$</span><span class="va">price</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="va">diamonds</span><span class="op">$</span><span class="va">price</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Just taking first 100 observations as an example</span></span>
+<span><span class="va">arf</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">diamonds</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">100</span>, <span class="op">]</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Iteration: 0, Accuracy: 78.79%</span></span>
+<span><span class="co">#&gt; Iteration: 1, Accuracy: 45.5%</span></span>
+<span></span>
+<span><span class="co"># Fit density</span></span>
+<span><span class="va">params</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/forde.html">forde</a></span><span class="op">(</span><span class="va">arf</span>, <span class="va">diamonds</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">100</span>, <span class="op">]</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Check distributional families</span></span>
+<span><span class="va">params</span><span class="op">$</span><span class="va">meta</span></span>
+<span><span class="co">#&gt;     variable          class    family</span></span>
+<span><span class="co">#&gt;  1:    carat        numeric truncnorm</span></span>
+<span><span class="co">#&gt;  2:      cut ordered,factor  multinom</span></span>
+<span><span class="co">#&gt;  3:    color ordered,factor  multinom</span></span>
+<span><span class="co">#&gt;  4:  clarity ordered,factor  multinom</span></span>
+<span><span class="co">#&gt;  5:    depth        numeric truncnorm</span></span>
+<span><span class="co">#&gt;  6:    table        numeric truncnorm</span></span>
+<span><span class="co">#&gt;  7:    price        numeric truncnorm</span></span>
+<span><span class="co">#&gt;  8:        x        numeric truncnorm</span></span>
+<span><span class="co">#&gt;  9:        y        numeric truncnorm</span></span>
+<span><span class="co">#&gt; 10:        z        numeric truncnorm</span></span></code></pre></div>
+<p>Using <code>family = 'truncnorm'</code>, the distribution for
+<code>price</code> will now be modeled with a truncated Gaussian
+mixture.</p>
+</div>
   </main>
 </div>
 
