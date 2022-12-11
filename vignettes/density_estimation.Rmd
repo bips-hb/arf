@@ -44,10 +44,12 @@ We find a quick drop in accuracy following the resampling procedure, as desired.
 For density estimation tasks, we recommend increasing the default number of trees. We generally use 100 in our experiments, though this may be suboptimal for some datasets. Likelihood estimations are not very sensitive to this parameter above a certain threshold, but larger models incur extra costs in time and memory. We can speed up computations by registering a parallel backend, in which case ARF training is distributed across cores using the `ranger` package. Much like with `ranger`, the default behavior of `adversarial_rf` is to compute in parallel if possible. How exactly this is done varies across operating systems; the following code works on Unix machines.
 
 ```{r par, eval=FALSE}
+# Register cores
 library(doParallel)
 registerDoParallel(cores = 2)
 ```
-```{r arf2}
+```{r arf3}
+# Rerun ARF, now in parallel and with more trees
 arf <- adversarial_rf(iris, num_trees = 100)
 ```
 
