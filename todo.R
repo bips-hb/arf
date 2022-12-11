@@ -11,6 +11,8 @@
 
 # Add conditional sampling option to forge
 
+# Add methods for data imputation
+
 # Other exponential family options, with normalization constant?
 
 # Add KDE option?
