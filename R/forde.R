@@ -209,17 +209,17 @@ forde <- function(
         dt <- dt[!is.na(leaf)]
       }
       dt <- melt(dt, id.vars = 'leaf', variable.factor = FALSE)[, tree := tree]
-      if (family == 'truncnorm') {
-        dt[, c('mu', 'sigma') := .(mean(value), sd(value)), by = .(leaf, variable)]
-      }
       dt <- merge(dt, bnds[, .(tree, leaf, variable, min, max, f_idx)],
                   by = c('tree', 'leaf', 'variable'), sort = FALSE)
-      if (dt[sigma == 0, .N] > 0L) {
-        dt[sigma == 0, new_min := ifelse(!is.finite(min), min(value), min), by = variable]
-        dt[sigma == 0, new_max := ifelse(!is.finite(max), max(value), max), by = variable]
-        dt[sigma == 0, value := runif(.N, min = new_min, max = new_max)]
-        dt[sigma == 0, sigma := sd(value), by = .(leaf, variable)]
-        dt[, c('new_min', 'new_max') := NULL]
+      if (family == 'truncnorm') {
+        dt[, c('mu', 'sigma') := .(mean(value), sd(value)), by = .(leaf, variable)]
+        if (dt[sigma == 0, .N] > 0L) {
+          dt[sigma == 0, new_min := ifelse(!is.finite(min), min(value), min), by = variable]
+          dt[sigma == 0, new_max := ifelse(!is.finite(max), max(value), max), by = variable]
+          dt[sigma == 0, value := runif(.N, min = new_min, max = new_max)]
+          dt[sigma == 0, sigma := sd(value), by = .(leaf, variable)]
+          dt[, c('new_min', 'new_max') := NULL]
+        }
       }
       dt <- unique(dt[, value := NULL])
       dt[, c('tree', 'leaf') := NULL]
