@@ -24,8 +24,7 @@
 <li class="nav-item dropdown">
   <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown" role="button" aria-expanded="false" aria-haspopup="true" id="dropdown-articles">Articles</a>
   <div class="dropdown-menu" aria-labelledby="dropdown-articles">
-    <a class="dropdown-item" href="../articles/density_estimation.html">Density Estimation</a>
-    <a class="dropdown-item" href="../articles/generative_modeling.html">Generative Modeling</a>
+    <a class="dropdown-item" href="../articles/vignette.html">Adversarial Random Forests</a>
   </div>
 </li>
       </ul><form class="form-inline my-2 my-lg-0" role="search">
@@ -123,12 +122,12 @@ forests for density estimation and generative modeling. <em>arXiv</em> preprint,
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># Estimate average log-likelihood</span></span></span>
 <span class="r-in"><span><span class="va">arf</span> <span class="op">&lt;-</span> <span class="fu"><a href="adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">iris</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 0, Accuracy: 84.07%</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 1, Accuracy: 41.22%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 0, Accuracy: 84.62%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 1, Accuracy: 42.91%</span>
 <span class="r-in"><span><span class="va">psi</span> <span class="op">&lt;-</span> <span class="fu"><a href="forde.html">forde</a></span><span class="op">(</span><span class="va">arf</span>, <span class="va">iris</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">ll</span> <span class="op">&lt;-</span> <span class="fu">lik</span><span class="op">(</span><span class="va">arf</span>, <span class="va">psi</span>, <span class="va">iris</span>, log <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">ll</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] -1.067675</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] -0.9252665</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>

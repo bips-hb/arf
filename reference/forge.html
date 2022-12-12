@@ -24,8 +24,7 @@
 <li class="nav-item dropdown">
   <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown" role="button" aria-expanded="false" aria-haspopup="true" id="dropdown-articles">Articles</a>
   <div class="dropdown-menu" aria-labelledby="dropdown-articles">
-    <a class="dropdown-item" href="../articles/density_estimation.html">Density Estimation</a>
-    <a class="dropdown-item" href="../articles/generative_modeling.html">Generative Modeling</a>
+    <a class="dropdown-item" href="../articles/vignette.html">Adversarial Random Forests</a>
   </div>
 </li>
       </ul><form class="form-inline my-2 my-lg-0" role="search">
@@ -102,8 +101,8 @@ forests for density estimation and generative modeling. <em>arXiv</em> preprint,
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">arf</span> <span class="op">&lt;-</span> <span class="fu"><a href="adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">iris</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 0, Accuracy: 88.47%</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 1, Accuracy: 35.93%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 0, Accuracy: 89.6%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 1, Accuracy: 44.3%</span>
 <span class="r-in"><span><span class="va">psi</span> <span class="op">&lt;-</span> <span class="fu"><a href="forde.html">forde</a></span><span class="op">(</span><span class="va">arf</span>, <span class="va">iris</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">x_synth</span> <span class="op">&lt;-</span> <span class="fu">forge</span><span class="op">(</span><span class="va">psi</span>, n_synth <span class="op">=</span> <span class="fl">100</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>

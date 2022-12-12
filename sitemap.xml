@@ -7,13 +7,10 @@
     <loc>https://bips-hb.github.io/arf/LICENSE-text.html</loc>
   </url>
   <url>
-    <loc>https://bips-hb.github.io/arf/articles/density_estimation.html</loc>
-  </url>
-  <url>
-    <loc>https://bips-hb.github.io/arf/articles/generative_modeling.html</loc>
-  </url>
-  <url>
     <loc>https://bips-hb.github.io/arf/articles/index.html</loc>
+  </url>
+  <url>
+    <loc>https://bips-hb.github.io/arf/articles/vignette.html</loc>
   </url>
   <url>
     <loc>https://bips-hb.github.io/arf/authors.html</loc>
