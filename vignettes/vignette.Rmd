@@ -1,5 +1,5 @@
 ---
-title: "Density Estimation"
+title: "Adversarial Random Forests"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{Density Estimation}
@@ -19,13 +19,17 @@ The first step of the `arf` pipeline is to fit an adversarial random forest (ARF
 ```{r arf}
 # Load libraries
 library(arf)
+library(data.table)
 library(ggplot2)
+
+# Set seed
+set.seed(123)
 
 # Train ARF
 arf <- adversarial_rf(iris)
 ```
 
-The printouts can be turned off by setting `verbose = FALSE`. Accuracy is still stored within the `arf` object, so you can evaluate convergence after the fact. 
+The printouts can be turned off by setting `verbose = FALSE`. Accuracy is still stored within the `arf` object, so you can evaluate convergence after the fact. The warning appears just once per session. It can be suppressed by setting `parallel = FALSE` or registering a parallel backend (more on this below).
 
 ```{r arf2, fig.height=5, fig.width=5}
 # Train ARF with no print outs
@@ -41,13 +45,25 @@ ggplot(tmp, aes(iter, acc)) +
 
 We find a quick drop in accuracy following the resampling procedure, as desired. If the ARF has converged, then resulting splits should identify fully factorized leaves, i.e. subregions of the feature space where variables are locally independent. 
 
-For density estimation tasks, we recommend increasing the default number of trees. We generally use 100 in our experiments, though this may be suboptimal for some datasets. Likelihood estimations are not very sensitive to this parameter above a certain threshold, but larger models incur extra costs in time and memory. We can speed up computations by registering a parallel backend, in which case ARF training is distributed across cores using the `ranger` package. Much like with `ranger`, the default behavior of `adversarial_rf` is to compute in parallel if possible. How exactly this is done varies across operating systems; the following code works on Unix machines.
+For density estimation tasks, we recommend increasing the default number of trees. We generally use 100 in our experiments, though this may be suboptimal for some datasets. Likelihood estimations are not very sensitive to this parameter above a certain threshold, but larger models incur extra costs in time and memory. We can speed up computations by registering a parallel backend, in which case ARF training is distributed across cores using the `ranger` package. Much like with `ranger`, the default behavior of `adversarial_rf` is to compute in parallel if possible. How exactly this is done varies across operating systems. The following code works on Unix machines.
 
 ```{r par, eval=FALSE}
-# Register cores
+# Register cores - Unix
 library(doParallel)
 registerDoParallel(cores = 2)
 ```
+
+Windows requires a different setup.
+
+```{r par2, eval=FALSE}
+# Register cores - Windows
+library(doParallel)
+cl <- makeCluster(2)
+registerDoParallel(cl)
+```
+
+In either case, we can now execute in parallel.
+
 ```{r arf3}
 # Rerun ARF, now in parallel and with more trees
 arf <- adversarial_rf(iris, num_trees = 100)
@@ -58,16 +74,18 @@ The result is an object of class `ranger`, which we can input to downstream func
 The next step is to learn the leaf and distribution parameters using forests for density estimation (FORDE). This function calculates the coverage, bounds, and pdf/pmf parameters for every variable in every leaf. This can be an expensive computation for large datasets, as it requires $\mathcal{O}\big(B \cdot d \cdot n \cdot log(n)\big)$ operations, where $B$ is the number of trees, $n$ is sample size, and $d$ is the data dimensionality. Once again, the process is parallelized by default. 
 
 ```{r forde}
+# Compute leaf and distribution parameters
 params <- forde(arf, iris)
 ```
 
-Default behavior is to use a truncated normal distribution for continuous data (with boundaries given by the tree's split parameters) and a multinomial distribution for categorical data. We find that this produces solid results in a wide range of settings. You can also use a uniform distribution for continuous features by setting `family = 'unif'`, thereby instantiating a piecewise constant density estimator. 
+Default behavior is to use a truncated normal distribution for continuous data (with boundaries given by the tree's split parameters) and a multinomial distribution for categorical data. We find that this produces stable results in a wide range of settings. You can also use a uniform distribution for continuous features by setting `family = 'unif'`, thereby instantiating a piecewise constant density estimator. 
 
 ```{r forde_unif}
+# Recompute with uniform density
 params_unif <- forde(arf, iris, family = 'unif')
 ```
 
-This method tends to perform poorly in practice, and we do not recommend it. The option is implemented primarily for benchmarking purposes. Alternative families, e.g. truncated Poisson or beta distributions, may be useful for certain problems; future releases will expand the range of options for this argument.
+This method tends to perform poorly in practice, and we do not recommend it. The option is implemented primarily for benchmarking purposes. Alternative families, e.g. truncated Poisson or beta distributions, may be useful for certain problems; future releases will expand the range of options for the `family` argument.
 
 The `forde` function outputs a list of length 4, with entries for (1) continuous features; (2) categorical features; (3) leaf parameters; and (4) variable metadata. 
 
@@ -75,7 +93,11 @@ The `forde` function outputs a list of length 4, with entries for (1) continuous
 params
 ```
 
-To calculate log-likelihoods, we pass `arf` and `params` on to the `lik` function, along with the data whose likelihood we want to evaluate.
+These parameters can be used for a variety of downstream tasks, such as likelihood estimation and data synthesis.
+
+# Likelihood Estimation
+
+To calculate log-likelihoods, we pass `arf` and `params` on to the `lik` function, along with the data whose likelihood we wish to evaluate.
 
 ```{r lik}
 # Compute likelihood under truncated normal and uniform distributions
@@ -89,9 +111,52 @@ ll_unif <- lik(arf, params_unif, iris)
 
 Note that the piecewise constant estimator does considerably worse in this experiment.
 
-## Some words of caution
+We can compute likelihoods on the probability scale by setting `log = FALSE`, but this may result in numerical underflow. There is also a `batch` argument, which has no impact on results but can be more memory efficient for large datasets. For instance, we could rerun the code above in batches of size 50:
+
+```{r lik2}
+# Compute likelihood in batches of 50
+ll_50 <- lik(arf, params, iris, batch = 50)
+
+# Identical results?
+identical(ll, ll_50)
+```
 
 In this example, we have used the same data throughout. This may lead to overfitting in practice. With sufficient data, it is preferable to use a training set for `adversarial_rf`, a validation set for `forde`, and a test set for `lik`. Alternatively, we can set the `oob` argument to `TRUE` for either of the latter two functions, in which case computations are performed only on out-of-bag (OOB) data. These are samples that are randomly excluded from a given tree due to the bootstrapping subroutine of the RF classifier. Note that this only works when the dataset `x` passed to `forde` or `lik` is the same one used to train the `arf`. Recall that a sample's probability of being excluded from a single tree is $e^{-1} \approx 0.368$. When using `oob = TRUE`, be sure to include enough trees so that every observation is likely to be OOB at least a few times. 
+
+# Data synthesis
+
+For this experiment, we use the `smiley` simulation from the `mlbench` package, which allows for easy visual assessment. We draw a training set of $n = 1000$ and simulate $1000$ synthetic datapoints. Resulting data are plotted side by side.
+
+```{r smiley, fig.height=5, fig.width=8}
+# Simulate training data
+library(mlbench)
+x <- mlbench.smiley(1000)
+x <- data.frame(x$x, x$classes)
+colnames(x) <- c('X', 'Y', 'Class')
+
+# Fit ARF
+arf <- adversarial_rf(x, mtry = 2)
+
+# Estimate parameters
+params <- forde(arf, x)
+
+# Simulate data
+synth <- forge(params, n_synth = 1000)
+
+# Compare structure
+str(x)
+str(synth)
+
+# Put it all together
+x$Data <- 'Original'
+synth$Data <- 'Synthetic'
+df <- rbind(x, synth)
+
+# Plot results
+ggplot(df, aes(X, Y, color = Class, shape = Class)) + 
+  geom_point() + 
+  facet_wrap(~ Data)
+```
 
 The default behavior of `adversarial_rf` is to treat integers as ordered factors, with a warning. This makes sense for, say, count data with limited support (e.g., number of petals on a plant). However, this is probably not the desired behavior for other integer variables. Consider the `diamonds` dataset, where `price` is classed as an integer.
 
@@ -112,19 +177,35 @@ This variable should clearly not be treated as a factor with 11602 levels. To ma
 # Re-class 
 diamonds$price <- as.numeric(diamonds$price)
 
-# Just taking first 100 observations as an example
-arf <- adversarial_rf(diamonds[1:100, ])
+# Take a random subsample of size 1000
+s_idx <- sample(1:nrow(diamonds), 1000)
+
+# Train ARF
+arf <- adversarial_rf(diamonds[s_idx, ])
 
 # Fit density
-params <- forde(arf, diamonds[1:100, ])
+params <- forde(arf, diamonds[s_idx, ])
 
 # Check distributional families
 params$meta
+
+# Forge data, check histogram
+synth <- forge(params, n_synth = 1000)
+hist(synth$price)
 ```
 
-Using `family = 'truncnorm'`, the distribution for `price` will now be modeled with a truncated Gaussian mixture. 
+Using `family = 'truncnorm'`, the distribution for `price` will now be modeled with a truncated Gaussian mixture. Though the general outline of the histogram looks about right, we do find some implausible values, e.g. negative prices. This can be overcome by manually setting a hard lower bound.
 
+```{r lb}
+# Set price minimum to zero
+params$cnt[variable == 'price', min := 0]
 
+# Re-forge
+synth <- forge(params, n_synth = 1000)
+hist(synth$price)
+```
+
+This is unnecessary with sufficiently large sample sizes, however. For instance, when training on the complete diamonds dataset ($n = 53940$), we do not observe a single negative price in $10000$ synthetic samples (not shown). 
 
 
 
