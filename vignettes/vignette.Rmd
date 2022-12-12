@@ -85,7 +85,7 @@ Default behavior is to use a truncated normal distribution for continuous data (
 params_unif <- forde(arf, iris, family = 'unif')
 ```
 
-This method tends to perform poorly in practice, and we do not recommend it. The option is implemented primarily for benchmarking purposes. Alternative families, e.g. truncated Poisson or beta distributions, may be useful for certain problems; future releases will expand the range of options for the `family` argument.
+This method tends to perform poorly in practice, and we do not recommend it. The option is implemented primarily for benchmarking purposes. Alternative families, e.g. truncated Poisson or beta distributions, may be useful for certain problems. Future releases will expand the range of options for the `family` argument.
 
 The `forde` function outputs a list of length 4, with entries for (1) continuous features; (2) categorical features; (3) leaf parameters; and (4) variable metadata. 
 
@@ -173,7 +173,7 @@ length(unique(diamonds$price))
 
 This variable should clearly not be treated as a factor with 11602 levels. To make sure we fit a continuous density for price, we re-class the feature as numeric.
 
-```{r price2}
+```{r price2, fig.height=5, fig.width=5}
 # Re-class 
 diamonds$price <- as.numeric(diamonds$price)
 
@@ -196,7 +196,7 @@ hist(synth$price)
 
 Using `family = 'truncnorm'`, the distribution for `price` will now be modeled with a truncated Gaussian mixture. Though the general outline of the histogram looks about right, we do find some implausible values, e.g. negative prices. This can be overcome by manually setting a hard lower bound.
 
-```{r lb}
+```{r lb, fig.height=5, fig.width=5}
 # Set price minimum to zero
 params$cnt[variable == 'price', min := 0]
 
