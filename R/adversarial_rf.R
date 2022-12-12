@@ -154,8 +154,8 @@ adversarial_rf <- function(
   if (acc0 > 0.5 + delta & iters < max_iters) {
     converged <- FALSE
     while (!isTRUE(converged)) {
-      nodeIDs <- stats::predict(rf0, x_real, type = 'terminalNodes')$predictions
       # Create synthetic data
+      nodeIDs <- stats::predict(rf0, x_real, type = 'terminalNodes')$predictions
       tmp <- melt(as.data.table(nodeIDs), measure.vars = 1:num_trees, 
                   variable.name = 'tree', value.name = 'leaf')
       tmp[, tree := as.numeric(gsub('V', '', tree))]
