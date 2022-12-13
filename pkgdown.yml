@@ -3,7 +3,7 @@ pkgdown: 2.0.6
 pkgdown_sha: ~
 articles:
   vignette: vignette.html
-last_built: 2022-12-13T12:17Z
+last_built: 2022-12-13T16:31Z
 urls:
   reference: https://bips-hb.github.io/arf/reference
   article: https://bips-hb.github.io/arf/articles

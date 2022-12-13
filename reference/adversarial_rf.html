@@ -56,10 +56,10 @@
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">adversarial_rf</span><span class="op">(</span></span>
 <span>  <span class="va">x</span>,</span>
-<span>  num_trees <span class="op">=</span> <span class="fl">10</span>,</span>
-<span>  min_node_size <span class="op">=</span> <span class="fl">2</span>,</span>
+<span>  num_trees <span class="op">=</span> <span class="fl">10L</span>,</span>
+<span>  min_node_size <span class="op">=</span> <span class="fl">2L</span>,</span>
 <span>  delta <span class="op">=</span> <span class="fl">0</span>,</span>
-<span>  max_iters <span class="op">=</span> <span class="fl">10</span>,</span>
+<span>  max_iters <span class="op">=</span> <span class="fl">10L</span>,</span>
 <span>  verbose <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  parallel <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  <span class="va">...</span></span>
@@ -153,9 +153,10 @@ forests for density estimation and generative modeling. <em>arXiv</em> preprint,
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">arf</span> <span class="op">&lt;-</span> <span class="fu">adversarial_rf</span><span class="op">(</span><span class="va">iris</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 0, Accuracy: 85.33%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 0, Accuracy: 86.53%</span>
 <span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>executing %dopar% sequentially: no parallel backend registered</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 1, Accuracy: 37.79%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 1, Accuracy: 50.34%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 2, Accuracy: 38.93%</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
