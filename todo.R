@@ -21,4 +21,3 @@
 # Localized version, where we only regrow nodes that split too well
 
 # Fully adversarial with alternating rounds at each node?
-
