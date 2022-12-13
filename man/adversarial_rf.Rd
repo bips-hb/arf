@@ -6,10 +6,10 @@
 \usage{
 adversarial_rf(
   x,
-  num_trees = 10,
-  min_node_size = 2,
+  num_trees = 10L,
+  min_node_size = 2L,
   delta = 0,
-  max_iters = 10,
+  max_iters = 10L,
   verbose = TRUE,
   parallel = TRUE,
   ...
