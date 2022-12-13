@@ -160,10 +160,13 @@ forde <- function(
       right_child <- arf$forest$child.nodeIDs[[tree]][[2]][i] + 1L
       splitvarID <- arf$forest$split.varIDs[[tree]][i] + 1L
       splitval <- arf$forest$split.value[[tree]][i]
-      if (left_child > 1 & left_child != right_child) {
+      if (left_child > 1) {
         ub[left_child, ] <- ub[right_child, ] <- ub[i, ]
         lb[left_child, ] <- lb[right_child, ] <- lb[i, ]
-        ub[left_child, splitvarID] <- lb[right_child, splitvarID] <- splitval
+        if (left_child != right_child) {
+          # If no pruned node, split changes bounds
+          ub[left_child, splitvarID] <- lb[right_child, splitvarID] <- splitval
+        }
       }
     }
     leaves <- which(arf$forest$child.nodeIDs[[tree]][[1]] == 0L) 
