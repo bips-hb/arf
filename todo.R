@@ -1,7 +1,3 @@
-# What to do when y is a column name?
-# Problem: Sometimes pruning doesn't solve the no-variance problem b/c
-# all samples in a leaf share the same value for a variable.
-
 # Hexsticker: https://github.com/GuangchuangYu/hexSticker 
 
 # Allow arbitrary queries for total evidence, marginals, MAP, etc.
