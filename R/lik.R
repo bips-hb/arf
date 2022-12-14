@@ -72,13 +72,12 @@ lik <- function(
   x <- as.data.frame(x)
   n <- nrow(x)
   if ('y' %in% colnames(x)) {
-    y_idx <- which(colnames(x) == 'y')
     k <- 1L
     converged <- FALSE
     while (!isTRUE(converged)) {
       new_name <- rep('a', times = k)
       if (!new_name %in% colnames(x)) {
-        colnames(x)[y_idx] <- new_name
+        colnames(x)[which(colnames(x) == 'y')] <- new_name
         converged <- TRUE
       } else {
         k <- k + 1L
@@ -113,7 +112,7 @@ lik <- function(
   }
   k <- round(n/batch)
   if (k < 1) {
-    k <- 1
+    k <- 1L
   }
   batch_idx <- suppressWarnings(split(1:n, seq_len(k)))
   
@@ -182,7 +181,7 @@ lik <- function(
     return(out)
   }
   if (k == 1L) {
-    ll <- lik_fn(1)
+    ll <- lik_fn(1L)
   } else {
     if (isTRUE(parallel)) {
       ll <- foreach(fold = 1:k, .combine = rbind) %dopar% lik_fn(fold)
