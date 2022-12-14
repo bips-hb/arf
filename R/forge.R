@@ -104,7 +104,7 @@ forge <- function(
   }
   if (sum(idx_integer) > 0L) {
     x_synth[, idx_integer] <- as.data.frame(
-      lapply(x_synth[, idx_integer, drop = FALSE], function(x) as.integer(levels(x))[x]) 
+      lapply(x_synth[, idx_integer, drop = FALSE], function(x) as.integer(x)) 
     )
   }
   if ("data.table" %in% params$input_class) {
