@@ -1,5 +1,5 @@
 ---
-title: "Adversarial Random Forests"
+title: "Package Vignette"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{Density Estimation}
@@ -71,7 +71,7 @@ arf <- adversarial_rf(iris, num_trees = 100)
 
 The result is an object of class `ranger`, which we can input to downstream functions. 
 
-The next step is to learn the leaf and distribution parameters using forests for density estimation (FORDE). This function calculates the coverage, bounds, and pdf/pmf parameters for every variable in every leaf. This can be an expensive computation for large datasets, as it requires $\mathcal{O}\big(B \cdot d \cdot n \cdot log(n)\big)$ operations, where $B$ is the number of trees, $n$ is sample size, and $d$ is the data dimensionality. Once again, the process is parallelized by default. 
+The next step is to learn the leaf and distribution parameters using forests for density estimation (FORDE). This function calculates the coverage, bounds, and pdf/pmf parameters for every variable in every leaf. This can be an expensive computation for large datasets, as it requires $\mathcal{O}\big(B \cdot d \cdot n \cdot \log(n)\big)$ operations, where $B$ is the number of trees, $n$ is sample size, and $d$ is the data dimensionality. Once again, the process is parallelized by default. 
 
 ```{r forde}
 # Compute leaf and distribution parameters
@@ -158,7 +158,9 @@ ggplot(df, aes(X, Y, color = Class, shape = Class)) +
   facet_wrap(~ Data)
 ```
 
-The default behavior of `adversarial_rf` is to treat integers as ordered factors, with a warning. This makes sense for, say, count data with limited support (e.g., number of petals on a plant). However, this is probably not the desired behavior for other integer variables. Consider the `diamonds` dataset, where `price` is classed as an integer.
+The general shape is clearly recognizable, even if some of the borders are not always crisp. This can be improved with more training data.
+
+Note that the default behavior of `adversarial_rf` is to treat integers as ordered factors, with a warning. This makes sense for, say, count data with limited support (e.g., number of petals on a plant). However, this is probably not the desired behavior for other integer variables. Consider the `diamonds` dataset, where `price` is classed as an integer.
 
 ```{r price, fig.height=5, fig.width=5}
 # Check data
