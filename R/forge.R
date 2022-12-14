@@ -48,7 +48,7 @@ forge <- function(
     parallel = TRUE) {
   
   # To avoid data.table check issues
-  tree <- cvg <- leaf <- idx <- family <- mu <- sigma <- prob <- dat <- variable <- j <- . <- NULL
+  tree <- cvg <- leaf <- idx <- family <- mu <- sigma <- prob <- dat <- variable <- j <- f_idx <- val <- . <- NULL
   
   # Draw random leaves with probability proportional to coverage
   omega <- params$forest

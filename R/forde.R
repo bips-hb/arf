@@ -86,7 +86,7 @@ forde <- function(
     parallel = TRUE) {
   
   # To avoid data.table check issues
-  tree <- n_oob <- cvg <- leaf <- variable <- count <- sd <- value <- . <- new_name <- psi_cnt <- psi_cat <- NULL
+  tree <- n_oob <- cvg <- leaf <- variable <- count <- sd <- value <- new_name <- psi_cnt <- psi_cat <- f_idx <- sigma <- new_min <- new_max <- prob <- val <- . <- NULL
   
   # Prelimz
   if (isTRUE(oob) & !nrow(x) %in% c(arf$num.samples, arf$num.samples/2)) {
