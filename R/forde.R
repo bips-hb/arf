@@ -72,7 +72,7 @@
 #' @export
 #' @import ranger 
 #' @import data.table
-#' @importFrom stats predict
+#' @importFrom stats predict runif
 #' @importFrom foreach foreach %do% %dopar%
 #' 
 
@@ -102,13 +102,12 @@ forde <- function(
   d <- ncol(x)
   colnames_x <- colnames(x)
   if ('y' %in% colnames(x)) {
-    y_idx <- which(colnames(x) == 'y')
     k <- 1L
     converged <- FALSE
     while (!isTRUE(converged)) {
       new_name <- rep('a', times = k)
       if (!new_name %in% colnames(x)) {
-        colnames(x)[y_idx] <- new_name
+        colnames(x)[which(colnames(x) == 'y')] <- new_name
         converged <- TRUE
       } else {
         k <- k + 1L
@@ -216,16 +215,16 @@ forde <- function(
                   by = c('tree', 'leaf', 'variable'), sort = FALSE)
       if (family == 'truncnorm') {
         dt[, c('mu', 'sigma') := .(mean(value), sd(value)), by = .(leaf, variable)]
+        setcolorder(dt, c('variable', 'min', 'max', 'mu', 'sigma'))
         if (dt[sigma == 0, .N] > 0L) {
           dt[sigma == 0, new_min := ifelse(!is.finite(min), min(value), min), by = variable]
           dt[sigma == 0, new_max := ifelse(!is.finite(max), max(value), max), by = variable]
-          dt[sigma == 0, value := runif(.N, min = new_min, max = new_max)]
+          dt[sigma == 0, value := stats::runif(.N, min = new_min, max = new_max)]
           dt[sigma == 0, sigma := sd(value), by = .(leaf, variable)]
           dt[, c('new_min', 'new_max') := NULL]
         }
       }
-      dt <- unique(dt[, value := NULL])
-      dt[, c('tree', 'leaf') := NULL]
+      dt <- unique(dt[, c('tree', 'leaf', 'value') := NULL])
     }
     if (isTRUE(parallel)) {
       psi_cnt <- foreach(tree = 1:num_trees, .combine = rbind) %dopar% psi_cnt_fn(tree)
