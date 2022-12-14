@@ -1,6 +1,7 @@
 Package: arf
-Title: Adversarial random forests
+Title: Adversarial Random Forests
 Version: 0.1.1
+Date: 2022-12-14
 Authors@R: 
     c(person(given = "Marvin N.",
              family = "Wright",
@@ -24,7 +25,7 @@ Description: Adversarial random forests (ARFs) recursively partition data into
     categorical covariates. They inherit many of the benefits of RFs, including
     speed, flexibility, and solid performance with default parameters. For 
     details, see Watson et al. (2022) <arXiv:2205.09435>.
-License: GPL (>=3)
+License: GPL (>= 3)
 URL: https://github.com/bips-hb/arf,
     https://bips-hb.github.io/arf/
 BugReports: https://github.com/bips-hb/arf/issues
