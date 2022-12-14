@@ -107,6 +107,11 @@ forge <- function(
       lapply(x_synth[, idx_integer, drop = FALSE], function(x) as.integer(levels(x))[x]) 
     )
   }
+  if ("data.table" %in% params$input_class) {
+    x_synth <- as.data.table(x_synth)
+  } else if ("matrix" %in% params$input_class) {
+    x_synth <- as.matrix(x_synth)
+  }
   return(x_synth)
 }
 

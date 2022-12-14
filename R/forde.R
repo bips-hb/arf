@@ -97,6 +97,7 @@ forde <- function(
   }
   
   # Prep data
+  input_class <- class(x)
   x <- as.data.frame(x)
   n <- nrow(x)
   d <- ncol(x)
@@ -264,7 +265,8 @@ forde <- function(
   psi <- list(
     'cnt' = psi_cnt, 'cat' = psi_cat, 
     'forest' = unique(bnds[, .(f_idx, tree, leaf, cvg)]),
-    'meta' = data.table(variable = colnames_x, class = classes, family = fams)
+    'meta' = data.table(variable = colnames_x, class = classes, family = fams), 
+    'input_class' = input_class
   )
   return(psi)
 }
