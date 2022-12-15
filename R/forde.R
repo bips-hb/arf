@@ -222,7 +222,6 @@ forde <- function(
                   by = c('tree', 'leaf', 'variable'), sort = FALSE)
       if (family == 'truncnorm') {
         dt[, c('mu', 'sigma') := .(mean(value), sd(value)), by = .(leaf, variable)]
-        setcolorder(dt, c('variable', 'min', 'max', 'mu', 'sigma'))
         if (dt[sigma == 0, .N] > 0L) {
           dt[sigma == 0, new_min := ifelse(!is.finite(min), min(value), min), by = variable]
           dt[sigma == 0, new_max := ifelse(!is.finite(max), max(value), max), by = variable]
@@ -241,6 +240,8 @@ forde <- function(
     if (!is.null(new_name)) {
       psi_cnt[variable == new_name, variable := 'y']
     }
+    setkey(psi_cnt, f_idx, variable)
+    setcolorder(psi_cnt, c('f_idx', 'variable'))
   } 
   # Categorical case
   if (any(factor_cols)) {
@@ -272,7 +273,7 @@ forde <- function(
         dt <- merge(tmp, dt[, c('k', 'count') := NULL], by = 'f_idx', sort = FALSE)
         # Compute posterior probabilities
         dt[, prob := (val_count + alpha) / (count + alpha * k), by = .(f_idx, variable, val)]
-        dt[, val_count := NULL]
+        dt[, c('val_count', 'k') := NULL]
       }
       dt[, c('tree', 'leaf', 'count', 'min', 'max') := NULL]
     }
@@ -284,6 +285,8 @@ forde <- function(
     if (!is.null(new_name)) {
       psi_cat[variable == new_name, variable := 'y']
     }
+    setkey(psi_cat, f_idx, variable)
+    setcolorder(psi_cat, c('f_idx', 'variable'))
   }
   
   # Add metadata, export
