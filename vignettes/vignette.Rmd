@@ -87,7 +87,22 @@ params_unif <- forde(arf, iris, family = 'unif')
 
 This method tends to perform poorly in practice, and we do not recommend it. The option is implemented primarily for benchmarking purposes. Alternative families, e.g. truncated Poisson or beta distributions, may be useful for certain problems. Future releases will expand the range of options for the `family` argument.
 
-The `forde` function outputs a list of length 4, with entries for (1) continuous features; (2) categorical features; (3) leaf parameters; and (4) variable metadata. 
+The `alpha` and `epsilon` arguments allow for optional regularization of multinomial and uniform distributions, respectively. These are primarily intended to prevent zero likelihood samples when test data fall outside the support of training data. The former is a pseudocount parameter that applies Laplace smoothing within leaves, preventing unobserved values from being assigned zero probability unless splits explicitly rule them out. In other words, we impose a flat Dirichlet prior $\text{Dir}(\alpha)$ and report posterior probabilities rather than maximum likelihood estimates. The latter is a slack parameter on empirical bounds that expands the estimated extrema for continuous features by a factor of $1 + \epsilon$.
+
+Compare the results of our original probability estimates for the `Species` variable with those obtained by adding a pseudocount of $\alpha = 0.1$.
+
+```{r dirichlet}
+# Recompute with additive smoothing
+params_alpha <- forde(arf, iris, alpha = 0.1)
+
+# Compare results
+head(params$cat)
+head(params_alpha$cat)
+```
+
+As expected, all values in the maximum likelihood calculation are shrunk toward a uniform prior when we impose Laplace smoothing. 
+
+The `forde` function outputs a list of length 5, with entries for (1) continuous features; (2) categorical features; (3) leaf parameters; (4) variable metadata; and (5) data input class. 
 
 ```{r forde2}
 params
