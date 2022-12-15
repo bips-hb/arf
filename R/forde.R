@@ -193,12 +193,14 @@ forde <- function(
     pred[inbag] <- NA_integer_
     bnds[, n_oob := sum(!is.na(pred[, tree])), by = tree]
     bnds[, cvg := sum(pred[, tree] == leaf, na.rm = TRUE) / n_oob, by = .(tree, leaf)]
+    if (any(!factor_cols)) {
+      bnds[cvg == 1 / n_oob, cvg := 0]
+    }
   } else {
     bnds[, cvg := sum(pred[, tree] == leaf) / n, by = .(tree, leaf)]
-  }
-  # Can't do anything with coverage 1/n
-  if (any(!factor_cols)) {
-    bnds[cvg == 1/n, cvg := 0]
+    if (any(!factor_cols)) {
+      bnds[cvg == 1 / n, cvg := 0]
+    }
   }
   # No parameters to learn for zero coverage leaves
   bnds <- bnds[cvg > 0]
@@ -244,13 +246,14 @@ forde <- function(
   if (any(factor_cols)) {
     psi_cat_fn <- function(tree) {
       dt <- data.table(x[, factor_cols, drop = FALSE], leaf = pred[, tree])
-      dt <- melt(dt, id.vars = 'leaf', variable.factor = FALSE,
-                 value.factor = FALSE, value.name = 'val')[, tree := tree]
       if (isTRUE(oob)) {
         dt <- dt[!is.na(leaf)]
       }
-      dt <- merge(dt, bnds, by = c('tree', 'leaf', 'variable'), sort = FALSE)
-      dt[, count := cvg * n]
+      dt <- melt(dt, id.vars = 'leaf', variable.factor = FALSE,
+                 value.factor = FALSE, value.name = 'val')[, tree := tree]
+      dt[, count := .N, by = .(leaf, variable)]
+      dt <- merge(dt, bnds.(tree, leaf, variable, min, max, f_idx), 
+                  by = c('tree', 'leaf', 'variable'), sort = FALSE)
       if (alpha == 0) {
         dt <- unique(dt[, prob := .N / count, by = .(leaf, variable, val)])
       } else {
@@ -271,7 +274,7 @@ forde <- function(
         dt[, prob := (val_count + alpha) / (count + alpha * k), by = .(f_idx, variable, val)]
         dt[, val_count := NULL]
       }
-      dt[, c('tree', 'leaf', 'cvg', 'count', 'min', 'max') := NULL]
+      dt[, c('tree', 'leaf', 'count', 'min', 'max') := NULL]
     }
     if (isTRUE(parallel)) {
       psi_cat <- foreach(tree = 1:num_trees, .combine = rbind) %dopar% psi_cat_fn(tree)
