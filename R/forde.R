@@ -252,7 +252,7 @@ forde <- function(
       dt <- melt(dt, id.vars = 'leaf', variable.factor = FALSE,
                  value.factor = FALSE, value.name = 'val')[, tree := tree]
       dt[, count := .N, by = .(leaf, variable)]
-      dt <- merge(dt, bnds.(tree, leaf, variable, min, max, f_idx), 
+      dt <- merge(dt, bnds[, .(tree, leaf, variable, min, max, f_idx)], 
                   by = c('tree', 'leaf', 'variable'), sort = FALSE)
       if (alpha == 0) {
         dt <- unique(dt[, prob := .N / count, by = .(leaf, variable, val)])
