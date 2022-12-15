@@ -153,51 +153,51 @@ treatment effects using random forests. <em>J. Am. Stat. Assoc.</em>,
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">arf</span> <span class="op">&lt;-</span> <span class="fu"><a href="adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">iris</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 0, Accuracy: 85.52%</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 1, Accuracy: 45.12%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 0, Accuracy: 83.84%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 1, Accuracy: 35.79%</span>
 <span class="r-in"><span><span class="va">psi</span> <span class="op">&lt;-</span> <span class="fu">forde</span><span class="op">(</span><span class="va">arf</span>, <span class="va">iris</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">psi</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $cnt</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>      f_idx     variable  min  max       mu      sigma</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   1:     1 Petal.Length -Inf  Inf 1.475000 0.20816660</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   2:     1  Petal.Width -Inf  Inf 0.262500 0.10878113</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   3:     1 Sepal.Length -Inf  Inf 5.268750 0.31983068</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   4:     1  Sepal.Width 3.55  Inf 3.850000 0.22803509</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   5:     2 Petal.Length -Inf  Inf 5.200000 0.51478151</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   1:     1 Petal.Length -Inf  Inf 1.472500 0.17392527</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   2:     1  Petal.Width -Inf 0.45 0.240000 0.08711913</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   3:     1 Sepal.Length -Inf  Inf 5.077500 0.33165282</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   4:     1  Sepal.Width 3.05  Inf 3.535000 0.31667341</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   5:     2 Petal.Length -Inf  Inf 5.736364 0.43651513</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  ---                                                 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 724:   181  Sepal.Width -Inf 3.05 2.810000 0.19692074</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 725:   182 Petal.Length 4.75 5.25 5.033333 0.11547005</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 726:   182  Petal.Width 0.15  Inf 1.933333 0.40414519</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 727:   182 Sepal.Length 6.05  Inf 6.766667 0.23094011</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 728:   182  Sepal.Width 3.05 3.55 3.133333 0.05773503</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 680:   170  Sepal.Width -Inf 2.75 2.633333 0.10327956</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 681:   171 Petal.Length -Inf 5.65 5.166667 0.58594653</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 682:   171  Petal.Width 1.10  Inf 2.100000 0.43588989</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 683:   171 Sepal.Length 5.55 6.85 6.166667 0.15275252</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 684:   171  Sepal.Width 3.35  Inf 3.400000 0.01153731</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $cat</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>      f_idx variable        val      prob</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   1:     1  Species     setosa 1.0000000</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   2:     2  Species  virginica 1.0000000</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   3:     3  Species versicolor 1.0000000</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   4:     4  Species  virginica 1.0000000</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   5:     5  Species versicolor 1.0000000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   3:     3  Species     setosa 0.5000000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   4:     3  Species versicolor 0.5000000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   5:     4  Species versicolor 0.3333333</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  ---                                    </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 227:   180  Species versicolor 1.0000000</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 228:   181  Species versicolor 0.3000000</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 229:   181  Species  virginica 0.7000000</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 230:   182  Species versicolor 0.3333333</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 231:   182  Species  virginica 0.6666667</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 211:   169  Species versicolor 0.7777778</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 212:   169  Species  virginica 0.2222222</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 213:   170  Species  virginica 1.0000000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 214:   171  Species versicolor 0.3333333</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 215:   171  Species  virginica 0.6666667</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $forest</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>      f_idx tree leaf        cvg</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   1:     1    1   14 0.10666667</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   2:     2    1   18 0.03333333</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   3:     3    1   22 0.02666667</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   4:     4    1   27 0.17333333</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   5:     5    1   32 0.01333333</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   1:     1    1   22 0.26666667</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   2:     2    1   27 0.07333333</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   3:     3    1   37 0.02666667</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   4:     4    1   39 0.02000000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   5:     5    1   40 0.05333333</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  ---                           </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 178:   178   10   63 0.08000000</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 179:   179   10   64 0.05333333</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 180:   180   10   68 0.03333333</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 181:   181   10   78 0.06666667</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 182:   182   10   79 0.02000000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 167:   167   10   70 0.02666667</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 168:   168   10   74 0.28666667</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 169:   169   10   76 0.06000000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 170:   170   10   77 0.04000000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 171:   171   10   79 0.02000000</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $meta</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>        variable   class    family</span>

@@ -215,7 +215,10 @@ pseudocount of <span class="math inline">\(\alpha = 0.1\)</span>.</p>
 <span><span class="co">#&gt; 5:     2  Species versicolor 0.980582524</span></span>
 <span><span class="co">#&gt; 6:     2  Species  virginica 0.009708738</span></span></code></pre></div>
 <p>As expected, all values in the maximum likelihood calculation are
-shrunk toward a uniform prior when we impose Laplace smoothing.</p>
+shrunk toward a uniform prior when we impose Laplace smoothing. Note
+also that the two data tables do not have exactly the same rows. This is
+because we omit zero probability events in the former case to conserve
+memory.</p>
 <p>The <code>forde</code> function outputs a list of length 5, with
 entries for (1) continuous features; (2) categorical features; (3) leaf
 parameters; (4) variable metadata; and (5) data input class.</p>
