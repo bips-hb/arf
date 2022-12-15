@@ -261,18 +261,27 @@ forde <- function(
       } else {
         # Define the range of each variable in each leaf
         dt <- unique(dt[, val_count := .N, by = .(f_idx, variable, val)])
-        dt[min == -Inf, min := 0][max == Inf, max := length(unique(val)), by = variable]
-        dt[grepl('.5', min), min := min - 0.5][grepl('.5', max), max := max - .5]
+        dt[, k := length(unique(val)), by = variable]
+        dt[min == -Inf, min := 0.5][max == Inf, max := k + 0.5]
         dt[, k := max - min]
-        # Add zero counts for unobserved levels
-        tmp <- dt[, unique(val), by = variable]
-        tmp <- tmp[, as.list(unique(dt[, .(f_idx)])), by = tmp]
-        setnames(tmp, 'V1', 'val')
-        dt <- merge(tmp, dt, by = c('f_idx', 'variable', 'val'), all.x = TRUE, sort = FALSE)
+        # Enumerate each possible leaf-variable-value combo
+        tmp <- dt[, seq(min[1] + 0.5, max[1] - 0.5), by = .(f_idx, variable)]
+        setnames(tmp, 'V1', 'levels')
+        tmp2 <- rbindlist(
+          lapply(which(factor_cols), function(j) {
+            data.table('variable' = colnames(x)[j],
+                       'val' = arf$forest$covariate.levels[[j]])[, levels := .I]
+          })
+        )
+        tmp <- merge(tmp, tmp2, by = c('variable', 'levels'), 
+                     sort = FALSE)[, levels := NULL]
+        # Populate count, k
+        tmp <- merge(tmp, unique(dt[, .(f_idx, variable, count, k)]),
+                     by = c('f_idx', 'variable'), sort = FALSE)
+        # Merge with dt, set val_count = 0 for possible but unobserved levels
+        dt <- merge(tmp, dt, by = c('f_idx', 'variable', 'val', 'count', 'k'), 
+                    all.x = TRUE, sort = FALSE)
         dt[is.na(val_count), val_count := 0]
-        tmp <- unique(dt[!is.na(k), .(f_idx, k, count, variable)])
-        dt <- merge(tmp, dt[, c('k', 'count') := NULL], 
-                    by = c('f_idx', 'variable'), sort = FALSE)
         # Compute posterior probabilities
         dt[, prob := (val_count + alpha) / (count + alpha * k), by = .(f_idx, variable, val)]
         dt[, c('val_count', 'k') := NULL]
