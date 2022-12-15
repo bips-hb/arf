@@ -83,7 +83,7 @@ adversarial_rf <- function(
     ...) {
   
   # To avoid data.table check issues
-  i <- . <- NULL
+  i <- no <- leaf <- . <- NULL
 
   # Prep data
   x_real <- as.data.frame(x)
