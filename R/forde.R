@@ -11,11 +11,14 @@
 #'   features. Current options include truncated normal (the default
 #'   \code{family = "truncnorm"}) and uniform (\code{family = "unif"}). See 
 #'   Details.
-#' @param epsilon Slack parameter on empirical bounds when \code{family = "unif"}.
-#'   This avoids zero-density points when test data fall outside the support
-#'   of training data. The gap between lower and upper bounds is expanded by 
-#'   a factor of \code{epsilon}. Only used when a variable is never selected for
-#'   splitting.
+#' @param alpha Optional pseudocount for Laplace smoothing of multinomial 
+#'   features. This avoids zero-mass points when test data fall outside the 
+#'   support of training data. Effectively parametrizes a flat Dirichlet prior
+#'   on multinomial likelihoods.
+#' @param epsilon Optional slack parameter on empirical bounds when 
+#'   \code{family = "unif"}. This avoids zero-density points when test data fall 
+#'   outside the support of training data. The gap between lower and upper 
+#'   bounds is expanded by a factor of \code{1 + epsilon}. 
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
 #'   via \code{doParallel}.
 #'   
@@ -82,7 +85,8 @@ forde <- function(
     x, 
     oob = FALSE,
     family = 'truncnorm', 
-    epsilon = 0.1, 
+    alpha = 0,
+    epsilon = 0,
     parallel = TRUE) {
   
   # To avoid data.table check issues
@@ -145,7 +149,7 @@ forde <- function(
     num_nodes <- length(arf$forest$split.varIDs[[tree]])
     lb <- matrix(-Inf, nrow = num_nodes, ncol = d)
     ub <- matrix(Inf, nrow = num_nodes, ncol = d)
-    if (family == 'unif') {
+    if (family == 'unif' & epsilon > 0) {
       for (j in seq_len(d)) {
         if (!isTRUE(factor_cols[j])) {
           gap <- max(x[[j]]) - min(x[[j]])
@@ -239,16 +243,34 @@ forde <- function(
   if (any(factor_cols)) {
     psi_cat_fn <- function(tree) {
       dt <- data.table(x[, factor_cols, drop = FALSE], leaf = pred[, tree])
+      dt <- melt(dt, id.vars = 'leaf', variable.factor = FALSE,
+                 value.factor = FALSE, value.name = 'val')[, tree := tree]
       if (isTRUE(oob)) {
         dt <- dt[!is.na(leaf)]
       }
-      dt <- melt(dt, id.vars = 'leaf', variable.factor = FALSE,
-                 value.factor = FALSE, value.name = 'val')[, tree := tree]
-      dt[, count := .N, by = .(leaf, variable)]
-      dt <- unique(dt[, prob := .N/count, by = .(leaf, variable, val)])
-      dt <- merge(dt, bnds[, .(tree, leaf, variable, f_idx)],
-                  by = c('tree', 'leaf', 'variable'), sort = FALSE)
-      dt[, c('count', 'tree', 'leaf') := NULL]
+      dt <- merge(dt, bnds, by = c('tree', 'leaf', 'variable'), sort = FALSE)
+      dt[, count := cvg * n]
+      if (alpha == 0) {
+        dt <- unique(dt[, prob := .N / count, by = .(leaf, variable, val)])
+      } else {
+        # Define the range of each variable in each leaf
+        dt <- unique(dt[, val_count := .N, by = .(leaf, variable, val)])
+        dt[min == -Inf, min := 0][max == Inf, max := length(unique(val)), by = variable]
+        dt[grepl('.5', min), min := min - 0.5][grepl('.5', max), max := max - .5]
+        dt[, k := max - min]
+        # Add zero counts for unobserved levels
+        tmp <- dt[, unique(val), by = variable]
+        tmp <- tmp[, as.list(unique(dt[, .(f_idx)])), by = tmp]
+        setnames(tmp, 'V1', 'val')
+        dt <- merge(tmp, dt, by = c('f_idx', 'variable', 'val'), all.x = TRUE, sort = FALSE)
+        dt[is.na(val_count), val_count := 0]
+        tmp <- dt[!is.na(k), .(f_idx, k, count)]
+        dt <- merge(tmp, dt[, c('k', 'count') := NULL], by = 'f_idx', sort = FALSE)
+        # Compute posterior probabilities
+        dt[, prob := (val_count + alpha) / (count + alpha * k), by = .(f_idx, variable, val)]
+        dt[, val_count := NULL]
+      }
+      dt[, c('tree', 'leaf', 'cvg', 'count', 'min', 'max') := NULL]
     }
     if (isTRUE(parallel)) {
       psi_cat <- foreach(tree = 1:num_trees, .combine = rbind) %dopar% psi_cat_fn(tree)
