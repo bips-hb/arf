@@ -178,79 +178,38 @@ recommend it. The option is implemented primarily for benchmarking
 purposes. Alternative families, e.g. truncated Poisson or beta
 distributions, may be useful for certain problems. Future releases will
 expand the range of options for the <code>family</code> argument.</p>
-<p>The <code>alpha</code> and <code>epsilon</code> arguments allow for
-optional regularization of multinomial and uniform distributions,
-respectively. These are primarily intended to prevent zero likelihood
-samples when test data fall outside the support of training data. The
-former is a pseudocount parameter that applies Laplace smoothing within
-leaves, preventing unobserved values from being assigned zero
-probability unless splits explicitly rule them out. In other words, we
-impose a flat Dirichlet prior <span class="math inline">\(\text{Dir}(\alpha)\)</span> and report posterior
-probabilities rather than maximum likelihood estimates. The latter is a
-slack parameter on empirical bounds that expands the estimated extrema
-for continuous features by a factor of <span class="math inline">\(1 +
-\epsilon\)</span>.</p>
-<p>Compare the results of our original probability estimates for the
-<code>Species</code> variable with those obtained by adding a
-pseudocount of <span class="math inline">\(\alpha = 0.1\)</span>.</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Recompute with additive smoothing</span></span>
-<span><span class="va">params_alpha</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/forde.html">forde</a></span><span class="op">(</span><span class="va">arf</span>, <span class="va">iris</span>, alpha <span class="op">=</span> <span class="fl">0.1</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Compare results</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">params</span><span class="op">$</span><span class="va">cat</span><span class="op">)</span></span>
-<span><span class="co">#&gt;    f_idx variable        val      prob</span></span>
-<span><span class="co">#&gt; 1:     1  Species     setosa 1.0000000</span></span>
-<span><span class="co">#&gt; 2:     2  Species versicolor 1.0000000</span></span>
-<span><span class="co">#&gt; 3:     3  Species versicolor 1.0000000</span></span>
-<span><span class="co">#&gt; 4:     4  Species versicolor 0.3571429</span></span>
-<span><span class="co">#&gt; 5:     4  Species  virginica 0.6428571</span></span>
-<span><span class="co">#&gt; 6:     5  Species versicolor 0.4000000</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">params_alpha</span><span class="op">$</span><span class="va">cat</span><span class="op">)</span></span>
-<span><span class="co">#&gt;    f_idx variable        val        prob</span></span>
-<span><span class="co">#&gt; 1:     1  Species     setosa 0.913043478</span></span>
-<span><span class="co">#&gt; 2:     1  Species versicolor 0.043478261</span></span>
-<span><span class="co">#&gt; 3:     1  Species  virginica 0.043478261</span></span>
-<span><span class="co">#&gt; 4:     2  Species     setosa 0.009708738</span></span>
-<span><span class="co">#&gt; 5:     2  Species versicolor 0.980582524</span></span>
-<span><span class="co">#&gt; 6:     2  Species  virginica 0.009708738</span></span></code></pre></div>
-<p>As expected, all values in the maximum likelihood calculation are
-shrunk toward a uniform prior when we impose Laplace smoothing. Note
-also that the two data tables do not have exactly the same rows. This is
-because we omit zero probability events in the former case to conserve
-memory.</p>
-<p>The <code>forde</code> function outputs a list of length 5, with
+<p>The <code>forde</code> function outputs a list of length 4, with
 entries for (1) continuous features; (2) categorical features; (3) leaf
-parameters; (4) variable metadata; and (5) data input class.</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+parameters; and (4) variable metadata.</p>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">params</span></span>
 <span><span class="co">#&gt; $cnt</span></span>
-<span><span class="co">#&gt;       f_idx     variable  min  max       mu      sigma</span></span>
-<span><span class="co">#&gt;    1:     1 Petal.Length -Inf  Inf 1.450000 0.07071068</span></span>
-<span><span class="co">#&gt;    2:     1  Petal.Width -Inf  Inf 0.300000 0.14142136</span></span>
-<span><span class="co">#&gt;    3:     1 Sepal.Length -Inf  Inf 5.600000 0.14142136</span></span>
-<span><span class="co">#&gt;    4:     1  Sepal.Width 4.15  Inf 4.300000 0.14142136</span></span>
-<span><span class="co">#&gt;    5:     2 Petal.Length -Inf 4.05 3.810000 0.31073390</span></span>
+<span><span class="co">#&gt;           variable  min  max       mu      sigma f_idx</span></span>
+<span><span class="co">#&gt;    1: Sepal.Length -Inf 6.35 4.965789 0.33472564    12</span></span>
+<span><span class="co">#&gt;    2: Sepal.Length 5.05 6.35 5.250000 0.16431677    15</span></span>
+<span><span class="co">#&gt;    3: Sepal.Length -Inf 6.35 4.450000 0.21213203    11</span></span>
+<span><span class="co">#&gt;    4: Sepal.Length -Inf  Inf 5.600000 0.14142136     1</span></span>
+<span><span class="co">#&gt;    5: Sepal.Length -Inf 5.05 5.000000 0.02023536    14</span></span>
 <span><span class="co">#&gt;   ---                                                 </span></span>
-<span><span class="co">#&gt; 6988:  1747  Sepal.Width -Inf 3.25 2.866667 0.32145503</span></span>
-<span><span class="co">#&gt; 6989:  1748 Petal.Length -Inf  Inf 5.120000 0.28635642</span></span>
-<span><span class="co">#&gt; 6990:  1748  Petal.Width 1.05  Inf 1.900000 0.22360680</span></span>
-<span><span class="co">#&gt; 6991:  1748 Sepal.Length 5.25 6.45 6.160000 0.23021729</span></span>
-<span><span class="co">#&gt; 6992:  1748  Sepal.Width 2.90 3.25 3.060000 0.08944272</span></span>
+<span><span class="co">#&gt; 6988:  Petal.Width -Inf  Inf 2.166667 0.32659863  1738</span></span>
+<span><span class="co">#&gt; 6989:  Petal.Width 1.05  Inf 1.900000 0.25419556  1745</span></span>
+<span><span class="co">#&gt; 6990:  Petal.Width 1.05  Inf 2.071429 0.22677868  1744</span></span>
+<span><span class="co">#&gt; 6991:  Petal.Width 1.05  Inf 2.166667 0.32145503  1747</span></span>
+<span><span class="co">#&gt; 6992:  Petal.Width 1.05  Inf 1.900000 0.22360680  1748</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $cat</span></span>
-<span><span class="co">#&gt;       f_idx variable        val      prob</span></span>
-<span><span class="co">#&gt;    1:     1  Species     setosa 1.0000000</span></span>
-<span><span class="co">#&gt;    2:     2  Species versicolor 1.0000000</span></span>
-<span><span class="co">#&gt;    3:     3  Species versicolor 1.0000000</span></span>
-<span><span class="co">#&gt;    4:     4  Species versicolor 0.3571429</span></span>
-<span><span class="co">#&gt;    5:     4  Species  virginica 0.6428571</span></span>
-<span><span class="co">#&gt;   ---                                    </span></span>
-<span><span class="co">#&gt; 2246:  1744  Species  virginica 1.0000000</span></span>
-<span><span class="co">#&gt; 2247:  1745  Species  virginica 1.0000000</span></span>
-<span><span class="co">#&gt; 2248:  1746  Species versicolor 1.0000000</span></span>
-<span><span class="co">#&gt; 2249:  1747  Species  virginica 1.0000000</span></span>
-<span><span class="co">#&gt; 2250:  1748  Species  virginica 1.0000000</span></span>
+<span><span class="co">#&gt;       variable       val      prob f_idx</span></span>
+<span><span class="co">#&gt;    1:  Species    setosa 1.0000000    12</span></span>
+<span><span class="co">#&gt;    2:  Species    setosa 1.0000000    15</span></span>
+<span><span class="co">#&gt;    3:  Species    setosa 1.0000000    11</span></span>
+<span><span class="co">#&gt;    4:  Species    setosa 1.0000000     1</span></span>
+<span><span class="co">#&gt;    5:  Species    setosa 1.0000000    14</span></span>
+<span><span class="co">#&gt;   ---                                   </span></span>
+<span><span class="co">#&gt; 2246:  Species virginica 0.1666667  1737</span></span>
+<span><span class="co">#&gt; 2247:  Species virginica 1.0000000  1747</span></span>
+<span><span class="co">#&gt; 2248:  Species virginica 0.8333333  1738</span></span>
+<span><span class="co">#&gt; 2249:  Species virginica 1.0000000  1748</span></span>
+<span><span class="co">#&gt; 2250:  Species virginica 0.5000000  1740</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $forest</span></span>
 <span><span class="co">#&gt;       f_idx tree leaf        cvg</span></span>
@@ -284,7 +243,7 @@ as likelihood estimation and data synthesis.</p>
 <p>To calculate log-likelihoods, we pass <code>arf</code> and
 <code>params</code> on to the <code>lik</code> function, along with the
 data whose likelihood we wish to evaluate.</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Compute likelihood under truncated normal and uniform distributions</span></span>
 <span><span class="va">ll</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/lik.html">lik</a></span><span class="op">(</span><span class="va">arf</span>, <span class="va">params</span>, <span class="va">iris</span><span class="op">)</span></span>
 <span><span class="va">ll_unif</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/lik.html">lik</a></span><span class="op">(</span><span class="va">arf</span>, <span class="va">params_unif</span>, <span class="va">iris</span><span class="op">)</span></span>
@@ -293,7 +252,7 @@ data whose likelihood we wish to evaluate.</p>
 <span><span class="op">-</span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">ll</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 0.297767</span></span>
 <span><span class="op">-</span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">ll_unif</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] Inf</span></span></code></pre></div>
+<span><span class="co">#&gt; [1] 4.236065</span></span></code></pre></div>
 <p>Note that the piecewise constant estimator does considerably worse in
 this experiment.</p>
 <p>We can compute likelihoods on the probability scale by setting
@@ -301,7 +260,7 @@ this experiment.</p>
 There is also a <code>batch</code> argument, which has no impact on
 results but can be more memory efficient for large datasets. For
 instance, we could rerun the code above in batches of size 50:</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Compute likelihood in batches of 50</span></span>
 <span><span class="va">ll_50</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/lik.html">lik</a></span><span class="op">(</span><span class="va">arf</span>, <span class="va">params</span>, <span class="va">iris</span>, batch <span class="op">=</span> <span class="fl">50</span><span class="op">)</span></span>
 <span></span>
@@ -332,7 +291,7 @@ the <code>mlbench</code> package, which allows for easy visual
 assessment. We draw a training set of <span class="math inline">\(n =
 1000\)</span> and simulate <span class="math inline">\(1000\)</span>
 synthetic datapoints. Resulting data are plotted side by side.</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Simulate training data</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">mlbench</span><span class="op">)</span></span>
 <span><span class="va">x</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/mlbench/man/mlbench.smiley.html" class="external-link">mlbench.smiley</a></span><span class="op">(</span><span class="fl">1000</span><span class="op">)</span></span>
@@ -341,8 +300,8 @@ synthetic datapoints. Resulting data are plotted side by side.</p>
 <span></span>
 <span><span class="co"># Fit ARF</span></span>
 <span><span class="va">arf</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">x</span>, mtry <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Iteration: 0, Accuracy: 89.32%</span></span>
-<span><span class="co">#&gt; Iteration: 1, Accuracy: 37%</span></span>
+<span><span class="co">#&gt; Iteration: 0, Accuracy: 89.94%</span></span>
+<span><span class="co">#&gt; Iteration: 1, Accuracy: 36.48%</span></span>
 <span></span>
 <span><span class="co"># Estimate parameters</span></span>
 <span><span class="va">params</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/forde.html">forde</a></span><span class="op">(</span><span class="va">arf</span>, <span class="va">x</span><span class="op">)</span></span>
@@ -353,14 +312,14 @@ synthetic datapoints. Resulting data are plotted side by side.</p>
 <span><span class="co"># Compare structure</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">x</span><span class="op">)</span></span>
 <span><span class="co">#&gt; 'data.frame':    1000 obs. of  3 variables:</span></span>
-<span><span class="co">#&gt;  $ X    : num  -0.867 -0.936 -0.82 -0.746 -0.57 ...</span></span>
-<span><span class="co">#&gt;  $ Y    : num  1.036 1.132 0.936 1.196 1.023 ...</span></span>
+<span><span class="co">#&gt;  $ X    : num  -0.653 -0.71 -0.679 -1.021 -0.927 ...</span></span>
+<span><span class="co">#&gt;  $ Y    : num  1.136 1.049 0.909 1.161 0.984 ...</span></span>
 <span><span class="co">#&gt;  $ Class: Factor w/ 4 levels "1","2","3","4": 1 1 1 1 1 1 1 1 1 1 ...</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">synth</span><span class="op">)</span></span>
 <span><span class="co">#&gt; 'data.frame':    1000 obs. of  3 variables:</span></span>
-<span><span class="co">#&gt;  $ X    : num  -0.69937 0.30525 0.76805 0.00147 0.58613 ...</span></span>
-<span><span class="co">#&gt;  $ Y    : num  -0.572 -0.877 0.96 0.614 -0.569 ...</span></span>
-<span><span class="co">#&gt;  $ Class: Factor w/ 4 levels "1","2","3","4": 4 4 2 3 4 3 3 4 3 4 ...</span></span>
+<span><span class="co">#&gt;  $ X    : num  -0.8256 -0.9136 -0.9267 0.0961 -0.0873 ...</span></span>
+<span><span class="co">#&gt;  $ Y    : num  0.988 -0.165 0.996 -0.986 0.111 ...</span></span>
+<span><span class="co">#&gt;  $ Class: Factor w/ 4 levels "1","2","3","4": 1 4 1 4 3 1 3 2 4 1 ...</span></span>
 <span></span>
 <span><span class="co"># Put it all together</span></span>
 <span><span class="va">x</span><span class="op">$</span><span class="va">Data</span> <span class="op">&lt;-</span> <span class="st">'Original'</span></span>
@@ -381,7 +340,7 @@ say, count data with limited support (e.g., number of petals on a
 plant). However, this is probably not the desired behavior for other
 integer variables. Consider the <code>diamonds</code> dataset, where
 <code>price</code> is classed as an integer.</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Check data</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">diamonds</span><span class="op">)</span></span>
 <span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 6 × 10</span></span></span>
@@ -397,7 +356,7 @@ integer variables. Consider the <code>diamonds</code> dataset, where
 <span><span class="co"># View the distribution</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/hist.html" class="external-link">hist</a></span><span class="op">(</span><span class="va">diamonds</span><span class="op">$</span><span class="va">price</span><span class="op">)</span></span></code></pre></div>
 <p><img src="vignette_files/figure-html/price-1.png" width="480"></p>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span></span>
 <span><span class="co"># How many unique prices?</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/unique.html" class="external-link">unique</a></span><span class="op">(</span><span class="va">diamonds</span><span class="op">$</span><span class="va">price</span><span class="op">)</span><span class="op">)</span></span>
@@ -405,7 +364,7 @@ integer variables. Consider the <code>diamonds</code> dataset, where
 <p>This variable should clearly not be treated as a factor with 11602
 levels. To make sure we fit a continuous density for price, we re-class
 the feature as numeric.</p>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Re-class </span></span>
 <span><span class="va">diamonds</span><span class="op">$</span><span class="va">price</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="va">diamonds</span><span class="op">$</span><span class="va">price</span><span class="op">)</span></span>
 <span></span>
@@ -414,9 +373,10 @@ the feature as numeric.</p>
 <span></span>
 <span><span class="co"># Train ARF</span></span>
 <span><span class="va">arf</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">diamonds</span><span class="op">[</span><span class="va">s_idx</span>, <span class="op">]</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Iteration: 0, Accuracy: 96.31%</span></span>
-<span><span class="co">#&gt; Iteration: 1, Accuracy: 69.6%</span></span>
-<span><span class="co">#&gt; Iteration: 2, Accuracy: 48.71%</span></span>
+<span><span class="co">#&gt; Iteration: 0, Accuracy: 96.06%</span></span>
+<span><span class="co">#&gt; Iteration: 1, Accuracy: 66.68%</span></span>
+<span><span class="co">#&gt; Iteration: 2, Accuracy: 53.08%</span></span>
+<span><span class="co">#&gt; Iteration: 3, Accuracy: 49.87%</span></span>
 <span></span>
 <span><span class="co"># Fit density</span></span>
 <span><span class="va">params</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/forde.html">forde</a></span><span class="op">(</span><span class="va">arf</span>, <span class="va">diamonds</span><span class="op">[</span><span class="va">s_idx</span>, <span class="op">]</span><span class="op">)</span></span>
@@ -444,7 +404,7 @@ the feature as numeric.</p>
 mixture. Though the general outline of the histogram looks about right,
 we do find some implausible values, e.g. negative prices. This can be
 overcome by manually setting a hard lower bound.</p>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Set price minimum to zero</span></span>
 <span><span class="va">params</span><span class="op">$</span><span class="va">cnt</span><span class="op">[</span><span class="va">variable</span> <span class="op">==</span> <span class="st">'price'</span>, <span class="va">min</span> <span class="op">:=</span> <span class="fl">0</span><span class="op">]</span></span>
 <span></span>
