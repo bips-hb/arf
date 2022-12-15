@@ -198,18 +198,18 @@ parameters; and (4) variable metadata.</p>
 <span><span class="co">#&gt; 6992:  Petal.Width 1.05  Inf 1.900000 0.22360680  1748</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $cat</span></span>
-<span><span class="co">#&gt;       variable       val      prob f_idx</span></span>
-<span><span class="co">#&gt;    1:  Species    setosa 1.0000000    12</span></span>
-<span><span class="co">#&gt;    2:  Species    setosa 1.0000000    15</span></span>
-<span><span class="co">#&gt;    3:  Species    setosa 1.0000000    11</span></span>
-<span><span class="co">#&gt;    4:  Species    setosa 1.0000000     1</span></span>
-<span><span class="co">#&gt;    5:  Species    setosa 1.0000000    14</span></span>
+<span><span class="co">#&gt;       variable       val f_idx      prob</span></span>
+<span><span class="co">#&gt;    1:  Species    setosa    12 1.0000000</span></span>
+<span><span class="co">#&gt;    2:  Species    setosa    15 1.0000000</span></span>
+<span><span class="co">#&gt;    3:  Species    setosa    11 1.0000000</span></span>
+<span><span class="co">#&gt;    4:  Species    setosa     1 1.0000000</span></span>
+<span><span class="co">#&gt;    5:  Species    setosa    14 1.0000000</span></span>
 <span><span class="co">#&gt;   ---                                   </span></span>
-<span><span class="co">#&gt; 2246:  Species virginica 0.1666667  1737</span></span>
-<span><span class="co">#&gt; 2247:  Species virginica 1.0000000  1747</span></span>
-<span><span class="co">#&gt; 2248:  Species virginica 0.8333333  1738</span></span>
-<span><span class="co">#&gt; 2249:  Species virginica 1.0000000  1748</span></span>
-<span><span class="co">#&gt; 2250:  Species virginica 0.5000000  1740</span></span>
+<span><span class="co">#&gt; 2246:  Species virginica  1737 0.1666667</span></span>
+<span><span class="co">#&gt; 2247:  Species virginica  1747 1.0000000</span></span>
+<span><span class="co">#&gt; 2248:  Species virginica  1738 0.8333333</span></span>
+<span><span class="co">#&gt; 2249:  Species virginica  1748 1.0000000</span></span>
+<span><span class="co">#&gt; 2250:  Species virginica  1740 0.5000000</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $forest</span></span>
 <span><span class="co">#&gt;       f_idx tree leaf        cvg</span></span>
@@ -252,7 +252,7 @@ data whose likelihood we wish to evaluate.</p>
 <span><span class="op">-</span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">ll</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 0.297767</span></span>
 <span><span class="op">-</span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">ll_unif</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] 4.236065</span></span></code></pre></div>
+<span><span class="co">#&gt; [1] Inf</span></span></code></pre></div>
 <p>Note that the piecewise constant estimator does considerably worse in
 this experiment.</p>
 <p>We can compute likelihoods on the probability scale by setting
