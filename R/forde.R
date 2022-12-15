@@ -255,11 +255,12 @@ forde <- function(
       dt[, count := .N, by = .(leaf, variable)]
       dt <- merge(dt, bnds[, .(tree, leaf, variable, min, max, f_idx)], 
                   by = c('tree', 'leaf', 'variable'), sort = FALSE)
+      dt[, c('tree', 'leaf') := NULL]
       if (alpha == 0) {
-        dt <- unique(dt[, prob := .N / count, by = .(leaf, variable, val)])
+        dt <- unique(dt[, prob := .N / count, by = .(f_idx, variable, val)])
       } else {
         # Define the range of each variable in each leaf
-        dt <- unique(dt[, val_count := .N, by = .(leaf, variable, val)])
+        dt <- unique(dt[, val_count := .N, by = .(f_idx, variable, val)])
         dt[min == -Inf, min := 0][max == Inf, max := length(unique(val)), by = variable]
         dt[grepl('.5', min), min := min - 0.5][grepl('.5', max), max := max - .5]
         dt[, k := max - min]
@@ -269,13 +270,14 @@ forde <- function(
         setnames(tmp, 'V1', 'val')
         dt <- merge(tmp, dt, by = c('f_idx', 'variable', 'val'), all.x = TRUE, sort = FALSE)
         dt[is.na(val_count), val_count := 0]
-        tmp <- dt[!is.na(k), .(f_idx, k, count)]
-        dt <- merge(tmp, dt[, c('k', 'count') := NULL], by = 'f_idx', sort = FALSE)
+        tmp <- unique(dt[!is.na(k), .(f_idx, k, count, variable)])
+        dt <- merge(tmp, dt[, c('k', 'count') := NULL], 
+                    by = c('f_idx', 'variable'), sort = FALSE)
         # Compute posterior probabilities
         dt[, prob := (val_count + alpha) / (count + alpha * k), by = .(f_idx, variable, val)]
         dt[, c('val_count', 'k') := NULL]
       }
-      dt[, c('tree', 'leaf', 'count', 'min', 'max') := NULL]
+      dt[, c('count', 'min', 'max') := NULL]
     }
     if (isTRUE(parallel)) {
       psi_cat <- foreach(tree = 1:num_trees, .combine = rbind) %dopar% psi_cat_fn(tree)
