@@ -6,3 +6,6 @@
 ^pkgdown$
 ^todo.R$
 ^LICENSE$
+^arf\.Rcheck$
+^arf.*\.tar\.gz$
+^arf.*\.tgz$

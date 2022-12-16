@@ -1,7 +1,7 @@
 Package: arf
 Title: Adversarial Random Forests
-Version: 0.1.1
-Date: 2022-12-14
+Version: 0.1.2
+Date: 2022-12-16
 Authors@R: 
     c(person(given = "Marvin N.",
              family = "Wright",
@@ -17,14 +17,14 @@ Maintainer: Marvin N. Wright <cran@wrig.de>
 Description: Adversarial random forests (ARFs) recursively partition data into 
     fully factorized leaves, where features are jointly independent. The 
     procedure is iterative, with alternating rounds of generation and 
-    discrimination. Data become increasingly realistic at each round, until 
+    discrimination. Data becomes increasingly realistic at each round, until 
     original and synthetic samples can no longer be reliably distinguished. 
     This is useful for several unsupervised learning tasks, such as density
     estimation and data synthesis. Methods for both are implemented in this
     package. ARFs naturally handle unstructured data with mixed continuous and 
-    categorical covariates. They inherit many of the benefits of RFs, including
-    speed, flexibility, and solid performance with default parameters. For 
-    details, see Watson et al. (2022) <arXiv:2205.09435>.
+    categorical covariates. They inherit many of the benefits of random forests, 
+    including speed, flexibility, and solid performance with default parameters. 
+    For details, see Watson et al. (2022) <arXiv:2205.09435>.
 License: GPL (>= 3)
 URL: https://github.com/bips-hb/arf,
     https://bips-hb.github.io/arf/
