@@ -100,7 +100,13 @@ head(params$cat)
 head(params_alpha$cat)
 ```
 
-As expected, all values in the maximum likelihood calculation are shrunk toward a uniform prior when we impose Laplace smoothing. Note also that the two data tables do not have exactly the same rows. This is because we omit zero probability events in the former case to conserve memory.
+As expected, all values in the maximum likelihood calculation are shrunk toward a uniform prior when we impose Laplace smoothing---unless a category is the only one permitted in a leaf by the preceding splits, in which case it occurs with probability 1. Note also that the two data tables do not have exactly the same rows. This is because we omit zero probability events in the former case to conserve memory. However, we can verify that probabilities sum to unity for each leaf-variable combination.
+
+```{r unity}
+# Sum probabilities
+summary(params$cat[, sum(prob), by = .(f_idx, variable)]$V1)
+summary(params_alpha$cat[, sum(prob), by = .(f_idx, variable)]$V1)
+```
 
 The `forde` function outputs a list of length 5, with entries for (1) continuous features; (2) categorical features; (3) leaf parameters; (4) variable metadata; and (5) data input class. 
 
