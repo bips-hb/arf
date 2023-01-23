@@ -122,6 +122,7 @@ forde <- function(
     leaf_new <- col_rename(x, 'leaf')
     colnames(x)[which(colnames(x) == 'leaf')] <- leaf_new
   } 
+  classes <- sapply(x, class)
   idx_char <- sapply(x, is.character)
   if (any(idx_char)) {
     x[, idx_char] <- as.data.frame(
