@@ -83,24 +83,23 @@ adversarial_rf <- function(
     ...) {
   
   # To avoid data.table check issues
-  i <- no <- leaf <- . <- NULL
-
+  i <- cnt <- obs <- tree <- leaf <- . <- NULL
+  
   # Prep data
   x_real <- as.data.frame(x)
   n <- nrow(x_real)
   if ('y' %in% colnames(x_real)) {
-    k <- 1L
-    converged <- FALSE
-    while (!isTRUE(converged)) {
-      new_name <- rep('a', times = k)
-      if (!new_name %in% colnames(x_real)) {
-        colnames(x_real)[which(colnames(x_real) == 'y')] <- new_name
-        converged <- TRUE
-      } else {
-        k <- k + 1L
-      }
-    }
+    colnames(x_real)[which(colnames(x_real) == 'y')] <- col_rename(x_real, 'y')
   }
+  if ('obs' %in% colnames(x_real)) {
+    colnames(x_real)[which(colnames(x_real) == 'obs')] <- col_rename(x_real, 'obs')
+  }
+  if ('tree' %in% colnames(x_real)) {
+    colnames(x_real)[which(colnames(x_real) == 'tree')] <- col_rename(x_real, 'tree')
+  } 
+  if ('leaf' %in% colnames(x_real)) {
+    colnames(x_real)[which(colnames(x_real) == 'leaf')] <- col_rename(x_real, 'leaf')
+  } 
   idx_char <- sapply(x_real, is.character)
   if (any(idx_char)) {
     x_real[, idx_char] <- as.data.frame(
@@ -148,28 +147,34 @@ adversarial_rf <- function(
   acc <- acc0 <- 1 - rf0$prediction.error
   if (isTRUE(verbose)) {
     cat(paste0('Iteration: ', iters, 
-                 ', Accuracy: ', round(acc0 * 100, 2), '%\n'))
+               ', Accuracy: ', round(acc0 * 100, 2), '%\n'))
   }
   if (acc0 > 0.5 + delta & iters < max_iters) {
+    sample_ <- function(x, n) {
+      if (is.numeric(x)) {
+        as.numeric(sample(x, n, replace = TRUE))
+      } else {
+        sample(x, n, replace = TRUE)
+      }
+    }
     converged <- FALSE
     while (!isTRUE(converged)) {
       # Create synthetic data
       nodeIDs <- stats::predict(rf0, x_real, type = 'terminalNodes')$predictions
-      tmp <- melt(as.data.table(nodeIDs), measure.vars = 1:num_trees, 
+      tmp <- melt(as.data.table(nodeIDs), measure.vars = 1:num_trees,
                   variable.name = 'tree', value.name = 'leaf')
       tmp[, tree := as.numeric(gsub('V', '', tree))]
+      tmp2 <- copy(tmp)[, obs := rep(1:n, num_trees)]
+      x_real_dt <- as.data.table(x_real)[, obs := 1:n] 
+      x_real_dt <- merge(x_real_dt, tmp2, by = 'obs', sort = FALSE)
       tmp <- tmp[sample(.N, n, replace = TRUE)]
-      tmp <- unique(tmp[, no := .N, by = .(tree, leaf)])
-      synth <- function(i) {
-        idx <- nodeIDs[, tmp$tree[i]] == tmp$leaf[i]
-        as.data.frame(lapply(x_real[idx, ], sample, tmp$no[i], replace = TRUE))
-      }
-      if (isTRUE(parallel)) {
-        x_synth <- foreach(i = 1:nrow(tmp), .combine = rbind) %dopar% synth(i)
-      } else {
-        x_synth <- foreach(i = 1:nrow(tmp), .combine = rbind) %do% synth(i)
-      }
-      rm(nodeIDs, tmp)
+      tmp <- unique(tmp[, cnt := .N, by = .(tree, leaf)])
+      draw_from <- merge(tmp, x_real_dt, by = c('tree', 'leaf'), sort = FALSE)
+      x_synth <- setDF(
+        draw_from[, lapply(.SD[, -c('cnt', 'obs')], sample_, max(.SD[, cnt])), 
+                  by = .(tree, leaf)][, -c('tree', 'leaf')]
+      )
+      rm(nodeIDs, tmp, tmp2, x_real_dt, draw_from)
       # Merge real and synthetic data
       dat <- rbind(data.frame(y = 1L, x_real),
                    data.frame(y = 0L, x_synth))
@@ -194,7 +199,7 @@ adversarial_rf <- function(
       }
       if (isTRUE(verbose)) {
         cat(paste0('Iteration: ', iters, 
-                     ', Accuracy: ', round(acc0 * 100, 2), '%\n'))
+                   ', Accuracy: ', round(acc0 * 100, 2), '%\n'))
       }
     }
   }
