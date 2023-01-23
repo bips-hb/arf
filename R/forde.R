@@ -239,8 +239,17 @@ forde <- function(
     } else {
       psi_cnt <- foreach(tree = 1:num_trees, .combine = rbind) %do% psi_cnt_fn(tree)
     }
-    if (!is.null(new_name)) {
-      psi_cnt[variable == new_name, variable := 'y']
+    if (!is.null(y_new)) {
+      psi_cnt[variable == y_new, variable := 'y']
+    }
+    if (!is.null(obs_new)) {
+      psi_cnt[variable == obs_new, variable := 'obs']
+    }
+    if (!is.null(tree_new)) {
+      psi_cnt[variable == tree_new, variable := 'tree']
+    }
+    if (!is.null(leaf_new)) {
+      psi_cnt[variable == leaf_new, variable := 'leaf']
     }
     setkey(psi_cnt, f_idx, variable)
     setcolorder(psi_cnt, c('f_idx', 'variable'))
