@@ -99,7 +99,7 @@ forge <- function(
   }
   if (sum(idx_logical) > 0L) {
     x_synth[, idx_logical] <- as.data.frame(
-      lapply(x_synth[, idx_logical, drop = FALSE], function(x) {x == "TRUE"})
+      lapply(x_synth[, idx_logical, drop = FALSE], function(x) {x == 'TRUE'})
     )
   }
   if (sum(idx_integer) > 0L) {
@@ -107,9 +107,9 @@ forge <- function(
       lapply(x_synth[, idx_integer, drop = FALSE], function(x) as.integer(x)) 
     )
   }
-  if ("data.table" %in% params$input_class) {
+  if ('data.table' %in% params$input_class) {
     x_synth <- as.data.table(x_synth)
-  } else if ("matrix" %in% params$input_class) {
+  } else if ('matrix' %in% params$input_class) {
     x_synth <- as.matrix(x_synth)
   }
   return(x_synth)
