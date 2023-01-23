@@ -150,7 +150,7 @@ adversarial_rf <- function(
                ', Accuracy: ', round(acc0 * 100, 2), '%\n'))
   }
   if (acc0 > 0.5 + delta & iters < max_iters) {
-    sample_ <- function(x, n) {
+    sample_by_class <- function(x, n) {
       if (is.numeric(x)) {
         as.numeric(sample(x, n, replace = TRUE))
       } else {
@@ -163,18 +163,17 @@ adversarial_rf <- function(
       nodeIDs <- stats::predict(rf0, x_real, type = 'terminalNodes')$predictions
       tmp <- melt(as.data.table(nodeIDs), measure.vars = 1:num_trees,
                   variable.name = 'tree', value.name = 'leaf')
-      tmp[, tree := as.numeric(gsub('V', '', tree))]
-      tmp2 <- copy(tmp)[, obs := rep(1:n, num_trees)]
+      tmp[, tree := as.numeric(gsub('V', '', tree))][, obs := rep(1:n, num_trees)]
       x_real_dt <- as.data.table(x_real)[, obs := 1:n] 
-      x_real_dt <- merge(x_real_dt, tmp2, by = 'obs', sort = FALSE)
+      x_real_dt <- merge(x_real_dt, tmp, by = 'obs', sort = FALSE)
+      tmp[, obs := NULL]
       tmp <- tmp[sample(.N, n, replace = TRUE)]
       tmp <- unique(tmp[, cnt := .N, by = .(tree, leaf)])
       draw_from <- merge(tmp, x_real_dt, by = c('tree', 'leaf'), sort = FALSE)
-      x_synth <- setDF(
-        draw_from[, lapply(.SD[, -c('cnt', 'obs')], sample_, max(.SD[, cnt])), 
-                  by = .(tree, leaf)][, -c('tree', 'leaf')]
-      )
-      rm(nodeIDs, tmp, tmp2, x_real_dt, draw_from)
+      x_synth <- draw_from[, lapply(.SD[, -c('cnt', 'obs')], sample_by_class, .SD[, max(cnt)]), 
+                           by = .(tree, leaf)][, c('tree', 'leaf') := NULL]
+      rm(nodeIDs, tmp, x_real_dt, draw_from)
+      
       # Merge real and synthetic data
       dat <- rbind(data.frame(y = 1L, x_real),
                    data.frame(y = 0L, x_synth))
