@@ -13,7 +13,7 @@ col_rename <- function(df, old_name) {
   while (!isTRUE(converged)) {
     new_name <- paste0(old_name, k)
     if (!new_name %in% colnames(df)) {
-      coverged <- TRUE
+      converged <- TRUE
     } else {
       k <- k + 1L
     }
