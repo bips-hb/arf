@@ -211,7 +211,7 @@ adversarial_rf <- function(
   
   # Prune leaves to ensure min_node_size w.r.t. real data
   pred <- stats::predict(rf0, x_real, type = 'terminalNodes')$predictions + 1L
-  prune <- function(tree) {
+  for (tree in 1:num_trees) {
     leaves <- which(rf0$forest$child.nodeIDs[[tree]][[1]] == 0L)
     to_prune <- leaves[!(leaves %in% which(tabulate(pred[, tree]) >= min_node_size))]
     while(length(to_prune) > 0) {
@@ -229,11 +229,6 @@ adversarial_rf <- function(
       }
       to_prune <- which((rf0$forest$child.nodeIDs[[tree]][[1]] + 1L) %in% to_prune)
     }
-  }
-  if (isTRUE(parallel)) {
-    foreach(b = 1:num_trees) %dopar% prune(b)
-  } else {
-    foreach(b = 1:num_trees) %do% prune(b)
   }
   
   # Export
