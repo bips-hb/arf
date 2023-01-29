@@ -88,7 +88,7 @@ adversarial_rf <- function(
     ...) {
   
   # To avoid data.table check issues
-  i <- cnt <- obs <- tree <- leaf <- . <- NULL
+  i <- b <- cnt <- obs <- tree <- leaf <- . <- NULL
   
   # Prep data
   x_real <- as.data.frame(x)
