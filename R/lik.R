@@ -66,7 +66,8 @@ lik <- function(
     parallel = TRUE) {
   
   # To avoid data.table check issues
-  tree <- cvg <- leaf <- variable <- mu <- sigma <- value <- obs <- prob <- V1 <- family <- fold <- . <- NULL
+  tree <- cvg <- leaf <- variable <- mu <- sigma <- value <- obs <- prob <- 
+    V1 <- family <- fold <- . <- NULL
   
   # Prep data
   x <- as.data.frame(x)
