@@ -131,12 +131,11 @@ adversarial_rf <- function(
     warning('Variance is undefined when a leaf contains just a single observation. ', 
             'Consider increasing min_node_size.')
   }
-  # Sample from marginals to get naive synthetic data
+  
+  # Fit initial model: sample from marginals, concatenate data, train RF
   x_synth <- as.data.frame(lapply(x_real, sample, n, replace = TRUE))
-  # Merge real and synthetic data
   dat <- rbind(data.frame(y = 1L, x_real),
                data.frame(y = 0L, x_synth))
-  # Train unsupervised random forest
   if (isTRUE(parallel)) {
     rf0 <- ranger(y ~ ., dat, keep.inbag = TRUE, classification = TRUE, 
                   num.trees = num_trees, min.node.size = 2L * min_node_size, 
@@ -163,8 +162,8 @@ adversarial_rf <- function(
       }
     }
     converged <- FALSE
-    while (!isTRUE(converged)) {
-      # Create synthetic data
+    while (!isTRUE(converged)) { # Adversarial loop begins...
+      # Create synthetic data by sampling from intra-leaf marginals
       nodeIDs <- stats::predict(rf0, x_real, type = 'terminalNodes')$predictions
       tmp <- melt(as.data.table(nodeIDs), measure.vars = 1:num_trees,
                   variable.name = 'tree', value.name = 'leaf')
@@ -175,13 +174,13 @@ adversarial_rf <- function(
       tmp <- tmp[sample(.N, n, replace = TRUE)]
       tmp <- unique(tmp[, cnt := .N, by = .(tree, leaf)])
       draw_from <- merge(tmp, x_real_dt, by = c('tree', 'leaf'), sort = FALSE)
-      x_synth <- draw_from[, lapply(.SD[, -c('cnt', 'obs')], sample_by_class, .SD[, max(cnt)]), 
+      x_synth <- draw_from[, lapply(.SD[, -c('cnt', 'obs')], sample_by_class, .SD[, cnt[1]]), 
                            by = .(tree, leaf)][, c('tree', 'leaf') := NULL]
       rm(nodeIDs, tmp, x_real_dt, draw_from)
-      # Merge real and synthetic data
+      # Concatenate real and synthetic data
       dat <- rbind(data.frame(y = 1L, x_real),
                    data.frame(y = 0L, x_synth))
-      # Train unsupervised random forest
+      # Train discriminator
       if (isTRUE(parallel)) {
         rf1 <- ranger(y ~ ., dat, keep.inbag = TRUE, classification = TRUE, 
                       num.trees = num_trees, min.node.size = 2 * min_node_size, 
@@ -200,6 +199,7 @@ adversarial_rf <- function(
       if (acc0 <= 0.5 + delta | iters >= max_iters | plateau) {
         converged <- TRUE
       } else {
+        # Discriminator becomes the new generator
         rf0 <- rf1
       }
       if (isTRUE(verbose)) {
@@ -211,7 +211,7 @@ adversarial_rf <- function(
   
   # Prune leaves to ensure min_node_size w.r.t. real data
   pred <- stats::predict(rf0, x_real, type = 'terminalNodes')$predictions + 1L
-  for (tree in 1:num_trees) {
+  prune <- function(tree) {
     leaves <- which(rf0$forest$child.nodeIDs[[tree]][[1]] == 0L)
     to_prune <- leaves[!(leaves %in% which(tabulate(pred[, tree]) >= min_node_size))]
     while(length(to_prune) > 0) {
@@ -229,6 +229,11 @@ adversarial_rf <- function(
       }
       to_prune <- which((rf0$forest$child.nodeIDs[[tree]][[1]] + 1L) %in% to_prune)
     }
+  }
+  if (isTRUE(parallel)) {
+    foreach(b = 1:num_trees) %dopar% prune(b)
+  } else {
+    foreach(b = 1:num_trees) %do% prune(b)
   }
   
   # Export
