@@ -10,6 +10,7 @@ adversarial_rf(
   min_node_size = 2L,
   delta = 0,
   max_iters = 10L,
+  early_stop = TRUE,
   verbose = TRUE,
   parallel = TRUE,
   ...
@@ -29,6 +30,9 @@ likelihood estimation. See Details.}
 < 0.5 + \code{delta}.}
 
 \item{max_iters}{Maximum iterations for the adversarial loop.}
+
+\item{early_stop}{Terminate loop if performance fails to improve from one
+round to the next?}
 
 \item{verbose}{Print discriminator accuracy after each round?}
 
@@ -71,7 +75,9 @@ Note: convergence is not guaranteed in finite samples. The \code{max_iter}
 argument sets an upper bound on the number of training rounds. Similar
 results may be attained by increasing \code{delta}. Even a single round can
 often give good performance, but data with strong or complex dependencies may
-require more iterations.
+require more iterations. With the default \code{early_stop = TRUE}, the
+adversarial loop terminates if performance does not improve from one round
+to the next, in which case further training may be pointless.
 }
 \examples{
 arf <- adversarial_rf(iris)

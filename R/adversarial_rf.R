@@ -11,6 +11,8 @@
 #' @param delta Tolerance parameter. Algorithm converges when OOB accuracy is
 #'   < 0.5 + \code{delta}. 
 #' @param max_iters Maximum iterations for the adversarial loop.
+#' @param early_stop Terminate loop if performance fails to improve from one 
+#'   round to the next? 
 #' @param verbose Print discriminator accuracy after each round?
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
 #'   via \code{doParallel}.
@@ -43,8 +45,10 @@
 #' Note: convergence is not guaranteed in finite samples. The \code{max_iter} 
 #' argument sets an upper bound on the number of training rounds. Similar 
 #' results may be attained by increasing \code{delta}. Even a single round can 
-#' often give good performance, but data with strong or complex dependencies may
-#' require more iterations.
+#' often give good performance, but data with strong or complex dependencies may 
+#' require more iterations. With the default \code{early_stop = TRUE}, the 
+#' adversarial loop terminates if performance does not improve from one round 
+#' to the next, in which case further training may be pointless. 
 #' 
 #' 
 #' @return 
@@ -78,6 +82,7 @@ adversarial_rf <- function(
     min_node_size = 2L, 
     delta = 0,
     max_iters = 10L,
+    early_stop = TRUE,
     verbose = TRUE,
     parallel = TRUE,
     ...) {
@@ -173,7 +178,6 @@ adversarial_rf <- function(
       x_synth <- draw_from[, lapply(.SD[, -c('cnt', 'obs')], sample_by_class, .SD[, max(cnt)]), 
                            by = .(tree, leaf)][, c('tree', 'leaf') := NULL]
       rm(nodeIDs, tmp, x_real_dt, draw_from)
-      
       # Merge real and synthetic data
       dat <- rbind(data.frame(y = 1L, x_real),
                    data.frame(y = 0L, x_synth))
@@ -191,7 +195,9 @@ adversarial_rf <- function(
       acc0 <- 1 - rf1$prediction.error
       acc <- c(acc, acc0)
       iters <- iters + 1L
-      if (acc0 <= 0.5 + delta | iters >= max_iters) {
+      plateau <- ifelse(isTRUE(early_stop), 
+                        acc[iters] <= acc[iters + 1L], FALSE)
+      if (acc0 <= 0.5 + delta | iters >= max_iters | plateau) {
         converged <- TRUE
       } else {
         rf0 <- rf1
