@@ -15,7 +15,13 @@ test_that("FORDE returns correct list object", {
   expect_type(psi$input_class, "character")
 })
 
-test_that("Likelihood calculation returns vector of log-likelihood", {
+test_that("FORDE categories sum to unity", {
+  arf <- adversarial_rf(iris, num_trees = 2, verbose = FALSE, parallel = FALSE)
+  psi <- forde(arf, iris, parallel = FALSE)
+  expect_true(all(psi$cat[, sum(prob) == 1, by = f_idx]$V1 == 1))
+})
+
+test_that("Likelihood calculation returns vector of log-likelihoods", {
   arf <- adversarial_rf(iris, num_trees = 2, verbose = FALSE, parallel = FALSE)
   psi <- forde(arf, iris, parallel = FALSE)
   loglik <- lik(arf, psi, iris, parallel = FALSE)
