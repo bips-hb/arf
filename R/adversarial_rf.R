@@ -211,24 +211,31 @@ adversarial_rf <- function(
   
   # Prune leaves to ensure min_node_size w.r.t. real data
   pred <- stats::predict(rf0, x_real, type = 'terminalNodes')$predictions + 1L
-  for (tree in 1:num_trees) {
-    leaves <- which(rf0$forest$child.nodeIDs[[tree]][[1]] == 0L)
+  prune <- function(tree) {
+    out <- rf0$forest$child.nodeIDs[[tree]]
+    leaves <- which(out[[1]] == 0L)
     to_prune <- leaves[!(leaves %in% which(tabulate(pred[, tree]) >= min_node_size))]
     while(length(to_prune) > 0) {
       for (tp in to_prune) {
         # Find parents
-        parent <- which((rf0$forest$child.nodeIDs[[tree]][[1]] + 1L) == tp)
+        parent <- which((out[[1]] + 1L) == tp)
         if (length(parent) > 0) {
           # Left child
-          rf0$forest$child.nodeIDs[[tree]][[1]][parent] <- rf0$forest$child.nodeIDs[[tree]][[2]][parent]
+          out[[1]][parent] <- out[[2]][parent]
         } else {
           # Right child
-          parent <- which((rf0$forest$child.nodeIDs[[tree]][[2]] + 1L) == tp)
-          rf0$forest$child.nodeIDs[[tree]][[2]][parent] <- rf0$forest$child.nodeIDs[[tree]][[1]][parent]
+          parent <- which((out[[2]] + 1L) == tp)
+          out[[2]][parent] <- out[[1]][parent]
         }
       }
-      to_prune <- which((rf0$forest$child.nodeIDs[[tree]][[1]] + 1L) %in% to_prune)
+      to_prune <- which((out[[1]] + 1L) %in% to_prune)
     }
+    return(out)
+  }
+  if (isTRUE(parallel)) {
+    rf0$forest$child.nodeIDs <- foreach(b = 1:num_trees) %dopar% prune(b)
+  } else {
+    rf0$forest$child.nodeIDs <- foreach(b = 1:num_trees) %do% prune(b)
   }
   
   # Export
