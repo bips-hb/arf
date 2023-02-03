@@ -100,7 +100,7 @@ params_unif <- forde(arf, iris, family = 'unif')
 
 This method tends to perform poorly in practice, and we do not recommend it. The option is implemented primarily for benchmarking purposes. Alternative families, e.g. truncated Poisson or beta distributions, may be useful for certain problems. Future releases will expand the range of options for the `family` argument.
 
-The `alpha` and `epsilon` arguments allow for optional regularization of multinomial and uniform distributions, respectively. These are primarily intended to prevent zero likelihood samples when test data fall outside the support of training data. The former is a pseudocount parameter that applies Laplace smoothing within leaves, preventing unobserved values from being assigned zero probability unless splits explicitly rule them out. In other words, we impose a flat Dirichlet prior $\text{Dir}(\alpha)$ and report posterior probabilities rather than maximum likelihood estimates. The latter is a slack parameter on empirical bounds that expands the estimated extrema for continuous features by a factor of $1 + \epsilon$.
+The `alpha` and `epsilon` arguments allow for optional regularization of multinomial and uniform distributions, respectively. These are primarily intended to prevent zero-likelihood samples when test data fall outside the support of training data. The former is a pseudocount parameter that applies Laplace smoothing within leaves, preventing unobserved values from being assigned zero probability unless splits explicitly rule them out. In other words, we impose a flat Dirichlet prior $\text{Dir}(\alpha)$ and report posterior probabilities rather than maximum likelihood estimates. The latter is a slack parameter on empirical bounds that expands the estimated extrema for continuous features by a factor of $1 + \epsilon$.
 
 Compare the results of our original probability estimates for the `Species` variable with those obtained by adding a pseudocount of $\alpha = 0.1$.
 
@@ -155,7 +155,7 @@ ll_50 <- lik(arf, params, iris, batch = 50)
 identical(ll, ll_50)
 ```
 
-In this example, we have used the same data throughout. This may lead to overfitting in practice. With sufficient data, it is preferable to use a training set for `adversarial_rf`, a validation set for `forde`, and a test set for `lik`. Alternatively, we can set the `oob` argument to `TRUE` for either of the latter two functions, in which case computations are performed only on out-of-bag (OOB) data. These are samples that are randomly excluded from a given tree due to the bootstrapping subroutine of the RF classifier. Note that this only works when the dataset `x` passed to `forde` or `lik` is the same one used to train the `arf`. Recall that a sample's probability of being excluded from a single tree is $e^{-1} \approx 0.368$. When using `oob = TRUE`, be sure to include enough trees so that every observation is likely to be OOB at least a few times. 
+In this example, we have used the same data throughout. This may lead to overfitting. With sufficient data, it is preferable to use a training set for `adversarial_rf`, a validation set for `forde`, and a test set for `lik`. Alternatively, we can set the `oob` argument to `TRUE` for either of the latter two functions, in which case computations are performed only on out-of-bag (OOB) data. These are samples that are randomly excluded from a given tree due to the bootstrapping subroutine of the RF classifier. Note that this only works when the dataset `x` passed to `forde` or `lik` is the same one used to train the `arf`. Recall that a sample's probability of being excluded from a single tree is $e^{-1} \approx 0.368$. When using `oob = TRUE`, be sure to include enough trees so that every observation is likely to be OOB at least a few times. 
 
 # Data synthesis
 
@@ -194,7 +194,7 @@ ggplot(df, aes(X, Y, color = Class, shape = Class)) +
 
 The general shape is clearly recognizable, even if some stray samples are evident and borders are not always crisp. This can be improved with more training data.
 
-Note that the default behavior of `adversarial_rf` is to treat integers as ordered factors, with a warning. This makes sense for, say, count data with limited support (e.g., number of petals on a plant). However, this is probably not the desired behavior for other integer variables. Consider the `diamonds` dataset, where `price` is classed as an integer.
+Note that the default behavior of `adversarial_rf` is to treat integers as ordered factors, with a warning. This makes sense for, say, count data with limited support (e.g., number of petals on a flower). However, this is probably not the desired behavior for other integer variables. Consider the `diamonds` dataset, where `price` is classed as an integer.
 
 ```{r price, fig.height=5, fig.width=5}
 # Check data
@@ -259,5 +259,5 @@ synth <- forge(params, n_synth = 1000)
 hist(exp(synth$price))
 ```
 
-This may be unnecessary with sufficiently large sample sizes. For instance, negative prices are exceedingly rare when training on the complete diamonds dataset ($n = 53940$). However, if natural constraints are known *a priori*, they can and should be hard coded into `params`. 
+This may be unnecessary with sufficiently large sample sizes. For instance, negative prices are exceedingly rare when training on the complete diamonds dataset ($n = 53940$). However, if natural constraints are known *a priori*, they can easily be hard coded into `params`. 
 
