@@ -40,7 +40,7 @@ The printouts can be turned off by setting `verbose = FALSE`. Accuracy is still 
 arf <- adversarial_rf(iris, verbose = FALSE)
 
 # Plot accuracy against iterations (model converges when accuracy <= 0.5)
-tmp <- data.frame('acc' = arf$acc, 'iter' = 0:length(arf$acc))
+tmp <- data.frame('acc' = arf$acc, 'iter' = seq_len(length(arf$acc)))
 ggplot(tmp, aes(iter, acc)) + 
   geom_point() + 
   geom_path() +
