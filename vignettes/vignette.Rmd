@@ -53,7 +53,7 @@ ARF convergence is almost surely guaranteed as $n \rightarrow \infty$ (see [Wats
 
 For density estimation tasks, we recommend increasing the default number of trees. We generally use 100 in our experiments, though this may be suboptimal for some datasets. Likelihood estimates are not very sensitive to this parameter above a certain threshold, but larger models incur extra costs in time and memory. We can speed up computations by registering a parallel backend, in which case ARF training is distributed across cores using the `ranger` package. Much like with `ranger`, the default behavior of `adversarial_rf` is to compute in parallel if possible. How exactly this is done varies across operating systems. The following code works on Unix machines.
 
-```{r par}
+```{r par, eval=FALSE}
 # Register cores - Unix
 library(doParallel)
 registerDoParallel(cores = 2)
@@ -95,7 +95,7 @@ params_unif <- forde(arf, iris, family = 'unif')
 
 This method tends to perform poorly in practice, and we do not recommend it. The option is implemented primarily for benchmarking purposes. Alternative families, e.g. truncated Poisson or beta distributions, may be useful for certain problems. Future releases will expand the range of options for the `family` argument.
 
-The `alpha` and `epsilon` arguments allow for optional regularization of multinomial and uniform distributions, respectively. These are primarily intended to prevent zero-likelihood samples when test data fall outside the support of training data. The former is a pseudocount parameter that applies Laplace smoothing within leaves, preventing unobserved values from being assigned zero probability unless splits explicitly rule them out. In other words, we impose a flat Dirichlet prior $\text{Dir}(\alpha)$ and report posterior probabilities rather than maximum likelihood estimates. The latter is a slack parameter on empirical bounds that expands the estimated extrema for continuous features by a factor of $1 + \epsilon$.
+The `alpha` and `epsilon` arguments allow for optional regularization of multinomial and uniform distributions, respectively. These are primarily intended to prevent zero likelihood samples when test data fall outside the support of training data. The former is a pseudocount parameter that applies Laplace smoothing within leaves, preventing unobserved values from being assigned zero probability unless splits explicitly rule them out. In other words, we impose a flat Dirichlet prior $\text{Dir}(\alpha)$ and report posterior probabilities rather than maximum likelihood estimates. The latter is a slack parameter on empirical bounds that expands the estimated extrema for continuous features by a factor of $1 + \epsilon$.
 
 Compare the results of our original probability estimates for the `Species` variable with those obtained by adding a pseudocount of $\alpha = 0.1$.
 
@@ -108,7 +108,7 @@ head(params$cat)
 head(params_alpha$cat)
 ```
 
-Extreme probabilities still occur when the splits demand it, but all remaining probabilities shrink toward a uniform prior under Laplace smoothing. Note that these two data tables may not have exactly the same rows, as we omit zero probability events to conserve memory. However, we can verify that probabilities sum to unity for each leaf-variable combination.
+Under Laplace smoothing, extreme probabilities only occur when the splits explicitly demand it. Otherwise, all values shrink toward a uniform prior. Note that these two data tables may not have exactly the same rows, as we omit zero probability events to conserve memory. However, we can verify that probabilities sum to unity for each leaf-variable combination.
 
 ```{r unity}
 # Sum probabilities
@@ -254,5 +254,5 @@ synth <- forge(params, n_synth = 1000)
 hist(exp(synth$price))
 ```
 
-This may be unnecessary with sufficiently large sample sizes. For instance, negative prices are exceedingly rare when training on the complete diamonds dataset ($n = 53940$). However, if natural constraints are known *a priori*, they can easily be hard coded into `params`. 
+This may be unnecessary with sufficiently large sample sizes. For instance, negative prices are exceedingly rare when training on the complete diamonds dataset ($n = 53940$). However, if natural constraints are known *a priori*, they can easily be incorporated into `params`. 
 
