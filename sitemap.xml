@@ -19,7 +19,13 @@
     <loc>https://bips-hb.github.io/arf/index.html</loc>
   </url>
   <url>
+    <loc>https://bips-hb.github.io/arf/news/index.html</loc>
+  </url>
+  <url>
     <loc>https://bips-hb.github.io/arf/reference/adversarial_rf.html</loc>
+  </url>
+  <url>
+    <loc>https://bips-hb.github.io/arf/reference/col_rename.html</loc>
   </url>
   <url>
     <loc>https://bips-hb.github.io/arf/reference/forde.html</loc>
