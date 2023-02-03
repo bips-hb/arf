@@ -14,7 +14,11 @@ knitr::opts_chunk$set(
 )
 ```
 
-The first step of the `arf` pipeline is to fit an adversarial random forest (ARF). The ARF algorithm is an iterative procedure. In the first instance, we generate synthetic data by independently sampling from the marginals of each feature and training a RF to distinguish original from synthetic samples. If accuracy is greater than $0.5 + \delta$ (where `delta` is a user-controlled tolerance parameter, generally set to 0), we create a new dataset by sampling from the marginals within each leaf and training another RF classifier. The procedure repeats until original and synthetic samples cannot be reliably distinguished. With the default `verbose = TRUE`, the algorithm will print accuracy at each iteration. 
+This vignette covers the entire adversarial random forest (ARF) pipeline, from model training to parameter learning, density estimation, and data synthesis.
+
+# Adversarial Training
+
+The ARF algorithm is an iterative procedure. In the first instance, we generate synthetic data by independently sampling from the marginals of each feature and training a random forest (RF) to distinguish original from synthetic samples. If accuracy is greater than $0.5 + \delta$ (where `delta` is a user-controlled tolerance parameter, generally set to 0), we create a new dataset by sampling from the marginals within each leaf and training another RF classifier. The procedure repeats until original and synthetic samples cannot be reliably distinguished. With the default `verbose = TRUE`, the algorithm will print accuracy at each iteration. 
 
 ```{r arf}
 # Load libraries
@@ -23,7 +27,7 @@ library(data.table)
 library(ggplot2)
 
 # Set seed
-set.seed(123)
+set.seed(123, "L'Ecuyer-CMRG")
 
 # Train ARF
 arf <- adversarial_rf(iris)
@@ -32,20 +36,22 @@ arf <- adversarial_rf(iris)
 The printouts can be turned off by setting `verbose = FALSE`. Accuracy is still stored within the `arf` object, so you can evaluate convergence after the fact. The warning appears just once per session. It can be suppressed by setting `parallel = FALSE` or registering a parallel backend (more on this below).
 
 ```{r arf2, fig.height=5, fig.width=5}
-# Train ARF with no print outs
+# Train ARF with no printouts
 arf <- adversarial_rf(iris, verbose = FALSE)
 
 # Plot accuracy against iterations (model converges when accuracy <= 0.5)
-tmp <- data.frame('acc' = arf$acc, 'iter' = seq_len(length(arf$acc)) - 1)
+tmp <- data.frame('acc' = arf$acc, 'iter' = 0:length(arf$acc))
 ggplot(tmp, aes(iter, acc)) + 
   geom_point() + 
   geom_path() +
   geom_hline(yintercept = 0.5, linetype = 'dashed', color = 'red') 
 ```
 
-We find a quick drop in accuracy following the resampling procedure, as desired. If the ARF has converged, then resulting splits should identify fully factorized leaves, i.e. subregions of the feature space where variables are locally independent. 
+We find a quick drop in accuracy following the resampling procedure, as desired. If the ARF has converged, then resulting splits should form fully factorized leaves, i.e. subregions of the feature space where variables are locally independent. 
 
-For density estimation tasks, we recommend increasing the default number of trees. We generally use 100 in our experiments, though this may be suboptimal for some datasets. Likelihood estimations are not very sensitive to this parameter above a certain threshold, but larger models incur extra costs in time and memory. We can speed up computations by registering a parallel backend, in which case ARF training is distributed across cores using the `ranger` package. Much like with `ranger`, the default behavior of `adversarial_rf` is to compute in parallel if possible. How exactly this is done varies across operating systems. The following code works on Unix machines.
+ARF convergence is almost surely guaranteed as $n \rightarrow \infty$ (see [Watson et al., 2022](https://arxiv.org/abs/2205.09435), Thm. 1). However, this has no implications for finite sample performance. In practice, we often find that adversarial training completes in just one or two rounds, but this may not hold for some datasets. To avoid infinite loops, users can increase the slack parameter `delta` or set the `max_iters` argument (default = 10). In addition to these failsafes, `adversarial_rf` uses early stopping by default `(early_stop = TRUE)`, which terminates training if factorization does not improve from one round to the next. This is recommended, since discriminator accuracy rarely falls much lower once it has increased. 
+
+For density estimation tasks, we recommend increasing the default number of trees. We generally use 100 in our experiments, though this may be suboptimal for some datasets. Likelihood estimates are not very sensitive to this parameter above a certain threshold, but larger models incur extra costs in time and memory. We can speed up computations by registering a parallel backend, in which case ARF training is distributed across cores using the `ranger` package. Much like with `ranger`, the default behavior of `adversarial_rf` is to compute in parallel if possible. How exactly this is done varies across operating systems. The following code works on Unix machines.
 
 ```{r par, eval=FALSE}
 # Register cores - Unix
@@ -62,6 +68,11 @@ cl <- makeCluster(2)
 registerDoParallel(cl)
 ```
 
+```{r hushpar, include=F}
+library(doMC)
+registerDoMC(10)
+```
+
 In either case, we can now execute in parallel.
 
 ```{r arf3}
@@ -71,7 +82,9 @@ arf <- adversarial_rf(iris, num_trees = 100)
 
 The result is an object of class `ranger`, which we can input to downstream functions. 
 
-The next step is to learn the leaf and distribution parameters using forests for density estimation (FORDE). This function calculates the coverage, bounds, and pdf/pmf parameters for every variable in every leaf. This can be an expensive computation for large datasets, as it requires $\mathcal{O}\big(B \cdot d \cdot n \cdot \log(n)\big)$ operations, where $B$ is the number of trees, $n$ is sample size, and $d$ is the data dimensionality. Once again, the process is parallelized by default. 
+# Parameter Learning
+
+The next step is to learn the leaf and distribution parameters using forests for density estimation (FORDE). This function calculates the coverage, bounds, and pdf/pmf parameters for every variable in every leaf. This can be an expensive computation for large datasets, as it requires $\mathcal{O}\big(B \cdot d \cdot n \cdot \log(n)\big)$ operations, where $B$ is the number of trees, $d$ is the data dimensionality, and $n$ is the sample size. Once again, the process is parallelized by default. 
 
 ```{r forde}
 # Compute leaf and distribution parameters
@@ -100,7 +113,7 @@ head(params$cat)
 head(params_alpha$cat)
 ```
 
-As expected, all values in the maximum likelihood calculation are shrunk toward a uniform prior when we impose Laplace smoothing---unless a category is the only one permitted in a leaf by the preceding splits, in which case it occurs with probability 1. Note also that the two data tables do not have exactly the same rows. This is because we omit zero probability events in the former case to conserve memory. However, we can verify that probabilities sum to unity for each leaf-variable combination.
+Extreme probabilities still occur when the splits demand it, but all remaining probabilities shrink toward a uniform prior under Laplace smoothing. Note that these two data tables may not have exactly the same rows, as we omit zero probability events to conserve memory. However, we can verify that probabilities sum to unity for each leaf-variable combination.
 
 ```{r unity}
 # Sum probabilities
@@ -179,7 +192,7 @@ ggplot(df, aes(X, Y, color = Class, shape = Class)) +
   facet_wrap(~ Data)
 ```
 
-The general shape is clearly recognizable, even if some of the borders are not always crisp. This can be improved with more training data.
+The general shape is clearly recognizable, even if some stray samples are evident and borders are not always crisp. This can be improved with more training data.
 
 Note that the default behavior of `adversarial_rf` is to treat integers as ordered factors, with a warning. This makes sense for, say, count data with limited support (e.g., number of petals on a plant). However, this is probably not the desired behavior for other integer variables. Consider the `diamonds` dataset, where `price` is classed as an integer.
 
@@ -200,13 +213,13 @@ This variable should clearly not be treated as a factor with 11602 levels. To ma
 # Re-class 
 diamonds$price <- as.numeric(diamonds$price)
 
-# Take a random subsample of size 1000
-s_idx <- sample(1:nrow(diamonds), 1000)
+# Take a random subsample of size 2000
+s_idx <- sample(1:nrow(diamonds), 2000)
 
 # Train ARF
 arf <- adversarial_rf(diamonds[s_idx, ])
 
-# Fit density
+# Estimate parameters
 params <- forde(arf, diamonds[s_idx, ])
 
 # Check distributional families
@@ -220,17 +233,31 @@ hist(synth$price)
 Using `family = 'truncnorm'`, the distribution for `price` will now be modeled with a truncated Gaussian mixture. Though the general outline of the histogram looks about right, we do find some implausible values, e.g. negative prices. This can be overcome by manually setting a hard lower bound.
 
 ```{r lb, fig.height=5, fig.width=5}
-# Set price minimum to zero
-params$cnt[variable == 'price', min := 0]
+# Set price minimum to empirical lower bound
+params$cnt[variable == 'price', min := min(diamonds$price)]
 
-# Re-forge
+# Re-forge, check histogram
 synth <- forge(params, n_synth = 1000)
 hist(synth$price)
 ```
 
-This is unnecessary with sufficiently large sample sizes, however. For instance, when training on the complete diamonds dataset ($n = 53940$), we do not observe a single negative price in $10000$ synthetic samples (not shown). 
+Alternatively, we could retrain under log transformation.
 
+```{r lprice, fig.height=5, fig.width=5}
+# Transform price variable
+tmp <- as.data.table(diamonds[s_idx, ])
+tmp[, price := log(price)]
 
+# Retrain ARF
+arf <- adversarial_rf(tmp)
 
+# Estimate parameters
+params <- forde(arf, tmp)
 
+# Forge, check histogram
+synth <- forge(params, n_synth = 1000)
+hist(exp(synth$price))
+```
+
+This may be unnecessary with sufficiently large sample sizes. For instance, negative prices are exceedingly rare when training on the complete diamonds dataset ($n = 53940$). However, if natural constraints are known *a priori*, they can and should be hard coded into `params`. 
 
