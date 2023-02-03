@@ -11,11 +11,14 @@
 #'   features. Current options include truncated normal (the default
 #'   \code{family = "truncnorm"}) and uniform (\code{family = "unif"}). See 
 #'   Details.
-#' @param epsilon Slack parameter on empirical bounds when \code{family = "unif"}.
-#'   This avoids zero-density points when test data fall outside the support
-#'   of training data. The gap between lower and upper bounds is expanded by 
-#'   a factor of \code{epsilon}. Only used when a variable is never selected for
-#'   splitting.
+#' @param alpha Optional pseudocount for Laplace smoothing of multinomial 
+#'   features. This avoids zero-mass points when test data fall outside the 
+#'   support of training data. Effectively parametrizes a flat Dirichlet prior
+#'   on multinomial likelihoods.
+#' @param epsilon Optional slack parameter on empirical bounds when 
+#'   \code{family = "unif"}. This avoids zero-density points when test data fall 
+#'   outside the support of training data. The gap between lower and upper 
+#'   bounds is expanded by a factor of \code{1 + epsilon}. 
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
 #'   via \code{doParallel}.
 #'   
@@ -43,10 +46,10 @@
 #' 
 #' 
 #' @return 
-#' A \code{list} with 4 elements: (1) parameters for continuous data; (2) 
-#' parameters for discrete data; (3) leaf indices and coverage; and (4) metadata
-#' on variables. This list is used for estimating likelihoods with 
-#' \code{\link{lik}} and generating data with \code{\link{forge}}.
+#' A \code{list} with 5 elements: (1) parameters for continuous data; (2) 
+#' parameters for discrete data; (3) leaf indices and coverage; (4) metadata on
+#' variables; and (5) the data input class. This list is used for estimating 
+#' likelihoods with \code{\link{lik}} and generating data with \code{\link{forge}}.
 #' 
 #' 
 #' @references 
@@ -82,11 +85,14 @@ forde <- function(
     x, 
     oob = FALSE,
     family = 'truncnorm', 
-    epsilon = 0.1, 
+    alpha = 0,
+    epsilon = 0,
     parallel = TRUE) {
   
   # To avoid data.table check issues
-  tree <- n_oob <- cvg <- leaf <- variable <- count <- sd <- value <- new_name <- psi_cnt <- psi_cat <- f_idx <- sigma <- new_min <- new_max <- prob <- val <- . <- NULL
+  tree <- n_oob <- cvg <- leaf <- variable <- count <- sd <- value <- y_new <- 
+    obs_new <- tree_new <- leaf_new <- psi_cnt <- psi_cat <- f_idx <- sigma <- 
+    new_min <- new_max <- prob <- val <- val_count <- k <- . <- NULL
   
   # Prelimz
   if (isTRUE(oob) & !nrow(x) %in% c(arf$num.samples, arf$num.samples/2)) {
@@ -103,18 +109,21 @@ forde <- function(
   d <- ncol(x)
   colnames_x <- colnames(x)
   if ('y' %in% colnames(x)) {
-    k <- 1L
-    converged <- FALSE
-    while (!isTRUE(converged)) {
-      new_name <- rep('a', times = k)
-      if (!new_name %in% colnames(x)) {
-        colnames(x)[which(colnames(x) == 'y')] <- new_name
-        converged <- TRUE
-      } else {
-        k <- k + 1L
-      }
-    }
+    y_new <- col_rename(x, 'y')
+    colnames(x)[which(colnames(x) == 'y')] <- y_new
   }
+  if ('obs' %in% colnames(x)) {
+    obs_new <- col_rename(x, 'obs')
+    colnames(x)[which(colnames(x) == 'obs')] <- obs_new
+  }
+  if ('tree' %in% colnames(x)) {
+    tree_new <- col_rename(x, 'tree')
+    colnames(x)[which(colnames(x) == 'tree')] <- tree_new
+  } 
+  if ('leaf' %in% colnames(x)) {
+    leaf_new <- col_rename(x, 'leaf')
+    colnames(x)[which(colnames(x) == 'leaf')] <- leaf_new
+  } 
   classes <- sapply(x, class)
   idx_char <- sapply(x, is.character)
   if (any(idx_char)) {
@@ -138,6 +147,15 @@ forde <- function(
     }
   }
   factor_cols <- sapply(x, is.factor)
+  if (!family %in% c('truncnorm', 'unif')) {
+    stop('family not recognized.')
+  }
+  if (alpha < 0) {
+    stop('alpha must be nonnegative.')
+  }
+  if (epsilon < 0) {
+    stop('epsilon must be nonnegative.')
+  }
   
   # Compute leaf bounds and coverage
   num_trees <- arf$num.trees
@@ -189,12 +207,14 @@ forde <- function(
     pred[inbag] <- NA_integer_
     bnds[, n_oob := sum(!is.na(pred[, tree])), by = tree]
     bnds[, cvg := sum(pred[, tree] == leaf, na.rm = TRUE) / n_oob, by = .(tree, leaf)]
+    if (any(!factor_cols)) {
+      bnds[cvg == 1 / n_oob, cvg := 0]
+    }
   } else {
     bnds[, cvg := sum(pred[, tree] == leaf) / n, by = .(tree, leaf)]
-  }
-  # Can't do anything with coverage 1/n
-  if (any(!factor_cols)) {
-    bnds[cvg == 1/n, cvg := 0]
+    if (any(!factor_cols)) {
+      bnds[cvg == 1 / n, cvg := 0]
+    }
   }
   # No parameters to learn for zero coverage leaves
   bnds <- bnds[cvg > 0]
@@ -216,7 +236,6 @@ forde <- function(
                   by = c('tree', 'leaf', 'variable'), sort = FALSE)
       if (family == 'truncnorm') {
         dt[, c('mu', 'sigma') := .(mean(value), sd(value)), by = .(leaf, variable)]
-        setcolorder(dt, c('variable', 'min', 'max', 'mu', 'sigma'))
         if (dt[sigma == 0, .N] > 0L) {
           dt[sigma == 0, new_min := ifelse(!is.finite(min), min(value), min), by = variable]
           dt[sigma == 0, new_max := ifelse(!is.finite(max), max(value), max), by = variable]
@@ -232,9 +251,20 @@ forde <- function(
     } else {
       psi_cnt <- foreach(tree = 1:num_trees, .combine = rbind) %do% psi_cnt_fn(tree)
     }
-    if (!is.null(new_name)) {
-      psi_cnt[variable == new_name, variable := 'y']
+    if (!is.null(y_new)) {
+      psi_cnt[variable == y_new, variable := 'y']
     }
+    if (!is.null(obs_new)) {
+      psi_cnt[variable == obs_new, variable := 'obs']
+    }
+    if (!is.null(tree_new)) {
+      psi_cnt[variable == tree_new, variable := 'tree']
+    }
+    if (!is.null(leaf_new)) {
+      psi_cnt[variable == leaf_new, variable := 'leaf']
+    }
+    setkey(psi_cnt, f_idx, variable)
+    setcolorder(psi_cnt, c('f_idx', 'variable'))
   } 
   # Categorical case
   if (any(factor_cols)) {
@@ -246,19 +276,61 @@ forde <- function(
       dt <- melt(dt, id.vars = 'leaf', variable.factor = FALSE,
                  value.factor = FALSE, value.name = 'val')[, tree := tree]
       dt[, count := .N, by = .(leaf, variable)]
-      dt <- unique(dt[, prob := .N/count, by = .(leaf, variable, val)])
-      dt <- merge(dt, bnds[, .(tree, leaf, variable, f_idx)],
+      dt <- merge(dt, bnds[, .(tree, leaf, variable, min, max, f_idx)], 
                   by = c('tree', 'leaf', 'variable'), sort = FALSE)
-      dt[, c('count', 'tree', 'leaf') := NULL]
+      dt[, c('tree', 'leaf') := NULL]
+      if (alpha == 0) {
+        dt <- unique(dt[, prob := .N / count, by = .(f_idx, variable, val)])
+      } else {
+        # Define the range of each variable in each leaf
+        dt <- unique(dt[, val_count := .N, by = .(f_idx, variable, val)])
+        dt[, k := length(unique(val)), by = variable]
+        dt[min == -Inf, min := 0.5][max == Inf, max := k + 0.5]
+        dt[!grepl('.5', min), min := min - 0.5][!grepl('.5', max), max := max + 0.5]
+        dt[, k := max - min]
+        # Enumerate each possible leaf-variable-value combo
+        tmp <- dt[, seq(min[1] + 0.5, max[1] - 0.5), by = .(f_idx, variable)]
+        setnames(tmp, 'V1', 'levels')
+        tmp2 <- rbindlist(
+          lapply(which(factor_cols), function(j) {
+            data.table('variable' = colnames(x)[j],
+                       'val' = arf$forest$covariate.levels[[j]])[, levels := .I]
+          })
+        )
+        tmp <- merge(tmp, tmp2, by = c('variable', 'levels'), 
+                     sort = FALSE)[, levels := NULL]
+        # Populate count, k
+        tmp <- merge(tmp, unique(dt[, .(f_idx, variable, count, k)]),
+                     by = c('f_idx', 'variable'), sort = FALSE)
+        # Merge with dt, set val_count = 0 for possible but unobserved levels
+        dt <- merge(tmp, dt, by = c('f_idx', 'variable', 'val', 'count', 'k'), 
+                    all.x = TRUE, sort = FALSE)
+        dt[is.na(val_count), val_count := 0]
+        # Compute posterior probabilities
+        dt[, prob := (val_count + alpha) / (count + alpha * k), by = .(f_idx, variable, val)]
+        dt[, c('val_count', 'k') := NULL]
+      }
+      dt[, c('count', 'min', 'max') := NULL]
     }
     if (isTRUE(parallel)) {
       psi_cat <- foreach(tree = 1:num_trees, .combine = rbind) %dopar% psi_cat_fn(tree)
     } else {
       psi_cat <- foreach(tree = 1:num_trees, .combine = rbind) %do% psi_cat_fn(tree)
     }
-    if (!is.null(new_name)) {
-      psi_cat[variable == new_name, variable := 'y']
+    if (!is.null(y_new)) {
+      psi_cat[variable == y_new, variable := 'y']
     }
+    if (!is.null(obs_new)) {
+      psi_cat[variable == obs_new, variable := 'obs']
+    }
+    if (!is.null(tree_new)) {
+      psi_cat[variable == tree_new, variable := 'tree']
+    }
+    if (!is.null(leaf_new)) {
+      psi_cat[variable == leaf_new, variable := 'leaf']
+    }
+    setkey(psi_cat, f_idx, variable)
+    setcolorder(psi_cat, c('f_idx', 'variable'))
   }
   
   # Add metadata, export

@@ -9,7 +9,8 @@ forde(
   x,
   oob = FALSE,
   family = "truncnorm",
-  epsilon = 0.1,
+  alpha = 0,
+  epsilon = 0,
   parallel = TRUE
 )
 }
@@ -27,20 +28,24 @@ features. Current options include truncated normal (the default
 \code{family = "truncnorm"}) and uniform (\code{family = "unif"}). See
 Details.}
 
-\item{epsilon}{Slack parameter on empirical bounds when \code{family = "unif"}.
-This avoids zero-density points when test data fall outside the support
-of training data. The gap between lower and upper bounds is expanded by
-a factor of \code{epsilon}. Only used when a variable is never selected for
-splitting.}
+\item{alpha}{Optional pseudocount for Laplace smoothing of multinomial
+features. This avoids zero-mass points when test data fall outside the
+support of training data. Effectively parametrizes a flat Dirichlet prior
+on multinomial likelihoods.}
+
+\item{epsilon}{Optional slack parameter on empirical bounds when
+\code{family = "unif"}. This avoids zero-density points when test data fall
+outside the support of training data. The gap between lower and upper
+bounds is expanded by a factor of \code{1 + epsilon}.}
 
 \item{parallel}{Compute in parallel? Must register backend beforehand, e.g.
 via \code{doParallel}.}
 }
 \value{
-A \code{list} with 4 elements: (1) parameters for continuous data; (2)
-parameters for discrete data; (3) leaf indices and coverage; and (4) metadata
-on variables. This list is used for estimating likelihoods with
-\code{\link{lik}} and generating data with \code{\link{forge}}.
+A \code{list} with 5 elements: (1) parameters for continuous data; (2)
+parameters for discrete data; (3) leaf indices and coverage; (4) metadata on
+variables; and (5) the data input class. This list is used for estimating
+likelihoods with \code{\link{lik}} and generating data with \code{\link{forge}}.
 }
 \description{
 Uses a pre-trained ARF model to estimate leaf and distribution parameters.

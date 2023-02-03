@@ -66,24 +66,24 @@ lik <- function(
     parallel = TRUE) {
   
   # To avoid data.table check issues
-  tree <- cvg <- leaf <- variable <- mu <- sigma <- value <- obs <- prob <- V1 <- family <- fold <- . <- NULL
+  tree <- cvg <- leaf <- variable <- mu <- sigma <- value <- obs <- prob <- 
+    V1 <- family <- fold <- . <- NULL
   
   # Prep data
   x <- as.data.frame(x)
   n <- nrow(x)
   if ('y' %in% colnames(x)) {
-    k <- 1L
-    converged <- FALSE
-    while (!isTRUE(converged)) {
-      new_name <- rep('a', times = k)
-      if (!new_name %in% colnames(x)) {
-        colnames(x)[which(colnames(x) == 'y')] <- new_name
-        converged <- TRUE
-      } else {
-        k <- k + 1L
-      }
-    }
+    colnames(x)[which(colnames(x) == 'y')] <- col_rename(x, 'y')
   }
+  if ('obs' %in% colnames(x)) {
+    colnames(x)[which(colnames(x) == 'obs')] <- col_rename(x, 'obs')
+  }
+  if ('tree' %in% colnames(x)) {
+    colnames(x)[which(colnames(x) == 'tree')] <- col_rename(x, 'tree')
+  } 
+  if ('leaf' %in% colnames(x)) {
+    colnames(x)[which(colnames(x) == 'leaf')] <- col_rename(x, 'leaf')
+  } 
   idx_char <- sapply(x, is.character)
   if (any(idx_char)) {
     x[, idx_char] <- as.data.frame(

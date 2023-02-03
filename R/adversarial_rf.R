@@ -11,6 +11,8 @@
 #' @param delta Tolerance parameter. Algorithm converges when OOB accuracy is
 #'   < 0.5 + \code{delta}. 
 #' @param max_iters Maximum iterations for the adversarial loop.
+#' @param early_stop Terminate loop if performance fails to improve from one 
+#'   round to the next? 
 #' @param verbose Print discriminator accuracy after each round?
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
 #'   via \code{doParallel}.
@@ -43,8 +45,10 @@
 #' Note: convergence is not guaranteed in finite samples. The \code{max_iter} 
 #' argument sets an upper bound on the number of training rounds. Similar 
 #' results may be attained by increasing \code{delta}. Even a single round can 
-#' often give good performance, but data with strong or complex dependencies may
-#' require more iterations.
+#' often give good performance, but data with strong or complex dependencies may 
+#' require more iterations. With the default \code{early_stop = TRUE}, the 
+#' adversarial loop terminates if performance does not improve from one round 
+#' to the next, in which case further training may be pointless. 
 #' 
 #' 
 #' @return 
@@ -78,29 +82,29 @@ adversarial_rf <- function(
     min_node_size = 2L, 
     delta = 0,
     max_iters = 10L,
+    early_stop = TRUE,
     verbose = TRUE,
     parallel = TRUE,
     ...) {
   
   # To avoid data.table check issues
-  i <- no <- leaf <- . <- NULL
-
+  i <- b <- cnt <- obs <- tree <- leaf <- . <- NULL
+  
   # Prep data
   x_real <- as.data.frame(x)
   n <- nrow(x_real)
   if ('y' %in% colnames(x_real)) {
-    k <- 1L
-    converged <- FALSE
-    while (!isTRUE(converged)) {
-      new_name <- rep('a', times = k)
-      if (!new_name %in% colnames(x_real)) {
-        colnames(x_real)[which(colnames(x_real) == 'y')] <- new_name
-        converged <- TRUE
-      } else {
-        k <- k + 1L
-      }
-    }
+    colnames(x_real)[which(colnames(x_real) == 'y')] <- col_rename(x_real, 'y')
   }
+  if ('obs' %in% colnames(x_real)) {
+    colnames(x_real)[which(colnames(x_real) == 'obs')] <- col_rename(x_real, 'obs')
+  }
+  if ('tree' %in% colnames(x_real)) {
+    colnames(x_real)[which(colnames(x_real) == 'tree')] <- col_rename(x_real, 'tree')
+  } 
+  if ('leaf' %in% colnames(x_real)) {
+    colnames(x_real)[which(colnames(x_real) == 'leaf')] <- col_rename(x_real, 'leaf')
+  } 
   idx_char <- sapply(x_real, is.character)
   if (any(idx_char)) {
     x_real[, idx_char] <- as.data.frame(
@@ -127,12 +131,11 @@ adversarial_rf <- function(
     warning('Variance is undefined when a leaf contains just a single observation. ', 
             'Consider increasing min_node_size.')
   }
-  # Sample from marginals to get naive synthetic data
+  
+  # Fit initial model: sample from marginals, concatenate data, train RF
   x_synth <- as.data.frame(lapply(x_real, sample, n, replace = TRUE))
-  # Merge real and synthetic data
   dat <- rbind(data.frame(y = 1L, x_real),
                data.frame(y = 0L, x_synth))
-  # Train unsupervised random forest
   if (isTRUE(parallel)) {
     rf0 <- ranger(y ~ ., dat, keep.inbag = TRUE, classification = TRUE, 
                   num.trees = num_trees, min.node.size = 2L * min_node_size, 
@@ -148,32 +151,36 @@ adversarial_rf <- function(
   acc <- acc0 <- 1 - rf0$prediction.error
   if (isTRUE(verbose)) {
     cat(paste0('Iteration: ', iters, 
-                 ', Accuracy: ', round(acc0 * 100, 2), '%\n'))
+               ', Accuracy: ', round(acc0 * 100, 2), '%\n'))
   }
   if (acc0 > 0.5 + delta & iters < max_iters) {
-    converged <- FALSE
-    while (!isTRUE(converged)) {
-      # Create synthetic data
-      nodeIDs <- stats::predict(rf0, x_real, type = 'terminalNodes')$predictions
-      tmp <- melt(as.data.table(nodeIDs), measure.vars = 1:num_trees, 
-                  variable.name = 'tree', value.name = 'leaf')
-      tmp[, tree := as.numeric(gsub('V', '', tree))]
-      tmp <- tmp[sample(.N, n, replace = TRUE)]
-      tmp <- unique(tmp[, no := .N, by = .(tree, leaf)])
-      synth <- function(i) {
-        idx <- nodeIDs[, tmp$tree[i]] == tmp$leaf[i]
-        as.data.frame(lapply(x_real[idx, ], sample, tmp$no[i], replace = TRUE))
-      }
-      if (isTRUE(parallel)) {
-        x_synth <- foreach(i = 1:nrow(tmp), .combine = rbind) %dopar% synth(i)
+    sample_by_class <- function(x, n) {
+      if (is.numeric(x)) {
+        as.numeric(sample(x, n, replace = TRUE))
       } else {
-        x_synth <- foreach(i = 1:nrow(tmp), .combine = rbind) %do% synth(i)
+        sample(x, n, replace = TRUE)
       }
-      rm(nodeIDs, tmp)
-      # Merge real and synthetic data
+    }
+    converged <- FALSE
+    while (!isTRUE(converged)) { # Adversarial loop begins...
+      # Create synthetic data by sampling from intra-leaf marginals
+      nodeIDs <- stats::predict(rf0, x_real, type = 'terminalNodes')$predictions
+      tmp <- melt(as.data.table(nodeIDs), measure.vars = 1:num_trees,
+                  variable.name = 'tree', value.name = 'leaf')
+      tmp[, tree := as.numeric(gsub('V', '', tree))][, obs := rep(1:n, num_trees)]
+      x_real_dt <- as.data.table(x_real)[, obs := 1:n] 
+      x_real_dt <- merge(x_real_dt, tmp, by = 'obs', sort = FALSE)
+      tmp[, obs := NULL]
+      tmp <- tmp[sample(.N, n, replace = TRUE)]
+      tmp <- unique(tmp[, cnt := .N, by = .(tree, leaf)])
+      draw_from <- merge(tmp, x_real_dt, by = c('tree', 'leaf'), sort = FALSE)
+      x_synth <- draw_from[, lapply(.SD[, -c('cnt', 'obs')], sample_by_class, .SD[, cnt[1]]), 
+                           by = .(tree, leaf)][, c('tree', 'leaf') := NULL]
+      rm(nodeIDs, tmp, x_real_dt, draw_from)
+      # Concatenate real and synthetic data
       dat <- rbind(data.frame(y = 1L, x_real),
                    data.frame(y = 0L, x_synth))
-      # Train unsupervised random forest
+      # Train discriminator
       if (isTRUE(parallel)) {
         rf1 <- ranger(y ~ ., dat, keep.inbag = TRUE, classification = TRUE, 
                       num.trees = num_trees, min.node.size = 2 * min_node_size, 
@@ -187,38 +194,48 @@ adversarial_rf <- function(
       acc0 <- 1 - rf1$prediction.error
       acc <- c(acc, acc0)
       iters <- iters + 1L
-      if (acc0 <= 0.5 + delta | iters >= max_iters) {
+      plateau <- ifelse(isTRUE(early_stop), 
+                        acc[iters] <= acc[iters + 1L], FALSE)
+      if (acc0 <= 0.5 + delta | iters >= max_iters | plateau) {
         converged <- TRUE
       } else {
+        # Discriminator becomes the new generator
         rf0 <- rf1
       }
       if (isTRUE(verbose)) {
         cat(paste0('Iteration: ', iters, 
-                     ', Accuracy: ', round(acc0 * 100, 2), '%\n'))
+                   ', Accuracy: ', round(acc0 * 100, 2), '%\n'))
       }
     }
   }
   
   # Prune leaves to ensure min_node_size w.r.t. real data
   pred <- stats::predict(rf0, x_real, type = 'terminalNodes')$predictions + 1L
-  for (tree in 1:num_trees) {
-    leaves <- which(rf0$forest$child.nodeIDs[[tree]][[1]] == 0L)
+  prune <- function(tree) {
+    out <- rf0$forest$child.nodeIDs[[tree]]
+    leaves <- which(out[[1]] == 0L)
     to_prune <- leaves[!(leaves %in% which(tabulate(pred[, tree]) >= min_node_size))]
     while(length(to_prune) > 0) {
       for (tp in to_prune) {
         # Find parents
-        parent <- which((rf0$forest$child.nodeIDs[[tree]][[1]] + 1L) == tp)
+        parent <- which((out[[1]] + 1L) == tp)
         if (length(parent) > 0) {
           # Left child
-          rf0$forest$child.nodeIDs[[tree]][[1]][parent] <- rf0$forest$child.nodeIDs[[tree]][[2]][parent]
+          out[[1]][parent] <- out[[2]][parent]
         } else {
           # Right child
-          parent <- which((rf0$forest$child.nodeIDs[[tree]][[2]] + 1L) == tp)
-          rf0$forest$child.nodeIDs[[tree]][[2]][parent] <- rf0$forest$child.nodeIDs[[tree]][[1]][parent]
+          parent <- which((out[[2]] + 1L) == tp)
+          out[[2]][parent] <- out[[1]][parent]
         }
       }
-      to_prune <- which((rf0$forest$child.nodeIDs[[tree]][[1]] + 1L) %in% to_prune)
+      to_prune <- which((out[[1]] + 1L) %in% to_prune)
     }
+    return(out)
+  }
+  if (isTRUE(parallel)) {
+    rf0$forest$child.nodeIDs <- foreach(b = 1:num_trees) %dopar% prune(b)
+  } else {
+    rf0$forest$child.nodeIDs <- foreach(b = 1:num_trees) %do% prune(b)
   }
   
   # Export
