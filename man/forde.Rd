@@ -42,10 +42,10 @@ bounds is expanded by a factor of \code{1 + epsilon}.}
 via \code{doParallel}.}
 }
 \value{
-A \code{list} with 4 elements: (1) parameters for continuous data; (2)
-parameters for discrete data; (3) leaf indices and coverage; and (4) metadata
-on variables. This list is used for estimating likelihoods with
-\code{\link{lik}} and generating data with \code{\link{forge}}.
+A \code{list} with 5 elements: (1) parameters for continuous data; (2)
+parameters for discrete data; (3) leaf indices and coverage; (4) metadata on
+variables; and (5) the data input class. This list is used for estimating
+likelihoods with \code{\link{lik}} and generating data with \code{\link{forge}}.
 }
 \description{
 Uses a pre-trained ARF model to estimate leaf and distribution parameters.

@@ -46,10 +46,10 @@
 #' 
 #' 
 #' @return 
-#' A \code{list} with 4 elements: (1) parameters for continuous data; (2) 
-#' parameters for discrete data; (3) leaf indices and coverage; and (4) metadata
-#' on variables. This list is used for estimating likelihoods with 
-#' \code{\link{lik}} and generating data with \code{\link{forge}}.
+#' A \code{list} with 5 elements: (1) parameters for continuous data; (2) 
+#' parameters for discrete data; (3) leaf indices and coverage; (4) metadata on
+#' variables; and (5) the data input class. This list is used for estimating 
+#' likelihoods with \code{\link{lik}} and generating data with \code{\link{forge}}.
 #' 
 #' 
 #' @references 
@@ -147,6 +147,15 @@ forde <- function(
     }
   }
   factor_cols <- sapply(x, is.factor)
+  if (!family %in% c('truncnorm', 'unif')) {
+    stop('family not recognized.')
+  }
+  if (alpha < 0) {
+    stop('alpha must be nonnegative.')
+  }
+  if (epsilon < 0) {
+    stop('epsilon must be nonnegative.')
+  }
   
   # Compute leaf bounds and coverage
   num_trees <- arf$num.trees
