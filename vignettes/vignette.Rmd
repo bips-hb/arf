@@ -53,7 +53,7 @@ ARF convergence is almost surely guaranteed as $n \rightarrow \infty$ (see [Wats
 
 For density estimation tasks, we recommend increasing the default number of trees. We generally use 100 in our experiments, though this may be suboptimal for some datasets. Likelihood estimates are not very sensitive to this parameter above a certain threshold, but larger models incur extra costs in time and memory. We can speed up computations by registering a parallel backend, in which case ARF training is distributed across cores using the `ranger` package. Much like with `ranger`, the default behavior of `adversarial_rf` is to compute in parallel if possible. How exactly this is done varies across operating systems. The following code works on Unix machines.
 
-```{r par, eval=FALSE}
+```{r par}
 # Register cores - Unix
 library(doParallel)
 registerDoParallel(cores = 2)
@@ -66,11 +66,6 @@ Windows requires a different setup.
 library(doParallel)
 cl <- makeCluster(2)
 registerDoParallel(cl)
-```
-
-```{r hushpar, include=F}
-library(doMC)
-registerDoMC(10)
 ```
 
 In either case, we can now execute in parallel.
