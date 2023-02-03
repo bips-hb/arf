@@ -155,7 +155,7 @@ forde <- function(
     num_nodes <- length(arf$forest$split.varIDs[[tree]])
     lb <- matrix(-Inf, nrow = num_nodes, ncol = d)
     ub <- matrix(Inf, nrow = num_nodes, ncol = d)
-    if (family == 'unif' & epsilon > 0) {
+    if (family == 'unif') {
       for (j in seq_len(d)) {
         if (!isTRUE(factor_cols[j])) {
           gap <- max(x[[j]]) - min(x[[j]])
