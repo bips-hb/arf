@@ -21,18 +21,28 @@ devtools::install_github("bips-hb/arf")
 
 ## Examples
 ### Density estimation
-To run an adversarial random forest on the iris data, perform density estimation and calculate log-likelihood on the same data:
+To estimate the log-likelihood of the iris data:
 ```R
+# Train the ARF
 arf <- adversarial_rf(iris)
+
+# Estimate distribution parameters
 psi <- forde(arf, iris)
+
+# Compute log likelihoods
 mean(lik(arf, psi, iris))
 ```
 
 ### Generative modeling
-To generate synthetic data based on the iris data: 
+To generate synthetic samples based on the iris data: 
 ```R
+# Train the ARF
 arf <- adversarial_rf(iris)
+
+# Estimate distribution parameters
 psi <- forde(arf, iris)
+
+# Draw 100 synthetic samples
 forge(psi, 100)
 ```
 
