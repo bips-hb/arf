@@ -2,7 +2,9 @@
 .Rhistory
 .RData
 .Ruserdata
+.Rapp.history
 .DS_Store
+arf.Rproj
 docs
 inst/doc
 arf.Rcheck/
