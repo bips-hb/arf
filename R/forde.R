@@ -11,7 +11,7 @@
 #'   features. Current options include truncated normal (the default
 #'   \code{family = "truncnorm"}) and uniform (\code{family = "unif"}). See 
 #'   Details.
-#' @param alpha Optional pseudocount for Laplace smoothing of multinomial 
+#' @param alpha Optional pseudocount for Laplace smoothing of categorical 
 #'   features. This avoids zero-mass points when test data fall outside the 
 #'   support of training data. Effectively parametrizes a flat Dirichlet prior
 #'   on multinomial likelihoods.
