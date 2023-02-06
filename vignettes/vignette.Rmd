@@ -2,7 +2,7 @@
 title: "Package Vignette"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Density Estimation}
+  %\VignetteIndexEntry{Introduction to ARFs}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
