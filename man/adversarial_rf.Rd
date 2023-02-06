@@ -86,8 +86,9 @@ arf <- adversarial_rf(iris)
 }
 \references{
 Watson, D., Blesch, K., Kapar, J., & Wright, M. (2022). Adversarial random
-forests for density estimation and generative modeling. \emph{arXiv} preprint,
-2205.09435.
+forests for density estimation and generative modeling. To appear in
+\emph{Proceedings of the 26th International Conference on Artificial
+Intelligence and Statistics}. \emph{arXiv} preprint, 2205.09435.
 }
 \seealso{
 \code{\link{forde}}, \code{\link{forge}}

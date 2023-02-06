@@ -6,6 +6,9 @@
 #' @param df Input data.frame.
 #' @param old_name Name of column to be renamed.
 #' 
+#' 
+#' @noRd
+#' 
 
 col_rename <- function(df, old_name) {
   k <- 1L

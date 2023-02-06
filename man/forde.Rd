@@ -80,8 +80,9 @@ head(psi)
 }
 \references{
 Watson, D., Blesch, K., Kapar, J., & Wright, M. (2022). Adversarial random
-forests for density estimation and generative modeling. \emph{arXiv} preprint,
-2205.09435.
+forests for density estimation and generative modeling. To appear in
+\emph{Proceedings of the 26th International Conference on Artificial
+Intelligence and Statistics}. \emph{arXiv} preprint, 2205.09435.
 
 Wager, S. & Athey, S. (2018). Estimation and inference of heterogeneous
 treatment effects using random forests. \emph{J. Am. Stat. Assoc.},
