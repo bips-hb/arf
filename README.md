@@ -43,5 +43,8 @@ forge(psi, 100)
 
 For more detailed examples, see the package [vignette](https://bips-hb.github.io/arf/articles/vignette.html).
 
+## Other distributions
+A python implementation of ARF, `arfpy`, is available on [PyPI](https://pypi.org/project/arfpy/) and the development version  [here](https://github.com/bips-hb/arfpy).
+
 ## References
 * Watson, D. S., Blesch, K., Kapar, J. & Wright, M. N. (2022). Adversarial random forests for density estimation and generative modeling. To appear in *Proceedings of the 26th International Conference on Artificial Intelligence and Statistics*. Preprint: https://arxiv.org/abs/2205.09435.
