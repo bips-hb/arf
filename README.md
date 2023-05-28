@@ -47,4 +47,4 @@ For more detailed examples, see the package [vignette](https://bips-hb.github.io
 A Python implementation of ARF, `arfpy`, is available on [PyPI](https://pypi.org/project/arfpy/). For the development version, see [here](https://github.com/bips-hb/arfpy).
 
 ## References
-* Watson, D. S., Blesch, K., Kapar, J. & Wright, M. N. (2022). Adversarial random forests for density estimation and generative modeling. In *Proceedings of the 26th International Conference on Artificial Intelligence and Statistics*. Link [here](https://proceedings.mlr.press/v206/watson23a.html).
+* Watson, D. S., Blesch, K., Kapar, J. & Wright, M. N. (2023). Adversarial random forests for density estimation and generative modeling. In *Proceedings of the 26th International Conference on Artificial Intelligence and Statistics*. Link [here](https://proceedings.mlr.press/v206/watson23a.html).
