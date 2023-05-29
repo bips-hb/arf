@@ -161,7 +161,9 @@ lik <- function(
                            allow.cartesian = TRUE)
       params_x_cat <- merge(params$cat, preds_x_cat, 
                             by = c('f_idx', 'variable', 'val'), 
-                            sort = FALSE, allow.cartesian = TRUE)
+                            sort = FALSE, allow.cartesian = TRUE, 
+                            all.y = TRUE)
+      params_x_cat[is.na(prob), prob := 1e-20]
       params_x_cat[, lik := prob]
       params_x_cat <- params_x_cat[, .(tree, obs, cvg, lik)]
       rm(x_long_cat, preds_x_cat)
