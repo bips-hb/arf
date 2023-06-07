@@ -21,9 +21,10 @@
 #' 
 #' 
 #' @references 
-#' Watson, D., Blesch, K., Kapar, J., & Wright, M. (2022). Adversarial random 
-#' forests for density estimation and generative modeling. \emph{arXiv} preprint,
-#' 2205.09435.
+#' Watson, D., Blesch, K., Kapar, J., & Wright, M. (2023). Adversarial random 
+#' forests for density estimation and generative modeling. In \emph{Proceedings 
+#' of the 26th International Conference on Artificial Intelligence and 
+#' Statistics}, pp. 5357-5375.
 #'
 #'
 #' @examples
