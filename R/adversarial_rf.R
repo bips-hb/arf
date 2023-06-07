@@ -30,7 +30,7 @@
 #' The algorithm converges when a RF cannot reliably distinguish between the two 
 #' classes, i.e. when OOB accuracy falls below 0.5 + \code{delta}. 
 #' 
-#' ARFs are useful for several unsupservised learning tasks, such as density
+#' ARFs are useful for several unsupervised learning tasks, such as density
 #' estimation (see \code{\link{forde}}) and data synthesis (see 
 #' \code{\link{forge}}). For the former, we recommend increasing the number of 
 #' trees for improved performance (typically on the order of 100-1000 depending 
