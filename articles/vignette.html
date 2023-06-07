@@ -486,7 +486,7 @@ we do find some implausible values, e.g. negative prices. This can be
 overcome by manually setting a hard lower bound.</p>
 <div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Set price minimum to empirical lower bound</span></span>
-<span><span class="va">params</span><span class="op">$</span><span class="va">cnt</span><span class="op">[</span><span class="va">variable</span> <span class="op">==</span> <span class="st">'price'</span>, <span class="va">min</span> <span class="op">:=</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">min</a></span><span class="op">(</span><span class="va">diamonds</span><span class="op">$</span><span class="va">price</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="va">params</span><span class="op">$</span><span class="va">cnt</span><span class="op">[</span><span class="va">variable</span> <span class="op">==</span> <span class="st">'price'</span> <span class="op">&amp;</span> <span class="va">min</span> <span class="op">==</span> <span class="op">-</span><span class="cn">Inf</span>, <span class="va">min</span> <span class="op">:=</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">min</a></span><span class="op">(</span><span class="va">diamonds</span><span class="op">$</span><span class="va">price</span><span class="op">)</span><span class="op">]</span></span>
 <span></span>
 <span><span class="co"># Re-forge, check histogram</span></span>
 <span><span class="va">synth</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/forge.html">forge</a></span><span class="op">(</span><span class="va">params</span>, n_synth <span class="op">=</span> <span class="fl">1000</span><span class="op">)</span></span>
@@ -500,12 +500,10 @@ overcome by manually setting a hard lower bound.</p>
 <span></span>
 <span><span class="co"># Retrain ARF</span></span>
 <span><span class="va">arf</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">tmp</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Iteration: 0, Accuracy: 96.49%</span></span>
-<span><span class="co">#&gt; Iteration: 1, Accuracy: 73.95%</span></span>
-<span><span class="co">#&gt; Iteration: 2, Accuracy: 52.15%</span></span>
-<span><span class="co">#&gt; Iteration: 3, Accuracy: 51.04%</span></span>
-<span><span class="co">#&gt; Iteration: 4, Accuracy: 50.69%</span></span>
-<span><span class="co">#&gt; Iteration: 5, Accuracy: 48.4%</span></span>
+<span><span class="co">#&gt; Iteration: 0, Accuracy: 95.39%</span></span>
+<span><span class="co">#&gt; Iteration: 1, Accuracy: 75.56%</span></span>
+<span><span class="co">#&gt; Iteration: 2, Accuracy: 52.95%</span></span>
+<span><span class="co">#&gt; Iteration: 3, Accuracy: 48.21%</span></span>
 <span></span>
 <span><span class="co"># Estimate parameters</span></span>
 <span><span class="va">params</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/forde.html">forde</a></span><span class="op">(</span><span class="va">arf</span>, <span class="va">tmp</span><span class="op">)</span></span>

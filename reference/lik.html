@@ -112,9 +112,10 @@ criterion by construction. See Watson et al. (2022).</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
-    <p>Watson, D., Blesch, K., Kapar, J., &amp; Wright, M. (2022). Adversarial random
-forests for density estimation and generative modeling. <em>arXiv</em> preprint,
-2205.09435.</p>
+    <p>Watson, D., Blesch, K., Kapar, J., &amp; Wright, M. (2023). Adversarial random
+forests for density estimation and generative modeling. In <em>Proceedings
+of the 26th International Conference on Artificial Intelligence and
+Statistics</em>, pp. 5357-5375.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -125,12 +126,12 @@ forests for density estimation and generative modeling. <em>arXiv</em> preprint,
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># Estimate average log-likelihood</span></span></span>
 <span class="r-in"><span><span class="va">arf</span> <span class="op">&lt;-</span> <span class="fu"><a href="adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">iris</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 0, Accuracy: 85.91%</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 1, Accuracy: 42.32%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 0, Accuracy: 84.75%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 1, Accuracy: 42.42%</span>
 <span class="r-in"><span><span class="va">psi</span> <span class="op">&lt;-</span> <span class="fu"><a href="forde.html">forde</a></span><span class="op">(</span><span class="va">arf</span>, <span class="va">iris</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">ll</span> <span class="op">&lt;-</span> <span class="fu">lik</span><span class="op">(</span><span class="va">arf</span>, <span class="va">psi</span>, <span class="va">iris</span>, log <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">ll</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] -0.8686012</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] -0.7739878</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
