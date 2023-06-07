@@ -229,7 +229,7 @@ Using `family = 'truncnorm'`, the distribution for `price` will now be modeled w
 
 ```{r lb, fig.height=5, fig.width=5}
 # Set price minimum to empirical lower bound
-params$cnt[variable == 'price', min := min(diamonds$price)]
+params$cnt[variable == 'price' & min == -Inf, min := min(diamonds$price)]
 
 # Re-forge, check histogram
 synth <- forge(params, n_synth = 1000)
