@@ -13,6 +13,10 @@
 #' @param max_iters Maximum iterations for the adversarial loop.
 #' @param early_stop Terminate loop if performance fails to improve from one 
 #'   round to the next? 
+#' @param generator Synthetic data generator. The default is to use intra-leaf 
+#'   marginals (\code{generator = "bootstrap"}). Alternatively, compile the 
+#'   forest into a probabilistic circuit and synthesize data from the model 
+#'   (\code{generator = "forge"}). See Details.
 #' @param verbose Print discriminator accuracy after each round?
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
 #'   via \code{doParallel}.
@@ -24,11 +28,13 @@
 #' iteratively, with alternating rounds of generation and discrimination. In 
 #' the first instance, synthetic data is generated via independent bootstraps of 
 #' each feature, and a RF classifier is trained to distinguish between real and 
-#' synthetic samples. In subsequent rounds, synthetic data is generated
-#' separately in each leaf, using splits from the previous forest. This creates 
-#' increasingly realistic data that satisfies local independence by construction. 
-#' The algorithm converges when a RF cannot reliably distinguish between the two 
-#' classes, i.e. when OOB accuracy falls below 0.5 + \code{delta}. 
+#' fake samples. In subsequent rounds, synthetic data is generated separately in 
+#' each leaf, using splits from the previous forest. This can be done either by 
+#' bootstrapping (\code{generator = "bootstrap"}) or fitting a circuit model 
+#' (\code{generator = "forge"}). In either case, synthetic data satisfies local 
+#' independence by construction. The algorithm converges when a RF cannot 
+#' reliably distinguish between the two classes, i.e. when OOB accuracy falls 
+#' below 0.5 + \code{delta}. 
 #' 
 #' ARFs are useful for several unsupervised learning tasks, such as density
 #' estimation (see \code{\link{forde}}) and data synthesis (see 
@@ -42,7 +48,7 @@
 #' not a pdf). To override this behavior and assign nonzero density to 
 #' intermediate values, explicitly recode the features as numeric. 
 #' 
-#' Note: convergence is not guaranteed in finite samples. The \code{max_iter} 
+#' Note: convergence is not guaranteed in finite samples. The \code{max_iters} 
 #' argument sets an upper bound on the number of training rounds. Similar 
 #' results may be attained by increasing \code{delta}. Even a single round can 
 #' often give good performance, but data with strong or complex dependencies may 
@@ -84,6 +90,7 @@ adversarial_rf <- function(
     delta = 0,
     max_iters = 10L,
     early_stop = TRUE,
+    generator = 'bootstrap',
     verbose = TRUE,
     parallel = TRUE,
     ...) {
@@ -132,6 +139,9 @@ adversarial_rf <- function(
     warning('Variance is undefined when a leaf contains just a single observation. ', 
             'Consider increasing min_node_size.')
   }
+  if (!generator %in% c('bootstrap', 'forge')) {
+    stop('generator not recognized.')
+  }
   
   # Fit initial model: sample from marginals, concatenate data, train RF
   x_synth <- as.data.frame(lapply(x_real, sample, n, replace = TRUE))
@@ -164,20 +174,26 @@ adversarial_rf <- function(
     }
     converged <- FALSE
     while (!isTRUE(converged)) { # Adversarial loop begins...
-      # Create synthetic data by sampling from intra-leaf marginals
-      nodeIDs <- stats::predict(rf0, x_real, type = 'terminalNodes')$predictions
-      tmp <- melt(as.data.table(nodeIDs), measure.vars = 1:num_trees,
-                  variable.name = 'tree', value.name = 'leaf')
-      tmp[, tree := as.numeric(gsub('V', '', tree))][, obs := rep(1:n, num_trees)]
-      x_real_dt <- as.data.table(x_real)[, obs := 1:n] 
-      x_real_dt <- merge(x_real_dt, tmp, by = 'obs', sort = FALSE)
-      tmp[, obs := NULL]
-      tmp <- tmp[sample(.N, n, replace = TRUE)]
-      tmp <- unique(tmp[, cnt := .N, by = .(tree, leaf)])
-      draw_from <- merge(tmp, x_real_dt, by = c('tree', 'leaf'), sort = FALSE)
-      x_synth <- draw_from[, lapply(.SD[, -c('cnt', 'obs')], sample_by_class, .SD[, cnt[1]]), 
-                           by = .(tree, leaf)][, c('tree', 'leaf') := NULL]
-      rm(nodeIDs, tmp, x_real_dt, draw_from)
+      if (generator == 'bootstrap') {
+        # Create synthetic data by sampling from intra-leaf marginals
+        nodeIDs <- stats::predict(rf0, x_real, type = 'terminalNodes')$predictions
+        tmp <- melt(as.data.table(nodeIDs), measure.vars = 1:num_trees,
+                    variable.name = 'tree', value.name = 'leaf')
+        tmp[, tree := as.numeric(gsub('V', '', tree))][, obs := rep(1:n, num_trees)]
+        x_real_dt <- as.data.table(x_real)[, obs := 1:n] 
+        x_real_dt <- merge(x_real_dt, tmp, by = 'obs', sort = FALSE)
+        tmp[, obs := NULL]
+        tmp <- tmp[sample(.N, n, replace = TRUE)]
+        tmp <- unique(tmp[, cnt := .N, by = .(tree, leaf)])
+        draw_from <- merge(tmp, x_real_dt, by = c('tree', 'leaf'), sort = FALSE)
+        x_synth <- draw_from[, lapply(.SD[, -c('cnt', 'obs')], sample_by_class, .SD[, cnt[1]]), 
+                             by = .(tree, leaf)][, c('tree', 'leaf') := NULL]
+        rm(nodeIDs, tmp, x_real_dt, draw_from)
+      } else if (generator == 'forge') {
+        # Create synthetic data using forge
+        psi <- forde(rf0, x_real)
+        x_synth <- forge(psi, n)
+      } 
       # Concatenate real and synthetic data
       dat <- rbind(data.frame(y = 1L, x_real),
                    data.frame(y = 0L, x_synth))
