@@ -2,8 +2,13 @@
 .Rhistory
 .RData
 .Ruserdata
+.Rapp.history
 docs
 inst/doc
 arf.Rcheck/
 arf*.tar.gz
 arf*.tgz
+*.Rproj
+*.DS_Store
+attic/
+branch/
