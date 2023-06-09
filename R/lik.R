@@ -118,7 +118,7 @@ lik <- function(
   batch_idx <- suppressWarnings(split(1:n, seq_len(k)))
   
   # Likelihood function
-  num_trees <- arf$num.trees
+  num_trees <- params$forest[, max(tree)]
   fams <- params$meta$family
   lik_fn <- function(fold) {
     params_x_cnt <- params_x_cat <- NULL
