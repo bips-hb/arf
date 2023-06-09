@@ -240,9 +240,15 @@ forde <- function(
         if (dt[sigma == 0, .N] > 0L) {
           dt[sigma == 0, new_min := ifelse(!is.finite(min), min(value), min), by = variable]
           dt[sigma == 0, new_max := ifelse(!is.finite(max), max(value), max), by = variable]
-          dt[sigma == 0, value := stats::runif(.N, min = new_min, max = new_max)]
-          dt[sigma == 0, sigma := sd(value), by = .(leaf, variable)]
-          dt[, c('new_min', 'new_max') := NULL]
+          dt[sigma == 0, med := (new_min + new_max) / 2]
+          dt[sigma == 0, sigma0 := (new_max - med) / qnorm(0.975)] 
+          # This prior places 95% of the density within the bounding box.
+          # In addition, we set the prior degrees of freedom at nu0 = 2. 
+          # Since the mode of a chisq is max(df-2, 0), this means that
+          # (1) with a single observation, the posterior reduces to the prior; and
+          # (2) with more invariant observations, the posterior tends toward zero.
+          dt[sigma == 0, sigma := sqrt(2 / .N * sigma0^2), by = .(variable, leaf)]
+          dt[, c('new_min', 'new_max', 'med', 'sigma0') := NULL]
         }
       }
       dt <- unique(dt[, c('tree', 'leaf', 'value') := NULL])
