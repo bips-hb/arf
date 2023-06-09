@@ -41,6 +41,7 @@
 #' @import data.table
 #' @importFrom foreach foreach %do% %dopar%
 #' @importFrom truncnorm rtruncnorm 
+#' @importFrom tibble as_tibble
 #' 
 
 forge <- function(
@@ -111,6 +112,8 @@ forge <- function(
   }
   if ('data.table' %in% params$input_class) {
     x_synth <- as.data.table(x_synth)
+  } else if ('tbl_df' %in% params$input_class) {
+    x_synth <- tibble::as_tibble(x_synth)
   } else if ('matrix' %in% params$input_class) {
     x_synth <- as.matrix(x_synth)
   }
