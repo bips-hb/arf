@@ -73,6 +73,22 @@ lik <- function(
   # Prep data
   x <- as.data.frame(x)
   n <- nrow(x)
+  if ('y' %in% colnames(x)) {
+    y_new <- col_rename(x, 'y')
+    colnames(x)[which(colnames(x) == 'y')] <- y_new
+  }
+  if ('obs' %in% colnames(x)) {
+    obs_new <- col_rename(x, 'obs')
+    colnames(x)[which(colnames(x) == 'obs')] <- obs_new
+  }
+  if ('tree' %in% colnames(x)) {
+    tree_new <- col_rename(x, 'tree')
+    colnames(x)[which(colnames(x) == 'tree')] <- tree_new
+  } 
+  if ('leaf' %in% colnames(x)) {
+    leaf_new <- col_rename(x, 'leaf')
+    colnames(x)[which(colnames(x) == 'leaf')] <- leaf_new
+  } 
   idx_char <- sapply(x, is.character)
   if (any(idx_char)) {
     x[, idx_char] <- as.data.frame(

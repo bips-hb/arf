@@ -109,6 +109,22 @@ forde <- function(
   n <- nrow(x)
   d <- ncol(x)
   colnames_x <- colnames(x)
+  if ('y' %in% colnames(x)) {
+    y_new <- col_rename(x, 'y')
+    colnames(x)[which(colnames(x) == 'y')] <- y_new
+  }
+  if ('obs' %in% colnames(x)) {
+    obs_new <- col_rename(x, 'obs')
+    colnames(x)[which(colnames(x) == 'obs')] <- obs_new
+  }
+  if ('tree' %in% colnames(x)) {
+    tree_new <- col_rename(x, 'tree')
+    colnames(x)[which(colnames(x) == 'tree')] <- tree_new
+  } 
+  if ('leaf' %in% colnames(x)) {
+    leaf_new <- col_rename(x, 'leaf')
+    colnames(x)[which(colnames(x) == 'leaf')] <- leaf_new
+  } 
   classes <- sapply(x, class)
   idx_char <- sapply(x, is.character)
   if (any(idx_char)) {
@@ -242,6 +258,18 @@ forde <- function(
     } else {
       psi_cnt <- foreach(tree = 1:num_trees, .combine = rbind) %do% psi_cnt_fn(tree)
     }
+    if (!is.null(y_new)) {
+      psi_cnt[variable == y_new, variable := 'y']
+    }
+    if (!is.null(obs_new)) {
+      psi_cnt[variable == obs_new, variable := 'obs']
+    }
+    if (!is.null(tree_new)) {
+      psi_cnt[variable == tree_new, variable := 'tree']
+    }
+    if (!is.null(leaf_new)) {
+      psi_cnt[variable == leaf_new, variable := 'leaf']
+    }
     setkey(psi_cnt, f_idx, variable)
     setcolorder(psi_cnt, c('f_idx', 'variable'))
   } 
@@ -295,6 +323,18 @@ forde <- function(
       psi_cat <- foreach(tree = 1:num_trees, .combine = rbind) %dopar% psi_cat_fn(tree)
     } else {
       psi_cat <- foreach(tree = 1:num_trees, .combine = rbind) %do% psi_cat_fn(tree)
+    }
+    if (!is.null(y_new)) {
+      psi_cat[variable == y_new, variable := 'y']
+    }
+    if (!is.null(obs_new)) {
+      psi_cat[variable == obs_new, variable := 'obs']
+    }
+    if (!is.null(tree_new)) {
+      psi_cat[variable == tree_new, variable := 'tree']
+    }
+    if (!is.null(leaf_new)) {
+      psi_cat[variable == leaf_new, variable := 'leaf']
     }
     setkey(psi_cat, f_idx, variable)
     setcolorder(psi_cat, c('f_idx', 'variable'))
