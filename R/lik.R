@@ -165,9 +165,8 @@ lik <- function(
       preds_x_cat <- merge(preds, x_long_cat, by = 'obs', sort = FALSE, 
                            allow.cartesian = TRUE)
       params_x_cat <- merge(params$cat, preds_x_cat, 
-                            by = c('f_idx', 'variable', 'val'), 
-                            sort = FALSE, allow.cartesian = TRUE, 
-                            all.y = TRUE)
+                            by = c('f_idx', 'variable', 'val'), sort = FALSE, 
+                            allow.cartesian = TRUE, all.y = TRUE)
       params_x_cat[is.na(prob), prob := 1e-20]
       params_x_cat[, lik := prob]
       params_x_cat <- params_x_cat[, .(tree, obs, cvg, lik)]
@@ -176,9 +175,10 @@ lik <- function(
     rm(preds)
     # Put it together
     params_x <- rbind(params_x_cnt, params_x_cat)
+    params_x[, log_lik := log(lik)][, log_cvg := log(cvg)]
     rm(params_x_cnt, params_x_cat)
     # Compute per-sample likelihoods
-    lik <- unique(params_x[, sum(log(lik)) + log(cvg), by = .(obs, tree)])
+    lik <- unique(params_x[, sum(log_lik) + log_cvg, by = .(obs, tree)])
     lik[is.na(V1), V1 := 0]
     if (isTRUE(log)) {
       out <- lik[, -log(.N) + matrixStats::logSumExp(V1), by = obs]
