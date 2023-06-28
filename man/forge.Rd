@@ -4,12 +4,15 @@
 \alias{forge}
 \title{Forests for Generative Modeling}
 \usage{
-forge(params, n_synth, parallel = TRUE)
+forge(params, n_synth, evidence = NULL, parallel = TRUE)
 }
 \arguments{
 \item{params}{Parameters learned via \code{\link{forde}}.}
 
 \item{n_synth}{Number of synthetic samples to generate.}
+
+\item{evidence}{Optional data frame of conditioning event(s) or posterior
+distribution over leaves. See Details.}
 
 \item{parallel}{Compute in parallel? Must register backend beforehand, e.g.
 via \code{doParallel}.}
@@ -26,12 +29,29 @@ leaves are sampled in proportion to their coverage. Then, each feature is
 sampled independently within each leaf according to the probability mass or
 density function learned by \code{\link{forde}}. This will create realistic
 data so long as the adversarial RF used in the previous step satisfies the
-local independence criterion. See Watson et al. (2022).
+local independence criterion. See Watson et al. (2023).
+
+There are two methods for (optionally) encoding conditioning events via the
+\code{evidence} argument. The first is to provide a data frame with three
+columns: \code{variable}, \code{operator}, and \code{value}. Each row will be
+treated as a separate conjunct. Alternatively, users may directly input a
+pre-calculated posterior distribution over leaves, with columns \code{f_idx}
+and \code{wt}. This may be preferable for complex constraints. See Examples.
 }
 \examples{
 arf <- adversarial_rf(iris)
 psi <- forde(arf, iris)
 x_synth <- forge(psi, n_synth = 100)
+
+# Condition on Species = "setosa"
+evi <- data.frame(variable = "Species", operator = "==", value = "setosa")
+x_synth <- forge(psi, n_synth = 100, evidence = evi)
+
+# Or just input some distribution on leaves
+# (Weights that do not sum to unity are automatically scaled)
+n_leaves <- nrow(psi$forest)
+evi <- data.frame(f_idx = psi$forest$f_idx, wt = rexp(n_leaves))
+x_synth <- forge(psi, n_synth = 100, evidence = evi)
 
 
 }

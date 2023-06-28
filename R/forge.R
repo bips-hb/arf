@@ -4,6 +4,8 @@
 #' 
 #' @param params Parameters learned via \code{\link{forde}}. 
 #' @param n_synth Number of synthetic samples to generate.
+#' @param evidence Optional data frame of conditioning event(s) or posterior 
+#'   distribution over leaves. See Details.
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
 #'   via \code{doParallel}.
 #'   
@@ -13,7 +15,14 @@
 #' sampled independently within each leaf according to the probability mass or
 #' density function learned by \code{\link{forde}}. This will create realistic
 #' data so long as the adversarial RF used in the previous step satisfies the 
-#' local independence criterion. See Watson et al. (2022).
+#' local independence criterion. See Watson et al. (2023).
+#' 
+#' There are two methods for (optionally) encoding conditioning events via the 
+#' \code{evidence} argument. The first is to provide a data frame with three 
+#' columns: \code{variable}, \code{operator}, and \code{value}. Each row will be 
+#' treated as a separate conjunct. Alternatively, users may directly input a 
+#' pre-calculated posterior distribution over leaves, with columns \code{f_idx} 
+#' and \code{wt}. This may be preferable for complex constraints. See Examples.
 #' 
 #' 
 #' @return  
@@ -32,6 +41,16 @@
 #' psi <- forde(arf, iris)
 #' x_synth <- forge(psi, n_synth = 100)
 #'
+#' # Condition on Species = "setosa"
+#' evi <- data.frame(variable = "Species", operator = "==", value = "setosa")
+#' x_synth <- forge(psi, n_synth = 100, evidence = evi)
+#' 
+#' # Or just input some distribution on leaves
+#' # (Weights that do not sum to unity are automatically scaled)
+#' n_leaves <- nrow(psi$forest)
+#' evi <- data.frame(f_idx = psi$forest$f_idx, wt = rexp(n_leaves))
+#' x_synth <- forge(psi, n_synth = 100, evidence = evi)
+#' 
 #'
 #' @seealso
 #' \code{\link{adversarial_rf}}, \code{\link{forde}}
@@ -47,16 +66,38 @@
 forge <- function(
     params, 
     n_synth, 
+    evidence = NULL,
     parallel = TRUE) {
   
   # To avoid data.table check issues
   tree <- cvg <- leaf <- idx <- family <- mu <- sigma <- prob <- dat <- 
     variable <- j <- f_idx <- val <- . <- NULL
   
-  # Draw random leaves with probability proportional to coverage
-  omega <- params$forest
+  # Check evidence
+  if (!is.null(evidence)) {
+    evidence <- as.data.table(evidence)
+    conj <- all(c('variable', 'operator', 'value') %in% colnames(evidence))
+    post <- all(c('f_idx', 'wt') %in% colnames(evidence))
+    if (conj + post != 1L) {
+      stop('evidence must either be a data frame of conjuncts or a posterior
+           distribution on leaves.')
+    }
+  }
+  
+  # Prepare the event space
+  if (is.null(evidence)) {
+    omega <- params$forest
+    omega[, wt := cvg / max(tree)]
+    omega <- omega[, .(f_idx, wt)]
+  } else if (any(grepl('variable', colnames(evidence)))) {
+    omega <- leaf_posterior(params, evidence)
+  } else {
+    omega <- evidence
+  }
+  
+  # Draw random leaves with probability proportional to weight
   draws <- data.table(
-    'f_idx' = omega[, sample(f_idx, size = n_synth, replace = TRUE, prob = cvg)]
+    'f_idx' = omega[, sample(f_idx, size = n_synth, replace = TRUE, prob = wt)]
   )
   omega <- merge(draws, omega, sort = FALSE)[, idx := .I]
   
@@ -65,6 +106,18 @@ forge <- function(
   if (!is.null(params$cnt)) {
     fam <- params$meta[family != 'multinom', unique(family)]
     psi <- merge(omega, params$cnt, by = 'f_idx', sort = FALSE, allow.cartesian = TRUE)
+    if (!is.null(evidence) & any(evidence$operator %in% c('<', '<=', '>', '>='))) {
+      for (k in evidence[, which(grepl('<', operator))]) {
+        j <- evidence$variable[k]
+        value <- as.numeric(evidence$value[k])
+        psi[variable == j & max > value, max := value]
+      }
+      for (k in evidence[, which(grepl('>', operator))]) {
+        j <- evidence$variable[k]
+        value <- as.numeric(evidence$value[k])
+        psi[variable == j & min < value, min := value]
+      }
+    }
     if (fam == 'truncnorm') {
       psi[, dat := truncnorm::rtruncnorm(.N, a = min, b = max, mean = mu, sd = sigma)]
     } else if (fam == 'unif') {
@@ -88,8 +141,20 @@ forge <- function(
     }
   }
   
-  # Clean up, export
+  # Combine, optionally impose constraint(s)
   x_synth <- cbind(synth_cnt, synth_cat)
+  if (!is.null(evidence) & any(grepl('==', evidence$operator))) {
+    for (k in evidence[, which(operator == '==')]) {
+      j <- evidence$variable[k]
+      value <- evidence$value[k]
+      if (params$meta[variable == j, class == 'numeric']) {
+        value <- as.numeric(value)
+      }
+      x_synth[[j]] <- value
+    }
+  }
+  
+  # Clean up, export
   setcolorder(x_synth, params$meta$variable)
   setDF(x_synth)
   idx_factor <- params$meta[, which(class == 'factor')]
