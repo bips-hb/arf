@@ -211,8 +211,8 @@ adversarial_rf <- function(
       acc0 <- 1 - rf1$prediction.error
       acc <- c(acc, acc0)
       iters <- iters + 1L
-      plateau <- ifelse(isTRUE(early_stop), 
-                        acc[iters] <= acc[iters + 1L], FALSE)
+      plateau <- fifelse(isTRUE(early_stop), 
+                         acc[iters] <= acc[iters + 1L], FALSE)
       if (acc0 <= 0.5 + delta | iters >= max_iters | plateau) {
         converged <- TRUE
       } else {
