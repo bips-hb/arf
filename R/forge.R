@@ -88,8 +88,18 @@ forge <- function(
       }
       # Add check for type-operator combos
       evi <- merge(params$meta, evidence, by = 'variable', sort = FALSE)
-      
+      if (evi[class == 'numeric' & operator == '!=', .N] > 0) {
+        evidence <- evidence[!(class == 'numeric' & operator == '!=')]
+        warning('With continuous features, "!=" is not a valid operator. ', 
+                'This constraint has been removed.')
+      }
+      if (evi[class != 'numeric' & operator , .N] > 0) {
+        stop('With categorical features, the only valid operators are ',
+             '"==" or "!=".')
+      }
     }
+  } else {
+    conj <- FALSE
   }
   
   # Prepare the event space
@@ -114,7 +124,7 @@ forge <- function(
   if (!is.null(params$cnt)) {
     fam <- params$meta[family != 'multinom', unique(family)]
     psi <- merge(omega, params$cnt, by = 'f_idx', sort = FALSE, allow.cartesian = TRUE)
-    if (!is.null(evidence)) {
+    if (conj) {
       if (any(evidence$operator %in% c('<', '<=', '>', '>='))) {
         for (k in evidence[, which(grepl('<', operator))]) {
           j <- evidence$variable[k]
@@ -140,7 +150,7 @@ forge <- function(
       psi <- merge(omega, params$cat[variable == j], by = 'f_idx', sort = FALSE, 
                    allow.cartesian = TRUE)
       psi[prob == 1, dat := val]
-      if (!is.null(evidence)) {
+      if (conj) {
         if (evidence[variable == j & operator == '!=', .N] == 1L) {
           value <- evidence[variable == j, value]
           psi <- psi[val != value]
