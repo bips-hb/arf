@@ -4,12 +4,14 @@
 \alias{leaf_posterior}
 \title{Compute leaf posterior}
 \usage{
-leaf_posterior(params, evidence)
+leaf_posterior(params, evidence, parallel)
 }
 \arguments{
 \item{params}{Parameters learned via \code{\link{forde}}.}
 
 \item{evidence}{Data frame of conditioning event(s).}
+
+\item{parallel}{Compute in parallel?}
 }
 \description{
 This function returns a posterior distribution on leaves, conditional on some
