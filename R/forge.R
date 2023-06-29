@@ -80,7 +80,15 @@ forge <- function(
     post <- all(c('f_idx', 'wt') %in% colnames(evidence))
     if (conj + post != 1L) {
       stop('evidence must either be a data frame of conjuncts or a posterior
-           distribution on leaves.')
+           distribution over leaves.')
+    }
+    if (conj) {
+      if (max(evidence[, .N, by = variable]$N > 1L)) {
+        stop('Only one constraint per variable allowed when using conjuncts.')
+      }
+      # Add check for type-operator combos
+      evi <- merge(params$meta, evidence, by = 'variable', sort = FALSE)
+      
     }
   }
   
@@ -89,8 +97,8 @@ forge <- function(
     omega <- params$forest
     omega[, wt := cvg / max(tree)]
     omega <- omega[, .(f_idx, wt)]
-  } else if (any(grepl('variable', colnames(evidence)))) {
-    omega <- leaf_posterior(params, evidence)
+  } else if (conj) {
+    omega <- leaf_posterior(params, evidence, parallel)
   } else {
     omega <- evidence
   }
@@ -106,16 +114,18 @@ forge <- function(
   if (!is.null(params$cnt)) {
     fam <- params$meta[family != 'multinom', unique(family)]
     psi <- merge(omega, params$cnt, by = 'f_idx', sort = FALSE, allow.cartesian = TRUE)
-    if (!is.null(evidence) & any(evidence$operator %in% c('<', '<=', '>', '>='))) {
-      for (k in evidence[, which(grepl('<', operator))]) {
-        j <- evidence$variable[k]
-        value <- as.numeric(evidence$value[k])
-        psi[variable == j & max > value, max := value]
-      }
-      for (k in evidence[, which(grepl('>', operator))]) {
-        j <- evidence$variable[k]
-        value <- as.numeric(evidence$value[k])
-        psi[variable == j & min < value, min := value]
+    if (!is.null(evidence)) {
+      if (any(evidence$operator %in% c('<', '<=', '>', '>='))) {
+        for (k in evidence[, which(grepl('<', operator))]) {
+          j <- evidence$variable[k]
+          value <- as.numeric(evidence$value[k])
+          psi[variable == j & max > value, max := value]
+        }
+        for (k in evidence[, which(grepl('>', operator))]) {
+          j <- evidence$variable[k]
+          value <- as.numeric(evidence$value[k])
+          psi[variable == j & min < value, min := value]
+        }
       }
     }
     if (fam == 'truncnorm') {
@@ -130,7 +140,13 @@ forge <- function(
       psi <- merge(omega, params$cat[variable == j], by = 'f_idx', sort = FALSE, 
                    allow.cartesian = TRUE)
       psi[prob == 1, dat := val]
-      psi[prob < 1, dat := sample(val, 1, prob = prob), by = idx]
+      if (!is.null(evidence)) {
+        if (evidence[variable == j & operator == '!=', .N] == 1L) {
+          value <- evidence[variable == j, value]
+          psi <- psi[val != value]
+        }
+      }
+      psi[prob < 1, dat := sample(val, 1, prob = prob), by = idx] 
       setnames(data.table(unique(psi[, .(idx, dat)])[, dat]), j)
     }
     cat_vars <- params$meta[family == 'multinom', variable]
