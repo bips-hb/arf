@@ -28,50 +28,65 @@ col_rename <- function(df, old_name) {
 #' 
 #' @param params Parameters learned via \code{\link{forde}}. 
 #' @param evidence Data frame of conditioning event(s).
+#' @param parallel Compute in parallel?
 #' 
 #' @import data.table
 #' @importFrom truncnorm dtruncnorm ptruncnorm 
 #' 
 
-leaf_posterior <- function(params, evidence) {
+leaf_posterior <- function(params, evidence, parallel) {
   
   # To avoid data.table check issues
   variable <- operator <- value <- prob <- f_idx <- cvg <- wt <- . <- NULL
   
-  # Likelihood per leaf-event
-  leaf_list <- lapply(seq_len(nrow(evidence)), function(k) {
-    j <- evidence$variable[k]
-    op <- evidence$operator[k]
-    value <- evidence$value[k]
-    if (params$meta[variable == j, class == 'numeric']) {
-      value <- as.numeric(value)
-      psi <- params$cnt[variable == j]
-      if (op == '==') {
-        psi[, prob := truncnorm::dtruncnorm(value, a = min, b = max, mean = mu, sd = sigma)]
-      } else if (op %in% c('<', '<=')) {
-        psi[, prob := truncnorm::ptruncnorm(value, a = min, b = max, mean = mu, sd = sigma)]
-      } else if (op %in% c('>', '>=')) {
-        psi[, prob := 1 - truncnorm::ptruncnorm(value, a = min, b = max, mean = mu, sd = sigma)]
-      }
-    } else {
+  # Likelihood per leaf-event combo
+  psi_cnt <- psi_cat <- NULL
+  evidence <- merge(evidence, params$meta, by = 'variable', sort = FALSE)
+  if (any(evidence$class == 'numeric')) { # Continuous features
+    evi <- evidence[class == 'numeric']
+    psi <- merge(evi, params$cnt, by = 'variable')
+    if (any(evi$operator == '==')) {
+      psi[operator == '==', prob := 
+            truncnorm::dtruncnorm(value, a = min, b = max, mean = mu, sd = sigma)]
+    }
+    if (any(evi$operator %in% c('<', '<='))) {
+      psi[operator %in% c('<', '<='), prob := 
+            truncnorm::ptruncnorm(value, a = min, b = max, mean = mu, sd = sigma)]
+    }
+    if (any(evi$operator %in% c('>', '>='))) {
+      psi[operator %in% c('>', '>='), prob := 
+            1 - truncnorm::ptruncnorm(value, a = min, b = max, mean = mu, sd = sigma)]
+    }
+    psi_cnt <- psi[, .(f_idx, variable, prob)]
+  }
+  if (any(evidence$class != 'numeric')) { # Categorical features
+    evi <- evidence[class != 'numeric']
+    cat_upd8 <- function(k) {
+      j <- evi$variable[k]
+      op <- evi$operator[k]
+      value <- evi$value[k]
       psi <- params$cat[variable == j]
       grd <- expand.grid(f_idx = params$forest$f_idx, val = psi[, unique(val)])
       psi <- merge(psi, grd, by = c('f_idx', 'val'), all.y = TRUE, sort = FALSE)
       psi[is.na(prob), prob := 0][is.na(variable), variable := j]
       if (op == '==') {
-        psi <- psi[val == value]
+        out <- psi[val == value, .(f_idx, variable, prob)]
       } else if (op == '!=') {
         psi <- psi[val != value]
         psi[, prob := sum(prob), by = f_idx]
-        psi <- unique(psi[, .(f_idx, variable, prob)])
+        out <- unique(psi[, .(f_idx, variable, prob)])
       }
+      return(out)
     }
-    out <- psi[, .(f_idx, variable, prob)]
-    return(out)
-  })
+    if (isTRUE(parallel)) {
+      psi_cat <- foreach(k = seq_len(evi[, .N]), .combine = rbind) %dopar% cat_upd8(k)
+    } else {
+      psi_cat <- foreach(k = seq_len(evi[, .N]), .combine = rbind) %do% cat_upd8(k)
+    }
+  }
+  psi <- rbind(psi_cnt, psi_cat)
   
   # Weight is proportional to coverage times product of likelihoods
-  psi <- rbindlist(leaf_list)
   psi <- merge(psi, params$forest[, .(f_idx, cvg)], by = 'f_idx', sort = FALSE)
   psi[, wt := cvg * prod(prob), by = f_idx] # Worth doing in log space?
   
