@@ -93,7 +93,7 @@ forge <- function(
         warning('With continuous features, "!=" is not a valid operator. ', 
                 'This constraint has been removed.')
       }
-      if (evi[class != 'numeric' & operator , .N] > 0) {
+      if (evi[class != 'numeric' & !operator %in% c('==', '!='), .N] > 0) {
         stop('With categorical features, the only valid operators are ',
              '"==" or "!=".')
       }
