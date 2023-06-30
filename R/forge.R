@@ -4,8 +4,11 @@
 #' 
 #' @param params Parameters learned via \code{\link{forde}}. 
 #' @param n_synth Number of synthetic samples to generate.
-#' @param evidence Optional data frame of conditioning event(s) or posterior 
-#'   distribution over leaves. See Details.
+#' @param evidence Optional set of conditioning events. This can take one of 
+#'   three forms: (1) a partial sample, i.e. a single row of data with
+#'   some but not all columns; (2) a data frame of conditioning events, 
+#'   which allows for inequalities; or (3) a posterior distribution over leaves.
+#'   See Details.
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
 #'   via \code{doParallel}.
 #'   
@@ -17,12 +20,14 @@
 #' data so long as the adversarial RF used in the previous step satisfies the 
 #' local independence criterion. See Watson et al. (2023).
 #' 
-#' There are two methods for (optionally) encoding conditioning events via the 
-#' \code{evidence} argument. The first is to provide a data frame with three 
-#' columns: \code{variable}, \code{operator}, and \code{value}. Each row will be 
-#' treated as a separate conjunct. Alternatively, users may directly input a 
-#' pre-calculated posterior distribution over leaves, with columns \code{f_idx} 
-#' and \code{wt}. This may be preferable for complex constraints. See Examples.
+#' There are three methods for (optionally) encoding conditioning events via the 
+#' \code{evidence} argument. The first is to provide a partial sample, where
+#' some but not all columns from the training data are present. The second is to 
+#' provide a data frame with three columns: \code{variable}, \code{operator}, 
+#' and \code{value}. This supports inequalities via \code{operator}. 
+#' Alternatively, users may directly input a pre-calculated posterior 
+#' distribution over leaves, with columns \code{f_idx} and \code{wt}. This may 
+#' be preferable for complex constraints. See Examples.
 #' 
 #' 
 #' @return  
@@ -42,7 +47,13 @@
 #' x_synth <- forge(psi, n_synth = 100)
 #'
 #' # Condition on Species = "setosa"
-#' evi <- data.frame(variable = "Species", operator = "==", value = "setosa")
+#' evi <- data.frame(Species = "setosa")
+#' x_synth <- forge(psi, n_synth = 100, evidence = evi)
+#' 
+#' # Condition in Species = "setosa" and Sepal.Length > 6
+#' evi <- data.frame(variable = c("Species", "Sepal.Length"),
+#'                   operator = c("==", ">"), 
+#'                   value = c("setosa", 6))
 #' x_synth <- forge(psi, n_synth = 100, evidence = evi)
 #' 
 #' # Or just input some distribution on leaves
@@ -76,17 +87,26 @@ forge <- function(
   # Check evidence
   if (!is.null(evidence)) {
     evidence <- as.data.table(evidence)
+    part <- all(colnames(evidence) %in% params$meta$variable)
     conj <- all(c('variable', 'operator', 'value') %in% colnames(evidence))
     post <- all(c('f_idx', 'wt') %in% colnames(evidence))
-    if (conj + post != 1L) {
-      stop('evidence must either be a data frame of conjuncts or a posterior
-           distribution over leaves.')
+    if (part + conj + post != 1L) {
+      stop('evidence must either be a partial sample, a data frame of conjuncts, ', 
+           'or a posterior distribution over leaves.')
+    }
+    if (part) {
+      if (!all(colnames(evidence) %in% params$meta$variable)) {
+        err <- setdiff(colnames(evidence), params$meta$variable)
+        stop('Unrecognized feature(s) among colnames: ', err)
+      }
+      evidence <- melt(evidence, measure.vars = colnames(evidence))
+      evidence[, operator := '==']
+      conj <- TRUE
     }
     if (conj) {
       if (max(evidence[, .N, by = variable]$N > 1L)) {
         stop('Only one constraint per variable allowed when using conjuncts.')
       }
-      # Add check for type-operator combos
       evi <- merge(params$meta, evidence, by = 'variable', sort = FALSE)
       if (evi[class == 'numeric' & operator == '!=', .N] > 0) {
         evidence <- evidence[!(class == 'numeric' & operator == '!=')]
