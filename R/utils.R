@@ -57,6 +57,7 @@ leaf_posterior <- function(params, evidence, parallel) {
       psi[operator %in% c('>', '>='), prob := 
             1 - truncnorm::ptruncnorm(value, a = min, b = max, mean = mu, sd = sigma)]
     }
+    psi[value == min, prob := 0]
     psi_cnt <- psi[, .(f_idx, variable, prob)]
   }
   if (any(evidence$class != 'numeric')) { # Categorical features
