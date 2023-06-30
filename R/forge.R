@@ -14,9 +14,10 @@
 #'   
 #' @details  
 #' \code{forge} simulates a synthetic dataset of \code{n_synth} samples. First,
-#' leaves are sampled in proportion to their coverage. Then, each feature is
-#' sampled independently within each leaf according to the probability mass or
-#' density function learned by \code{\link{forde}}. This will create realistic
+#' leaves are sampled in proportion to either their coverage (if 
+#' \code{evidence = NULL}) or their posterior probability. Then, each feature is 
+#' sampled independently within each leaf according to the probability mass or 
+#' density function learned by \code{\link{forde}}. This will create realistic 
 #' data so long as the adversarial RF used in the previous step satisfies the 
 #' local independence criterion. See Watson et al. (2023).
 #' 
