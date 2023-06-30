@@ -4,15 +4,18 @@
 \alias{forge}
 \title{Forests for Generative Modeling}
 \usage{
-forge(params, n_synth, evidence = NULL, parallel = TRUE)
+forge(pc, n_synth, evidence = NULL, parallel = TRUE)
 }
 \arguments{
-\item{params}{Parameters learned via \code{\link{forde}}.}
+\item{pc}{Probabilistic circuit learned via \code{\link{forde}}.}
 
 \item{n_synth}{Number of synthetic samples to generate.}
 
-\item{evidence}{Optional data frame of conditioning event(s) or posterior
-distribution over leaves. See Details.}
+\item{evidence}{Optional set of conditioning events. This can take one of
+three forms: (1) a partial sample, i.e. a single row of data with
+some but not all columns; (2) a data frame of conditioning events,
+which allows for inequalities; or (3) a posterior distribution over leaves.
+See Details.}
 
 \item{parallel}{Compute in parallel? Must register backend beforehand, e.g.
 via \code{doParallel}.}
@@ -31,12 +34,14 @@ density function learned by \code{\link{forde}}. This will create realistic
 data so long as the adversarial RF used in the previous step satisfies the
 local independence criterion. See Watson et al. (2023).
 
-There are two methods for (optionally) encoding conditioning events via the
-\code{evidence} argument. The first is to provide a data frame with three
-columns: \code{variable}, \code{operator}, and \code{value}. Each row will be
-treated as a separate conjunct. Alternatively, users may directly input a
-pre-calculated posterior distribution over leaves, with columns \code{f_idx}
-and \code{wt}. This may be preferable for complex constraints. See Examples.
+There are three methods for (optionally) encoding conditioning events via the
+\code{evidence} argument. The first is to provide a partial sample, where
+some but not all columns from the training data are present. The second is to
+provide a data frame with three columns: \code{variable}, \code{operator},
+and \code{value}. This supports inequalities via \code{operator}.
+Alternatively, users may directly input a pre-calculated posterior
+distribution over leaves, with columns \code{f_idx} and \code{wt}. This may
+be preferable for complex constraints. See Examples.
 }
 \examples{
 arf <- adversarial_rf(iris)
@@ -44,7 +49,13 @@ psi <- forde(arf, iris)
 x_synth <- forge(psi, n_synth = 100)
 
 # Condition on Species = "setosa"
-evi <- data.frame(variable = "Species", operator = "==", value = "setosa")
+evi <- data.frame(Species = "setosa")
+x_synth <- forge(psi, n_synth = 100, evidence = evi)
+
+# Condition in Species = "setosa" and Sepal.Length > 6
+evi <- data.frame(variable = c("Species", "Sepal.Length"),
+                  operator = c("==", ">"), 
+                  value = c("setosa", 6))
 x_synth <- forge(psi, n_synth = 100, evidence = evi)
 
 # Or just input some distribution on leaves

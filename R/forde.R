@@ -28,8 +28,8 @@
 #' distribution parameters for data within each leaf. The former includes 
 #' coverage (proportion of data falling into the leaf) and split criteria. The 
 #' latter includes proportions for categorical features and mean/variance for
-#' continuous features. These values are stored in a \code{data.table}, which 
-#' can be used as input to various other functions.
+#' continuous features. The result is a probabilistic circuit, stored as a 
+#' \code{data.table}, which can be used for various downstream inference tasks.
 #' 
 #' Currently, \code{forde} only provides support for a limited number of 
 #' distributional families: truncated normal or uniform for continuous data,
