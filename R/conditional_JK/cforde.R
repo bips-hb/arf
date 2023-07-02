@@ -10,7 +10,7 @@ source("forge_modified.R") # slightly modified FORGE function that can handle ou
 
 
 ### TODOs
-# 1. Exception handling (check for input errors in cond vec, zero-probability events etc.)
+# 1. Exception handling (check for input errors in cond vec)
 # 2. Tidy up code
 # 3. Find different name for attribute? Output params_cond of cforde has attribute 'prob_condition' which is not literally correct for lower-dim conditions (which should always be 0)
 # 2. Accelerate (include row-wise calculations in one single call, change data.frames to data.tables, find faster way for unoverlapping?)
@@ -18,7 +18,7 @@ source("forge_modified.R") # slightly modified FORGE function that can handle ou
 #    But already all possible logical statements can be formulated.
 # 4. Adapt lik-function
 # 5. Allow "mixed" columns for cnt conditions? (i.e. ranges and scalars)
-#    Discuss! I don't think a valid cond density could always be calculated this way.
+#    Discuss! I don't think a valid cond density could always be calculated this way
 #    Resulting hyperrectangles in lower-dimensional subspaces can then be completely differently oriented (-> no way to "weight" different zero-sets against each other)
 
 
@@ -40,8 +40,8 @@ params_uncond <- forde(arf,iris)
 #      levels can be connected via logical OR "|"
 #      NA equals all levels connected via logical OR, e.g. "Level1|Level2|Level3" for three levels with names "Level1","Level2","Level3"
 
-c <- data.frame(rbind(c("(4,6)",NA,"(3,4)",NA,"versicolor"),
-                      c("(6,7)",NA,"(4,5)",NA,NA)))
+c <- data.frame(rbind(c("(20,21)",6,7,3,"versicolor"),
+                      c("(3,6)",7,3,5,"setosa")))
 names(c) <- names(iris)
 
 # calculate cond density and sample 10 times (respecting the probabilities of entered "OR-ed" conditions)
@@ -174,7 +174,12 @@ cforde <- function(params_uncond,c) {
   names(forest_new) <- c("f_idx_uncond","volume_id","tree","leaf","cvg_arf")
   forest_new$f_idx <- as.integer(rownames(forest_new))
   cvg_new_unnormalized <- forest_new$cvg_arf * cvg_factor_cat$factor * cvg_factor_cnt$factor
-  forest_new$cvg <- cvg_new_unnormalized / sum(cvg_new_unnormalized)
+  if (sum(cvg_new_unnormalized) == 0)  {
+    warning("Condition coverage equals 0.")
+    forest_new$cvg <- 0
+  } else {
+    forest_new$cvg <- cvg_new_unnormalized / sum(cvg_new_unnormalized)
+  }
   forest_new <- forest_new[,c("f_idx","volume_id","f_idx_uncond","tree","leaf","cvg_arf","cvg")]
   forest_new <- as.data.table(forest_new)
   
@@ -212,12 +217,14 @@ preprocess_c <- function(c, params_uncond) {
   lvls <- lapply(c[factor_cols],levels)
   c[factor_cols] <- lapply(c[factor_cols],factorval2rng)
   c <- format_rng(c)
-  c <- unoverlap_hyperrectangles(c)
+  if (!(all(cols_check == 0) | nrow(c) == 1)) {
+    c <- unoverlap_hyperrectangles(c)
+  }
   c$val <- NA
   if (length(cat_cols) > 0) {
     c[c$variable %in% cat_cols,] <- t(apply(c[c$variable %in% cat_cols,],1,catrng2val,lvls))
   }
-  if (length(scalar_cols) >0) {
+  if (length(scalar_cols) > 0) {
     c[c$variable %in% scalar_cols,] <- t(apply(c[c$variable %in% scalar_cols,],1,scalarrng2val,lvls))
   }
   c[,!names(c) %in% c("variable","val")] <- lapply(c[,!names(c) %in% c("variable","val")], as.numeric)
