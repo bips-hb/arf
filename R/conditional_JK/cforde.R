@@ -40,7 +40,7 @@ params_uncond <- forde(arf,iris)
 #      levels can be connected via logical OR "|"
 #      NA equals all levels connected via logical OR, e.g. "Level1|Level2|Level3" for three levels with names "Level1","Level2","Level3"
 
-c <- data.frame(rbind(c("(20,21)",6,7,3,"versicolor"),
+c <- data.frame(rbind(c("(5,6)",6,7,3,"versicolor"),
                       c("(3,6)",7,3,5,"setosa")))
 names(c) <- names(iris)
 
@@ -51,8 +51,7 @@ forge_modified(params_cond,10)
 # calculate cond density separately for each row in c and sample 10 times from each cond. density
 # (this can be accelerated, see TODOs)
 params_cond_array <- as.array(apply(c, 1, function(x) {cforde(params_uncond,x)}))
-do.call(rbind,apply(params_cond_array, 1, function(x) {forge_modified(x[[1]],10)}))
-
+rbindlist(apply(params_cond_array, 1, function(x) {forge_modified(x[[1]],10)}))
 
 ### conditional FORDE
 
@@ -188,7 +187,7 @@ cforde <- function(params_uncond,c) {
 
 ### preprocessing (formatting, DNF and unoverlapping hyperrectangles)
 
-preprocess_c <- function(c, params_uncond) {  
+preprocess_c <- function(c, params_uncond) {
   meta <- params_uncond$meta
   cat <- params_uncond$cat
   cnt_cols <-meta[class != "factor", variable]
