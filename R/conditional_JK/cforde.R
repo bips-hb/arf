@@ -5,36 +5,36 @@ library("foreach")
 library("stringr")
 library("truncnorm")
 
-source("unoverlap_hyperrectangles.R") # Routine for unoverlapping hyperrectangles
-source("forge_modified.R") # Slightly modified FORGE function that can handle outputs from both FORDE and cFORDE
+source("unoverlap_hyperrectangles.R") # routine for unoverlapping hyperrectangles
+source("forge_modified.R") # slightly modified FORGE function that can handle outputs from both FORDE and cFORDE
 
 
 ### TODOs
-# 1. Exception handling (Check for input errors in cond. vec., zero-probability condition etc.)
+# 1. Exception handling (check for input errors in cond vec, zero-probability events etc.)
 # 2. Tidy up code
 # 3. Find different name for attribute? Output params_cond of cforde has attribute 'prob_condition' which is not literally correct for lower-dim conditions (which should always be 0)
-# 2. Accelerate (include row-wise caclculations in one single call, change data.frames to data.tables, find faster way for unoverlapping?)
-# 3. Allow more input options for cond. vec? (e.g. logical NOT in input for cat and cnt range conditions, "< val","> val" instead of "(-Inf,val)", "(val,Inf)")
+# 2. Accelerate (include row-wise calculations in one single call, change data.frames to data.tables, find faster way for unoverlapping?)
+# 3. Allow more input options for cond vec? (e.g. logical NOT in input for cat and cnt range conditions, "< val","> val" instead of "(-Inf,val)", "(val,Inf)")
 #    But already all possible logical statements can be formulated.
 # 4. Adapt lik-function
 # 5. Allow "mixed" columns for cnt conditions? (i.e. ranges and scalars)
-#    Discuss! I don't think a valid cond. density could always be calculated this way.
-#    Resulting hyperrectangles in lower-dimensional subspaces can then be completely differently oriented (-> "non-comparable" zero-sets?)
+#    Discuss! I don't think a valid cond density could always be calculated this way.
+#    Resulting hyperrectangles in lower-dimensional subspaces can then be completely differently oriented (-> no way to "weight" different zero-sets against each other)
 
 
 ### example
 arf <- adversarial_rf(iris)
 params_uncond <- forde(arf,iris)
 
-# define cond. vec. c
+# define cond vec c
 # data.frame with colnames(c) = colnames(data)
 # resulting condition = row_1 OR ... OR row_nrow(c) with row_i = col_i_1 AND ... AND col_i_ncol(c)
 # entry format:
 # cnt: "(min,max)" for ranges
 #      "value" (numeric or string) for scalar
 #      expressions can be connected via logical OR "|", e.g. "5|6" or "(5,6)|(7,8)"
-#      To calculate a valid cond. density, ranges and scalars should not be mixed within one column (see remark in TODOs).
-#      Single cond. densities per row can still be calculated in "mixed" cases.
+#      To calculate a valid cond density, ranges and scalars should not be mixed within one column (see remark in TODOs)
+#      Single cond densities per row can still be calculated in "mixed" cases
 #      NA equals "(-Inf,Inf)"
 # cat: level as string
 #      levels can be connected via logical OR "|"
@@ -44,11 +44,11 @@ c <- data.frame(rbind(c("(4,6)",NA,"(3,4)",NA,"versicolor"),
                       c("(6,7)",NA,"(4,5)",NA,NA)))
 names(c) <- names(iris)
 
-# calculate cond. density and sample 10 times (respecting the probabilities of entered "OR-ed" conditions)
+# calculate cond density and sample 10 times (respecting the probabilities of entered "OR-ed" conditions)
 params_cond <- cforde(params_uncond,c)
 forge_modified(params_cond,10)
 
-# calculate cond. density separately for each row in c and sample 10 times from each cond. density
+# calculate cond density separately for each row in c and sample 10 times from each cond. density
 # (this can be accelerated, see TODOs)
 params_cond_array <- as.array(apply(c, 1, function(x) {cforde(params_uncond,x)}))
 do.call(rbind,apply(params_cond_array, 1, function(x) {forge_modified(x[[1]],10)}))
@@ -73,7 +73,7 @@ cforde <- function(params_uncond,c) {
   cat_cols <-meta[class == "factor", variable]
   condition <- data.table(c)
   
-  # format c, calc. DNF and output disjoint hyperrectangles
+  # format c, calculate DNF and output disjoint hyperrectangles
   c <- preprocess_c(c,params_uncond)
   
   # store resulting number of disjoint hyperrectangles

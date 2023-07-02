@@ -5,7 +5,7 @@ forge_modified <- function (params, n_synth, parallel = TRUE)
 {
   tree <- cvg <- leaf <- idx <- family <- mu <- sigma <- prob <- dat <- variable <- j <- f_idx <- val <- . <- NULL
   
-  ## change: cFORDE-Output-DTs have more columns. Hence subsetting
+  ## change: cFORDE-Output-DTs have more columns than FORDE-Output-DTs. Select columns that are present in FORDE-Output
   omega <- params$forest[,c('f_idx','tree','leaf','cvg')]
   ### end change
   
@@ -18,7 +18,7 @@ forge_modified <- function (params, n_synth, parallel = TRUE)
     psi <- merge(omega, params$cnt[,c('f_idx','variable','min','max','mu','sigma')], by = "f_idx", sort = FALSE, 
                  allow.cartesian = TRUE)
     
-    ## change: Do not draw from cnt distr. when conditions for cnt variable is scalar (min == max) 
+    ## change: Do not draw from cnt distr when condition for cnt variable is scalar (min == max) 
     psi[min == max, dat:= min]
     if (fam == "truncnorm") {
       psi[min != max, `:=`(dat, truncnorm::rtruncnorm(.N, a = min,
