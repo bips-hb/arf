@@ -74,20 +74,16 @@ lik <- function(
   x <- as.data.frame(x)
   n <- nrow(x)
   if ('y' %in% colnames(x)) {
-    y_new <- col_rename(x, 'y')
-    colnames(x)[which(colnames(x) == 'y')] <- y_new
+    colnames(x)[which(colnames(x) == 'y')] <- col_rename(x, 'y')
   }
   if ('obs' %in% colnames(x)) {
-    obs_new <- col_rename(x, 'obs')
-    colnames(x)[which(colnames(x) == 'obs')] <- obs_new
+    colnames(x)[which(colnames(x) == 'obs')] <- col_rename(x, 'obs')
   }
   if ('tree' %in% colnames(x)) {
-    tree_new <- col_rename(x, 'tree')
-    colnames(x)[which(colnames(x) == 'tree')] <- tree_new
+    colnames(x)[which(colnames(x) == 'tree')] <- col_rename(x, 'tree')
   } 
   if ('leaf' %in% colnames(x)) {
-    leaf_new <- col_rename(x, 'leaf')
-    colnames(x)[which(colnames(x) == 'leaf')] <- leaf_new
+    colnames(x)[which(colnames(x) == 'leaf')] <- col_rename(x, 'leaf')
   } 
   idx_char <- sapply(x, is.character)
   if (any(idx_char)) {
@@ -110,6 +106,7 @@ lik <- function(
   }
   factor_cols <- sapply(x, is.factor)
   pred <- stats::predict(arf, x, type = 'terminalNodes')$predictions + 1L
+  colnames(x) <- params$meta$variable
   
   # Optional batch index
   if (is.null(batch)) {
@@ -122,7 +119,7 @@ lik <- function(
   batch_idx <- suppressWarnings(split(1:n, seq_len(k)))
   
   # Likelihood function
-  num_trees <- params$forest[, max(tree)]
+  num_trees <- arf$num.trees
   fams <- params$meta$family
   lik_fn <- function(fold) {
     params_x_cnt <- params_x_cat <- NULL
@@ -165,8 +162,9 @@ lik <- function(
       preds_x_cat <- merge(preds, x_long_cat, by = 'obs', sort = FALSE, 
                            allow.cartesian = TRUE)
       params_x_cat <- merge(params$cat, preds_x_cat, 
-                            by = c('f_idx', 'variable', 'val'), sort = FALSE, 
-                            allow.cartesian = TRUE, all.y = TRUE)
+                            by = c('f_idx', 'variable', 'val'), 
+                            sort = FALSE, allow.cartesian = TRUE, 
+                            all.y = TRUE)
       params_x_cat[is.na(prob), prob := 1e-20]
       params_x_cat[, lik := prob]
       params_x_cat <- params_x_cat[, .(tree, obs, cvg, lik)]
@@ -175,10 +173,9 @@ lik <- function(
     rm(preds)
     # Put it together
     params_x <- rbind(params_x_cnt, params_x_cat)
-    params_x[, log_lik := log(lik)][, log_cvg := log(cvg)]
     rm(params_x_cnt, params_x_cat)
     # Compute per-sample likelihoods
-    lik <- unique(params_x[, sum(log_lik) + log_cvg, by = .(obs, tree)])
+    lik <- unique(params_x[, sum(log(lik)) + log(cvg), by = .(obs, tree)])
     lik[is.na(V1), V1 := 0]
     if (isTRUE(log)) {
       out <- lik[, -log(.N) + matrixStats::logSumExp(V1), by = obs]
@@ -198,5 +195,3 @@ lik <- function(
   }
   return(ll[order(obs), V1])
 }
-
-
