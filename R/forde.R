@@ -235,10 +235,10 @@ forde <- function(
       if (family == 'truncnorm') {
         dt[, c('mu', 'sigma') := .(mean(value), sd(value)), by = .(leaf, variable)]
         if (dt[sigma == 0, .N] > 0L) {
-          dt[sigma == 0, new_min := fifelse(!is.finite(min), min(value), min), by = variable]
-          dt[sigma == 0, new_max := fifelse(!is.finite(max), max(value), max), by = variable]
-          dt[sigma == 0, mid := (new_min + new_max) / 2]
-          dt[sigma == 0, sigma0 := (new_max - mid) / qnorm(0.975)] 
+          dt[, new_min := fifelse(!is.finite(min), min(value), min), by = variable]
+          dt[, new_max := fifelse(!is.finite(max), max(value), max), by = variable]
+          dt[, mid := (new_min + new_max) / 2]
+          dt[, sigma0 := (new_max - mid) / qnorm(0.975)] 
           # This prior places 95% of the density within the bounding box.
           # In addition, we set the prior degrees of freedom at nu0 = 2. 
           # Since the mode of a chisq is max(df-2, 0), this means that
