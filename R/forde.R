@@ -213,12 +213,7 @@ forde <- function(
     }
   } else {
     bnds[, cvg := sum(pred[, tree] == leaf) / n, by = .(tree, leaf)]
-    if (any(!factor_cols)) {
-      bnds[cvg == 1 / n, cvg := 0]
-    }
   }
-  # No parameters to learn for zero coverage leaves
-  bnds <- bnds[cvg > 0]
   # Create forest index
   setkey(bnds, tree, leaf)
   bnds[, f_idx := .GRP, by = key(bnds)]
