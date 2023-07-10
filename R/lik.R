@@ -70,7 +70,7 @@
 #' lik(psi, query = iris[1, 1:3], evidence = evi)
 #' 
 #' # Condition on Species = "setosa" and Petal.Width > 0.3
-#' evi <- data.frame(variable = c("Species", "Sepal.Length"),
+#' evi <- data.frame(variable = c("Species", "Petal.Width"),
 #'                   relation = c("==", ">"), 
 #'                   value = c("setosa", 0.3))
 #' lik(psi, query = iris[1, 1:3], evidence = evi)
@@ -101,7 +101,7 @@ lik <- function(
   
   # To avoid data.table check issues
   tree <- cvg <- leaf <- variable <- mu <- sigma <- value <- obs <- prob <- 
-    V1 <- family <- fold <- . <- NULL
+    V1 <- relation <- f_idx <- wt <- val <- family <- fold <- . <- NULL
   
   # Check query
   x <- as.data.frame(query)
@@ -136,7 +136,7 @@ lik <- function(
   if (!is.null(evidence)) {
     evidence <- as.data.table(evidence)
     part <- all(colnames(evidence) %in% pc$meta$variable)
-    conj <- all(c('variable', 'operator', 'value') %in% colnames(evidence))
+    conj <- all(c('variable', 'relation', 'value') %in% colnames(evidence))
     post <- all(c('f_idx', 'wt') %in% colnames(evidence))
     if (part + conj + post != 1L) {
       stop('evidence must either be a partial sample, a data frame of conjuncts, ', 
@@ -148,7 +148,7 @@ lik <- function(
         stop('Unrecognized feature(s) among colnames: ', err)
       }
       evidence <- melt(evidence, measure.vars = colnames(evidence))
-      evidence[, operator := '==']
+      evidence[, relation := '==']
       conj <- TRUE
     }
     if (conj) {
@@ -156,13 +156,13 @@ lik <- function(
         stop('Only one constraint per variable allowed when using conjuncts.')
       }
       evi <- merge(pc$meta, evidence, by = 'variable', sort = FALSE)
-      if (evi[class == 'numeric' & operator == '!=', .N] > 0) {
-        evidence <- evidence[!(class == 'numeric' & operator == '!=')]
-        warning('With continuous features, "!=" is not a valid operator. ', 
+      if (evi[class == 'numeric' & relation == '!=', .N] > 0) {
+        evidence <- evidence[!(class == 'numeric' & relation == '!=')]
+        warning('With continuous features, "!=" is not a valid relation. ', 
                 'This constraint has been removed.')
       }
-      if (evi[class != 'numeric' & !operator %in% c('==', '!='), .N] > 0) {
-        stop('With categorical features, the only valid operators are ',
+      if (evi[class != 'numeric' & !relation %in% c('==', '!='), .N] > 0) {
+        stop('With categorical features, the only valid relations are ',
              '"==" or "!=".')
       }
       if (any(evidence$variable %in% colnames(x))) {
@@ -237,7 +237,7 @@ lik <- function(
       leaves <- omega_tmp[, unique(f_idx)]
     }
     # Continuous data
-    if (!is.null(pc$cnt)) {
+    if (any(!factor_cols)) {
       fam <- pc$meta[class == 'numeric', unique(family)]
       x_long <- melt(
         data.table(obs = batch_idx[[fold]], 
@@ -272,7 +272,7 @@ lik <- function(
       }
     }
     # Categorical data
-    if (!is.null(pc$cat)) {
+    if (any(factor_cols)) {
       if (is.null(arf)) {
         psi_cat <- rbindlist(lapply(which(factor_cols), function(j) {
           psi_j <- pc$cat[variable == colnames(x)[j] & f_idx %in% leaves]
