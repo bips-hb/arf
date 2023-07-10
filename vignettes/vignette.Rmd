@@ -130,8 +130,8 @@ To calculate log-likelihoods, we pass `arf` and `params` on to the `lik` functio
 
 ```{r lik}
 # Compute likelihood under truncated normal and uniform distributions
-ll <- lik(arf, params, iris)
-ll_unif <- lik(arf, params_unif, iris)
+ll <- lik(params, iris, arf = arf)
+ll_unif <- lik(params_unif, iris, arf = arf)
 
 # Compare average negative log-likelihood (lower is better)
 -mean(ll)
@@ -144,7 +144,7 @@ We can compute likelihoods on the probability scale by setting `log = FALSE`, bu
 
 ```{r lik2}
 # Compute likelihood in batches of 50
-ll_50 <- lik(arf, params, iris, batch = 50)
+ll_50 <- lik(params, iris, arf = arf, batch = 50)
 
 # Identical results?
 identical(ll, ll_50)
