@@ -227,7 +227,7 @@ lik <- function(
   # Likelihood function
   lik_fn <- function(fold, arf) {
     psi_cnt <- psi_cat <- NULL
-    if (is.null(arf)) {
+    if (!is.null(arf)) {
       leaves <- omega[, f_idx]
     } else {
       omega_tmp <- rbindlist(lapply(batch_idx[[fold]], function(i) {
