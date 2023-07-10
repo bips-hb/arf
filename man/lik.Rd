@@ -84,7 +84,7 @@ evi <- data.frame(Species = "setosa")
 lik(psi, query = iris[1, 1:3], evidence = evi)
 
 # Condition on Species = "setosa" and Petal.Width > 0.3
-evi <- data.frame(variable = c("Species", "Sepal.Length"),
+evi <- data.frame(variable = c("Species", "Petal.Width"),
                   relation = c("==", ">"), 
                   value = c("setosa", 0.3))
 lik(psi, query = iris[1, 1:3], evidence = evi)
