@@ -38,8 +38,8 @@ local independence criterion. See Watson et al. (2023).
 There are three methods for (optionally) encoding conditioning events via the
 \code{evidence} argument. The first is to provide a partial sample, where
 some but not all columns from the training data are present. The second is to
-provide a data frame with three columns: \code{variable}, \code{operator},
-and \code{value}. This supports inequalities via \code{operator}.
+provide a data frame with three columns: \code{variable}, \code{relation},
+and \code{value}. This supports inequalities via \code{relation}.
 Alternatively, users may directly input a pre-calculated posterior
 distribution over leaves, with columns \code{f_idx} and \code{wt}. This may
 be preferable for complex constraints. See Examples.
@@ -55,7 +55,7 @@ x_synth <- forge(psi, n_synth = 100, evidence = evi)
 
 # Condition in Species = "setosa" and Sepal.Length > 6
 evi <- data.frame(variable = c("Species", "Sepal.Length"),
-                  operator = c("==", ">"), 
+                  relation = c("==", ">"), 
                   value = c("setosa", 6))
 x_synth <- forge(psi, n_synth = 100, evidence = evi)
 
