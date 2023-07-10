@@ -83,7 +83,7 @@ forge <- function(
   
   # To avoid data.table check issues
   tree <- cvg <- leaf <- idx <- family <- mu <- sigma <- prob <- dat <- 
-    variable <- j <- f_idx <- val <- . <- NULL
+    variable <- relation <- wt <- j <- f_idx <- val <- . <- NULL
   
   # Check evidence
   if (!is.null(evidence)) {

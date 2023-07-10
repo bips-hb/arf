@@ -93,7 +93,7 @@ forde <- function(
   # To avoid data.table check issues
   y_new <- obs_new <- tree_new <- leaf_new <- tree <- n_oob <- cvg <- leaf <- 
     variable <- count <- sd <- value <- psi_cnt <- psi_cat <- f_idx <- sigma <- 
-    new_min <- new_max <- prob <- val <- val_count <- k <- . <- NULL
+    new_min <- new_max <- mid <- sigma0 <- prob <- val <- val_count <- k <- . <- NULL
   
   # Prelimz
   if (isTRUE(oob) & !nrow(x) %in% c(arf$num.samples, arf$num.samples/2)) {
@@ -238,7 +238,7 @@ forde <- function(
           dt[, new_min := fifelse(!is.finite(min), min(value), min), by = variable]
           dt[, new_max := fifelse(!is.finite(max), max(value), max), by = variable]
           dt[, mid := (new_min + new_max) / 2]
-          dt[, sigma0 := (new_max - mid) / qnorm(0.975)] 
+          dt[, sigma0 := (new_max - mid) / stats::qnorm(0.975)] 
           # This prior places 95% of the density within the bounding box.
           # In addition, we set the prior degrees of freedom at nu0 = 2. 
           # Since the mode of a chisq is max(df-2, 0), this means that

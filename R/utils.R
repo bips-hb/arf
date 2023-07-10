@@ -37,7 +37,8 @@ col_rename <- function(df, old_name) {
 leaf_posterior <- function(params, evidence, parallel) {
   
   # To avoid data.table check issues
-  variable <- relation <- value <- prob <- f_idx <- cvg <- wt <- . <- NULL
+  variable <- relation <- value <- prob <- f_idx <- cvg <- wt <- 
+    mu <- sigma <- val <- k <- . <- NULL
   
   # Likelihood per leaf-event combo
   psi_cnt <- psi_cat <- NULL
