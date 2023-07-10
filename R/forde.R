@@ -86,8 +86,8 @@ forde <- function(
     x, 
     oob = FALSE,
     family = 'truncnorm', 
-    alpha = 0,
-    epsilon = 0,
+    alpha = 0.1,
+    epsilon = 0.1,
     parallel = TRUE) {
   
   # To avoid data.table check issues

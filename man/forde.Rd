@@ -9,8 +9,8 @@ forde(
   x,
   oob = FALSE,
   family = "truncnorm",
-  alpha = 0,
-  epsilon = 0,
+  alpha = 0.1,
+  epsilon = 0.1,
   parallel = TRUE
 )
 }
