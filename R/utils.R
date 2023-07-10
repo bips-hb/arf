@@ -37,7 +37,7 @@ col_rename <- function(df, old_name) {
 leaf_posterior <- function(params, evidence, parallel) {
   
   # To avoid data.table check issues
-  variable <- operator <- value <- prob <- f_idx <- cvg <- wt <- . <- NULL
+  variable <- relation <- value <- prob <- f_idx <- cvg <- wt <- . <- NULL
   
   # Likelihood per leaf-event combo
   psi_cnt <- psi_cat <- NULL
@@ -45,16 +45,16 @@ leaf_posterior <- function(params, evidence, parallel) {
   if (any(evidence$class == 'numeric')) { # Continuous features
     evi <- evidence[class == 'numeric']
     psi <- merge(evi, params$cnt, by = 'variable')
-    if (any(evi$operator == '==')) {
-      psi[operator == '==', prob := 
+    if (any(evi$relation == '==')) {
+      psi[relation == '==', prob := 
             truncnorm::dtruncnorm(value, a = min, b = max, mean = mu, sd = sigma)]
     }
-    if (any(evi$operator %in% c('<', '<='))) {
-      psi[operator %in% c('<', '<='), prob := 
+    if (any(evi$relation %in% c('<', '<='))) {
+      psi[relation %in% c('<', '<='), prob := 
             truncnorm::ptruncnorm(value, a = min, b = max, mean = mu, sd = sigma)]
     }
-    if (any(evi$operator %in% c('>', '>='))) {
-      psi[operator %in% c('>', '>='), prob := 
+    if (any(evi$relation %in% c('>', '>='))) {
+      psi[relation %in% c('>', '>='), prob := 
             1 - truncnorm::ptruncnorm(value, a = min, b = max, mean = mu, sd = sigma)]
     }
     psi[value == min, prob := 0]
@@ -64,7 +64,7 @@ leaf_posterior <- function(params, evidence, parallel) {
     evi <- evidence[class != 'numeric']
     cat_upd8 <- function(k) {
       j <- evi$variable[k]
-      op <- evi$operator[k]
+      op <- evi$relation[k]
       value <- evi$value[k]
       psi <- params$cat[variable == j]
       grd <- expand.grid(f_idx = params$forest$f_idx, val = psi[, unique(val)])

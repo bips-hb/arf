@@ -24,8 +24,8 @@
 #' There are three methods for (optionally) encoding conditioning events via the 
 #' \code{evidence} argument. The first is to provide a partial sample, where
 #' some but not all columns from the training data are present. The second is to 
-#' provide a data frame with three columns: \code{variable}, \code{operator}, 
-#' and \code{value}. This supports inequalities via \code{operator}. 
+#' provide a data frame with three columns: \code{variable}, \code{relation}, 
+#' and \code{value}. This supports inequalities via \code{relation}. 
 #' Alternatively, users may directly input a pre-calculated posterior 
 #' distribution over leaves, with columns \code{f_idx} and \code{wt}. This may 
 #' be preferable for complex constraints. See Examples.
@@ -53,7 +53,7 @@
 #' 
 #' # Condition in Species = "setosa" and Sepal.Length > 6
 #' evi <- data.frame(variable = c("Species", "Sepal.Length"),
-#'                   operator = c("==", ">"), 
+#'                   relation = c("==", ">"), 
 #'                   value = c("setosa", 6))
 #' x_synth <- forge(psi, n_synth = 100, evidence = evi)
 #' 
@@ -89,7 +89,7 @@ forge <- function(
   if (!is.null(evidence)) {
     evidence <- as.data.table(evidence)
     part <- all(colnames(evidence) %in% pc$meta$variable)
-    conj <- all(c('variable', 'operator', 'value') %in% colnames(evidence))
+    conj <- all(c('variable', 'relation', 'value') %in% colnames(evidence))
     post <- all(c('f_idx', 'wt') %in% colnames(evidence))
     if (part + conj + post != 1L) {
       stop('evidence must either be a partial sample, a data frame of conjuncts, ', 
@@ -101,7 +101,7 @@ forge <- function(
         stop('Unrecognized feature(s) among colnames: ', err)
       }
       evidence <- melt(evidence, measure.vars = colnames(evidence))
-      evidence[, operator := '==']
+      evidence[, relation := '==']
       conj <- TRUE
     }
     if (conj) {
@@ -109,13 +109,13 @@ forge <- function(
         stop('Only one constraint per variable allowed when using conjuncts.')
       }
       evi <- merge(pc$meta, evidence, by = 'variable', sort = FALSE)
-      if (evi[class == 'numeric' & operator == '!=', .N] > 0) {
-        evidence <- evidence[!(class == 'numeric' & operator == '!=')]
-        warning('With continuous features, "!=" is not a valid operator. ', 
+      if (evi[class == 'numeric' & relation == '!=', .N] > 0) {
+        evidence <- evidence[!(class == 'numeric' & relation == '!=')]
+        warning('With continuous features, "!=" is not a valid relation. ', 
                 'This constraint has been removed.')
       }
-      if (evi[class != 'numeric' & !operator %in% c('==', '!='), .N] > 0) {
-        stop('With categorical features, the only valid operators are ',
+      if (evi[class != 'numeric' & !relation %in% c('==', '!='), .N] > 0) {
+        stop('With categorical features, the only valid relations are ',
              '"==" or "!=".')
       }
     }
@@ -146,13 +146,13 @@ forge <- function(
     fam <- pc$meta[family != 'multinom', unique(family)]
     psi <- merge(omega, pc$cnt, by = 'f_idx', sort = FALSE, allow.cartesian = TRUE)
     if (conj) {
-      if (any(evidence$operator %in% c('<', '<=', '>', '>='))) {
-        for (k in evidence[, which(grepl('<', operator))]) {
+      if (any(evidence$relation %in% c('<', '<=', '>', '>='))) {
+        for (k in evidence[, which(grepl('<', relation))]) {
           j <- evidence$variable[k]
           value <- as.numeric(evidence$value[k])
           psi[variable == j & max > value, max := value]
         }
-        for (k in evidence[, which(grepl('>', operator))]) {
+        for (k in evidence[, which(grepl('>', relation))]) {
           j <- evidence$variable[k]
           value <- as.numeric(evidence$value[k])
           psi[variable == j & min < value, min := value]
@@ -172,7 +172,7 @@ forge <- function(
                    allow.cartesian = TRUE)
       psi[prob == 1, dat := val]
       if (conj) {
-        if (evidence[variable == j & operator == '!=', .N] == 1L) {
+        if (evidence[variable == j & relation == '!=', .N] == 1L) {
           value <- evidence[variable == j, value]
           psi <- psi[val != value]
         }
@@ -190,8 +190,8 @@ forge <- function(
   
   # Combine, optionally impose constraint(s)
   x_synth <- cbind(synth_cnt, synth_cat)
-  if (!is.null(evidence) & any(grepl('==', evidence$operator))) {
-    for (k in evidence[, which(operator == '==')]) {
+  if (!is.null(evidence) & any(grepl('==', evidence$relation))) {
+    for (k in evidence[, which(relation == '==')]) {
       j <- evidence$variable[k]
       value <- evidence$value[k]
       if (pc$meta[variable == j, class == 'numeric']) {
