@@ -26,9 +26,9 @@ source("forge_modified.R") # slightly modified FORGE function that can handle ou
 arf <- adversarial_rf(iris)
 params_uncond <- forde(arf,iris)
 
-# define cond vec c
-# data.frame with colnames(c) = colnames(data)
-# resulting condition = row_1 OR ... OR row_nrow(c) with row_i = col_i_1 AND ... AND col_i_ncol(c)
+# define conditional vector cond
+# data.frame with colnames(cond) = colnames(data)
+# resulting condition = row_1 OR ... OR row_nrow(cond) with row_i = col_i_1 AND ... AND col_i_ncol(cond)
 # entry format:
 # cnt: "(min,max)" for ranges
 #      "value" (numeric or string) for scalar
@@ -40,28 +40,28 @@ params_uncond <- forde(arf,iris)
 #      levels can be connected via logical OR "|"
 #      NA equals all levels connected via logical OR, e.g. "Level1|Level2|Level3" for three levels with names "Level1","Level2","Level3"
 
-c <- data.frame(rbind(c("(5,6)",6,7,3,"versicolor"),
+cond <- data.frame(rbind(c("(5,6)",6,7,3,"versicolor"),
                       c("(3,6)",7,3,5,"setosa")))
-names(c) <- names(iris)
+names(cond) <- names(iris)
 
 # calculate cond density and sample 10 times (respecting the probabilities of entered "OR-ed" conditions)
-params_cond <- cforde(params_uncond,c)
+params_cond <- cforde(params_uncond,cond)
 forge_modified(params_cond,10)
 
 # calculate cond density separately for each row in c and sample 10 times from each cond. density
 # (this can be accelerated, see TODOs)
-params_cond_array <- as.array(apply(c, 1, function(x) {cforde(params_uncond,x)}))
+params_cond_array <- as.array(apply(cond, 1, function(x) {cforde(params_uncond,x)}))
 rbindlist(apply(params_cond_array, 1, function(x) {forge_modified(x[[1]],10)}))
 
 ### conditional FORDE
 
-cforde <- function(params_uncond,c) {
+cforde <- function(params_uncond,cond) {
   
-  # store c as data.frame if c is atomic vector (will be the case if cforde is called row-wise via apply())
-  if (is.atomic(c)) {
-    names_c <- names(c)
-    c <- transpose(data.frame(c))
-    names(c) <- names_c
+  # store cond as data.frame if cond is atomic vector (will be the case if cforde is called row-wise via apply())
+  if (is.atomic(cond)) {
+    names_cond <- names(cond)
+    cond <- transpose(data.frame(cond))
+    names(cond) <- names_cond
   }
   
   meta <- params_uncond$meta
@@ -70,17 +70,17 @@ cforde <- function(params_uncond,c) {
   cnt <- params_uncond$cnt
   cnt_cols <-meta[class != "factor", variable]
   cat_cols <-meta[class == "factor", variable]
-  condition <- data.table(c)
+  condition <- data.table(cond)
   
   # format c, calculate DNF and output disjoint hyperrectangles
-  c <- preprocess_c(c,params_uncond)
+  cond <- preprocess_cond(cond,params_uncond)
   
   # store resulting number of disjoint hyperrectangles
-  nvols <- max(c$volume_id)
+  nvols <- max(cond$volume_id)
   
   # store conditions for cat and cnt seperately
-  cat_conds <- c[(c$variable %in% cat_cols),c("volume_id","variable","val")]
-  cnt_conds <- c[(c$variable %in% cnt_cols),c("volume_id","variable","min", "max")]
+  cat_conds <- cond[(cond$variable %in% cat_cols),c("volume_id","variable","val")]
+  cnt_conds <- cond[(cond$variable %in% cnt_cols),c("volume_id","variable","min", "max")]
   cat_conds$variable <- factor(cat_conds$variable)
   cnt_conds$variable <- factor(cnt_conds$variable)
   rownames(cat_conds) <- NULL
@@ -187,47 +187,47 @@ cforde <- function(params_uncond,c) {
 
 ### preprocessing (formatting, DNF and unoverlapping hyperrectangles)
 
-preprocess_c <- function(c, params_uncond) {
+preprocess_cond <- function(cond, params_uncond) {
   meta <- params_uncond$meta
   cat <- params_uncond$cat
   cnt_cols <-meta[class != "factor", variable]
   cat_cols <-meta[class == "factor", variable]
   
-  c[cnt_cols][is.na(c[cnt_cols])] <- "(-Inf,Inf)"
+  cond[cnt_cols][is.na(cond[cnt_cols])] <- "(-Inf,Inf)"
   for (cat_col in cat_cols) {
     lvls <-  levels(as.factor(cat[cat$variable == cat_col]$val))
-    c[cat_col][is.na(c[cat_col])] <- paste(lvls,collapse="|")
+    cond[cat_col][is.na(cond[cat_col])] <- paste(lvls,collapse="|")
   }
   
-  c <- as.data.frame(lapply(c,str_replace_all," ",""))
-  c <- apply(c,1,str_split,"\\|")
-  c <- lapply(c,expand.grid)
-  c <- do.call(rbind,c)
-  c <- c[!duplicated(c),]
-  rownames(c) <- NULL
-  names(c) <- meta[, variable]
-  cols_check <- colSums(data.frame(lapply(c[cnt_cols],str_detect,"\\(")))
-  if (any(cols_check > 0 & cols_check < nrow(c))){
+  cond <- as.data.frame(lapply(cond,str_replace_all," ",""))
+  cond <- apply(cond,1,str_split,"\\|")
+  cond <- lapply(cond,expand.grid)
+  cond <- do.call(rbind,cond)
+  cond <- cond[!duplicated(cond),]
+  rownames(cond) <- NULL
+  names(cond) <- meta[, variable]
+  cols_check <- colSums(data.frame(lapply(cond[cnt_cols],str_detect,"\\(")))
+  if (any(cols_check > 0 & cols_check < nrow(cond))){
     stop("Condition vector contains columns with both range and scalar entries. No valid conditional density can be calculated.")
   }
   scalar_cols <- names(which(cols_check == 0))
-  c[scalar_cols] <- lapply((c[scalar_cols]),as.factor)
+  cond[scalar_cols] <- lapply((cond[scalar_cols]),as.factor)
   factor_cols <- c(scalar_cols, cat_cols)
-  lvls <- lapply(c[factor_cols],levels)
-  c[factor_cols] <- lapply(c[factor_cols],factorval2rng)
-  c <- format_rng(c)
-  if (!(all(cols_check == 0) | nrow(c) == 1)) {
-    c <- unoverlap_hyperrectangles(c)
+  lvls <- lapply(cond[factor_cols],levels)
+  cond[factor_cols] <- lapply(cond[factor_cols],factorval2rng)
+  cond <- format_rng(cond)
+  if (!(all(cols_check == 0) | nrow(cond) == 1)) {
+    cond <- unoverlap_hyperrectangles(cond)
   }
-  c$val <- NA
+  cond$val <- NA
   if (length(cat_cols) > 0) {
-    c[c$variable %in% cat_cols,] <- t(apply(c[c$variable %in% cat_cols,],1,catrng2val,lvls))
+    cond[cond$variable %in% cat_cols,] <- t(apply(cond[cond$variable %in% cat_cols,],1,catrng2val,lvls))
   }
   if (length(scalar_cols) > 0) {
-    c[c$variable %in% scalar_cols,] <- t(apply(c[c$variable %in% scalar_cols,],1,scalarrng2val,lvls))
+    cond[cond$variable %in% scalar_cols,] <- t(apply(cond[cond$variable %in% scalar_cols,],1,scalarrng2val,lvls))
   }
-  c[,!names(c) %in% c("variable","val")] <- lapply(c[,!names(c) %in% c("variable","val")], as.numeric)
-  c
+  cond[,!names(cond) %in% c("variable","val")] <- lapply(cond[,!names(cond) %in% c("variable","val")], as.numeric)
+  cond
 }
 
 catrng2val <- function(cat_row,lvls) {
