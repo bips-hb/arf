@@ -95,17 +95,17 @@ params_unif <- forde(arf, iris, family = 'unif')
 
 This method tends to perform poorly in practice, and we do not recommend it. The option is implemented primarily for benchmarking purposes. Alternative families, e.g. truncated Poisson or beta distributions, may be useful for certain problems. Future releases will expand the range of options for the `family` argument.
 
-The `alpha` and `epsilon` arguments allow for optional regularization of multinomial and uniform distributions, respectively. These help prevent zero likelihood samples when test data fall outside the support of training data. The former is a pseudocount parameter that applies Laplace smoothing within leaves, preventing unobserved values from being assigned zero probability unless splits explicitly rule them out. In other words, we impose a flat Dirichlet prior $\text{Dir}(\alpha)$ and report posterior probabilities rather than maximum likelihood estimates. The latter is a slack parameter on empirical bounds that expands the estimated extrema for continuous features by a factor of $1 + \epsilon$.
+The `alpha` and `epsilon` arguments allow for optional regularization of multinomial and uniform distributions, respectively (defaults for both are set to $0.1$). These help prevent zero likelihood samples when test data fall outside the support of training data. The former is a pseudocount parameter that applies Laplace smoothing within leaves, preventing unobserved values from being assigned zero probability unless splits explicitly rule them out. In other words, we impose a flat Dirichlet prior $\text{Dir}(\alpha)$ and report posterior probabilities rather than maximum likelihood estimates. The latter is a slack parameter on empirical bounds that expands the estimated extrema for continuous features by a factor of $1 + \epsilon$.
 
-Compare the results of our original probability estimates for the `Species` variable with those obtained by adding a pseudocount of $\alpha = 0.1$.
+Compare the results of our original probability estimates for the `Species` variable with those obtained when we set $\alpha = 0$.
 
 ```{r dirichlet}
-# Recompute with additive smoothing
-params_alpha <- forde(arf, iris, alpha = 0.1)
+# Recompute without additive smoothing
+params_mle <- forde(arf, iris, alpha = 0)
 
 # Compare results
 head(params$cat)
-head(params_alpha$cat)
+head(params_mle$cat)
 ```
 
 Under Laplace smoothing, extreme probabilities only occur when the splits explicitly demand it. Otherwise, all values shrink toward a uniform prior. Note that these two data tables may not have exactly the same rows, as we omit zero probability events to conserve memory. However, we can verify that probabilities sum to unity for each leaf-variable combination.
@@ -113,7 +113,7 @@ Under Laplace smoothing, extreme probabilities only occur when the splits explic
 ```{r unity}
 # Sum probabilities
 summary(params$cat[, sum(prob), by = .(f_idx, variable)]$V1)
-summary(params_alpha$cat[, sum(prob), by = .(f_idx, variable)]$V1)
+summary(params_mle$cat[, sum(prob), by = .(f_idx, variable)]$V1)
 ```
 
 The `forde` function outputs a list of length 5, with entries for (1) continuous features; (2) categorical features; (3) leaf parameters; (4) variable metadata; and (5) data input class. 
