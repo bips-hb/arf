@@ -18,7 +18,8 @@ test_that("FORDE returns correct list object", {
 test_that("FORDE categories sum to unity", {
   arf <- adversarial_rf(iris, num_trees = 2, verbose = FALSE, parallel = FALSE)
   psi <- forde(arf, iris, parallel = FALSE)
-  expect_true(all(psi$cat[, sum(prob) == 1, by = f_idx]$V1 == 1))
+  tmp <- psi$cat[, sum(prob), by = f_idx]
+  expect_true(all.equal(tmp$V1, rep(1, times = tmp[, .N])))
 })
 
 test_that("Likelihood calculation returns vector of log-likelihoods", {
