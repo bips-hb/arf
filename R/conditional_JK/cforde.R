@@ -133,6 +133,10 @@ cforde <- function(params_uncond,cond) {
     }
   }
   
+  if(is.null(relevant_leaves)) {
+    stop("Condition coverage equals 0 due to zero-probability values for categorical variables for the specified condition.")
+  }
+  
   # calculate new cat data.table
   if (length(cat_cols) > 0) {
     cat_new <- merge(cat_conds,merge(relevant_leaves,cat))
@@ -178,7 +182,7 @@ cforde <- function(params_uncond,cond) {
   forest_new$f_idx <- as.integer(rownames(forest_new))
   cvg_new_unnormalized <- forest_new$cvg_arf * cvg_factor_cat$factor * cvg_factor_cnt$factor
   if (sum(cvg_new_unnormalized) == 0)  {
-    warning("Condition coverage equals 0.")
+    warning("Condition coverage is numerically 0 due to highly unlikely ranges for continuous variables in the condition.")
     forest_new$cvg <- 0
   } else {
     forest_new$cvg <- cvg_new_unnormalized / sum(cvg_new_unnormalized)
