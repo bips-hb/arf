@@ -40,8 +40,8 @@ params_uncond <- forde(arf,iris)
 #      levels can be connected via logical OR "|"
 #      NA equals all levels connected via logical OR, e.g. "Level1|Level2|Level3" for three levels with names "Level1","Level2","Level3"
 
-cond <- data.frame(rbind(c("(5,6)",6,7,3,"versicolor"),
-                      c("(3,6)",7,3,5,"setosa")))
+cond <- data.frame(rbind(c("(5,7)",3,1.4,0.2,"virginica"),
+                         c("(4,5)",4,2,1,"setosa")))
 names(cond) <- names(iris)
 
 # calculate cond density and sample 10 times (respecting the probabilities of entered "OR-ed" conditions)
@@ -78,7 +78,7 @@ cforde <- function(params_uncond,cond) {
   # store resulting number of disjoint hyperrectangles
   nvols <- max(cond$volume_id)
   
-  # store conditions for cat and cnt seperately
+  # store conditions for cat and cnt separately
   cat_conds <- cond[(cond$variable %in% cat_cols),c("volume_id","variable","val")]
   cnt_conds <- cond[(cond$variable %in% cnt_cols),c("volume_id","variable","min", "max")]
   cat_conds$variable <- factor(cat_conds$variable)
@@ -107,12 +107,12 @@ cforde <- function(params_uncond,cond) {
     
     if(length(cnt_cols)>0) {
       # iterate through cnt conditions for volume
-      for (cond in 1:nrow(cnt_conds_vol)) {
+      for (cnt_cond in 1:nrow(cnt_conds_vol)) {
         
         # store variable name, min, max for condition
-        cond_var <- cnt_conds_vol$variable[cond]
-        cond_min <- cnt_conds_vol$min[cond]
-        cond_max <- cnt_conds_vol$max[cond]
+        cond_var <- cnt_conds_vol$variable[cnt_cond]
+        cond_min <- cnt_conds_vol$min[cnt_cond]
+        cond_max <- cnt_conds_vol$max[cnt_cond]
         
         # identify leaves that match condition for this variable
         cnt_matches <- cnt_subsetted[cnt_subsetted$variable == cond_var & !(cnt_subsetted$min >= cond_min & cnt_subsetted$min >= cond_max | cnt_subsetted$max <= cond_min & cnt_subsetted$max <= cond_max),]$f_idx
@@ -125,8 +125,12 @@ cforde <- function(params_uncond,cond) {
     }
     
     # return identified leaves matching volume's conditions
-    relevant_leaves_volume <- unique(cnt_subsetted$f_idx)
-    data.frame(volume_id = volume_id, f_idx = relevant_leaves_volume)
+    if (nrow(cnt_subsetted) > 0) {
+      relevant_leaves_volume <- unique(cnt_subsetted$f_idx)
+      data.frame(volume_id = volume_id, f_idx = relevant_leaves_volume)
+    } else {
+      NULL
+    }
   }
   
   # calculate new cat data.table
