@@ -190,7 +190,7 @@ cforde <- function(params_uncond,cond) {
   forest_new <- forest_new[,c("f_idx","volume_id","f_idx_uncond","tree","leaf","cvg_arf","cvg")]
   forest_new <- as.data.table(forest_new)
   
-  list(condition = condition, volumes = c, prob_condition = sum(cvg_new_unnormalized)/max(params_uncond$forest$tree), cnt = cnt_new, cat = cat_new, forest = forest_new, meta = meta, input_class_x = params_uncond$input_class, input_class_c = class(c))
+  list(condition = condition, volumes = cond, prob_condition = sum(cvg_new_unnormalized)/max(params_uncond$forest$tree), cnt = cnt_new, cat = cat_new, forest = forest_new, meta = meta, input_class_x = params_uncond$input_class, input_class_c = class(c))
 }
 
 ### preprocessing (formatting, DNF and unoverlapping hyperrectangles)
