@@ -85,54 +85,26 @@ forge <- function(
   tree <- cvg <- leaf <- idx <- family <- mu <- sigma <- prob <- dat <- 
     variable <- relation <- wt <- j <- f_idx <- val <- . <- NULL
   
-  # Check evidence
+  # Prep evidence
   if (!is.null(evidence)) {
-    evidence <- as.data.table(evidence)
-    part <- all(colnames(evidence) %in% pc$meta$variable)
-    conj <- all(c('variable', 'relation', 'value') %in% colnames(evidence))
-    post <- all(c('f_idx', 'wt') %in% colnames(evidence))
-    if (part + conj + post != 1L) {
-      stop('evidence must either be a partial sample, a data frame of conjuncts, ', 
-           'or a posterior distribution over leaves.')
-    }
-    if (part) {
-      if (!all(colnames(evidence) %in% pc$meta$variable)) {
-        err <- setdiff(colnames(evidence), pc$meta$variable)
-        stop('Unrecognized feature(s) among colnames: ', err)
-      }
-      evidence <- melt(evidence, measure.vars = colnames(evidence))
-      evidence[, relation := '==']
-      conj <- TRUE
-    }
-    if (conj) {
-      if (max(evidence[, .N, by = variable]$N > 1L)) {
-        stop('Only one constraint per variable allowed when using conjuncts.')
-      }
-      evi <- merge(pc$meta, evidence, by = 'variable', sort = FALSE)
-      if (evi[class == 'numeric' & relation == '!=', .N] > 0) {
-        evidence <- evidence[!(class == 'numeric' & relation == '!=')]
-        warning('With continuous features, "!=" is not a valid relation. ', 
-                'This constraint has been removed.')
-      }
-      if (evi[class != 'numeric' & !relation %in% c('==', '!='), .N] > 0) {
-        stop('With categorical features, the only valid relations are ',
-             '"==" or "!=".')
-      }
-    }
+    evidence <- prep_evi(pc, evidence)
+    conj <- TRUE
   } else {
     conj <- FALSE
   }
   
   # Prepare the event space
   if (is.null(evidence)) {
-    omega <- pc$forest
-    omega[, wt := cvg / max(tree)]
-    omega <- omega[, .(f_idx, wt)]
+    num_trees <- pc$forest[, max(tree)]
+    omega <- pc$forest[, .(f_idx, cvg)]
+    omega[, wt := cvg / num_trees]
+    omega[, cvg := NULL]
   } else if (conj) {
     omega <- leaf_posterior(pc, evidence, parallel)
   } else {
     omega <- evidence
   }
+  omega <- omega[wt > 0]
   
   # Draw random leaves with probability proportional to weight
   draws <- data.table(
