@@ -34,7 +34,6 @@ Imports:
     ranger,
     foreach,
     truncnorm,
-    matrixStats,
     tibble
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
