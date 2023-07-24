@@ -155,6 +155,7 @@ lik <- function(
     omega <- evidence
   }
   omega <- omega[wt > 0]
+  leaves <- omega[, f_idx]
   
   # Optional batching
   if (is.null(batch)) {
@@ -172,9 +173,7 @@ lik <- function(
     # Prep work
     psi_cnt <- psi_cat <- NULL
     pure <- all(factor_cols) | all(!factor_cols)
-    if (!is.null(arf) | isTRUE(pure)) {
-      leaves <- omega[, f_idx]
-    } else {
+    if (is.null(arf) & !isTRUE(pure)) {
       omega_tmp <- rbindlist(lapply(batch_idx[[fold]], function(i) {
         omega$obs <- i
         return(omega)
