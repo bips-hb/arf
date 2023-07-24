@@ -86,12 +86,13 @@ forge <- function(
     variable <- relation <- wt <- j <- f_idx <- val <- . <- NULL
   
   # Prep evidence
+  conj <- FALSE
   if (!is.null(evidence)) {
     evidence <- prep_evi(pc, evidence)
-    conj <- TRUE
-  } else {
-    conj <- FALSE
-  }
+    if (!all(c('f_idx', 'wt') %in% colnames(evidence))) {
+      conj <- TRUE
+    }
+  } 
   
   # Prepare the event space
   if (is.null(evidence)) {
@@ -99,7 +100,7 @@ forge <- function(
     omega <- pc$forest[, .(f_idx, cvg)]
     omega[, wt := cvg / num_trees]
     omega[, cvg := NULL]
-  } else if (conj) {
+  } else if (isTRUE(conj)) {
     omega <- leaf_posterior(pc, evidence, parallel)
   } else {
     omega <- evidence
@@ -117,7 +118,7 @@ forge <- function(
   if (!is.null(pc$cnt)) {
     fam <- pc$meta[family != 'multinom', unique(family)]
     psi <- merge(omega, pc$cnt, by = 'f_idx', sort = FALSE, allow.cartesian = TRUE)
-    if (conj) {
+    if (isTRUE(conj)) {
       if (any(evidence$relation %in% c('<', '<=', '>', '>='))) {
         for (k in evidence[, which(grepl('<', relation))]) {
           j <- evidence$variable[k]
@@ -143,7 +144,7 @@ forge <- function(
       psi <- merge(omega, pc$cat[variable == j], by = 'f_idx', sort = FALSE, 
                    allow.cartesian = TRUE)
       psi[prob == 1, dat := val]
-      if (conj) {
+      if (isTRUE(conj)) {
         if (evidence[variable == j & relation == '!=', .N] == 1L) {
           value <- evidence[variable == j, value]
           psi <- psi[val != value]
