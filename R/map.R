@@ -63,6 +63,10 @@ map <- function(
     n_eval = 100, 
     parallel = FALSE) {
   
+  # To avoid data.table check issues
+  variable <- family <- tree <- f_idx <- cvg <- wt <- V1 <- value <- val <- 
+    mu <- sigma <- obs <- prob <- fold <- . <- NULL
+  
   # Check query
   if (any(!query %in% pc$meta$variable)) {
     err <- setdiff(query, pc$meta$variable)
