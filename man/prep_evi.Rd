@@ -7,7 +7,9 @@
 prep_evi(pc, evidence)
 }
 \arguments{
-\item{evidence}{}
+\item{pc}{Probabilistic circuit learned via \code{\link{forde}}.}
+
+\item{evidence}{Optional set of conditioning events.}
 }
 \description{
 This function prepares the evidence for computing leaf posteriors.
