@@ -99,7 +99,7 @@ adversarial_rf <- function(
   i <- b <- cnt <- obs <- tree <- leaf <- . <- NULL
   
   # Prep data
-  x_real <- prep_x(x_real)
+  x_real <- prep_x(x)
   n <- nrow(x_real)
   factor_cols <- sapply(x_real, is.factor)
   if (any(!factor_cols) & min_node_size == 1L) {
