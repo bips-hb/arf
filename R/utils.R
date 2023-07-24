@@ -91,7 +91,7 @@ prep_evi <- function(pc, evidence) {
     stop('evidence must either be a partial sample, a data frame of conjuncts, ', 
          'or a posterior distribution over leaves.')
   }
-  if (part) {
+  if (isTRUE(part)) {
     if (!all(colnames(evidence) %in% pc$meta$variable)) {
       err <- setdiff(colnames(evidence), pc$meta$variable)
       stop('Unrecognized feature(s) among colnames: ', err)
@@ -102,7 +102,7 @@ prep_evi <- function(pc, evidence) {
     evidence[, relation := '==']
     conj <- TRUE
   }
-  if (conj) {
+  if (isTRUE(conj)) {
     if (max(evidence[, .N, by = variable]$N > 1L)) {
       stop('Only one constraint per variable allowed when using conjuncts.')
     }
