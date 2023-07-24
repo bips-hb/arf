@@ -86,7 +86,6 @@
 #' @importFrom stats predict
 #' @importFrom foreach foreach %do% %dopar%
 #' @importFrom truncnorm dtruncnorm 
-#' @importFrom matrixStats logSumExp
 #' 
 
 lik <- function(
@@ -107,6 +106,7 @@ lik <- function(
   x <- as.data.frame(query)
   n <- nrow(x)
   d <- ncol(x)
+  colnames_x <- colnames(x)
   if (d == pc$meta[, .N] & is.null(arf)) {
     warning('For total evidence queries, it is faster to include the ', 
             'pre-trained arf.')
@@ -115,25 +115,7 @@ lik <- function(
     err <- setdiff(colnames(x), pc$meta$variable)
     stop('Unrecognized feature(s) among colnames: ', err)
   }
-  idx_char <- sapply(x, is.character)
-  if (any(idx_char)) {
-    x[, idx_char] <- as.data.frame(
-      lapply(x[, idx_char, drop = FALSE], as.factor)
-    )
-  }
-  idx_logical <- sapply(x, is.logical)
-  if (any(idx_logical)) {
-    x[, idx_logical] <- as.data.frame(
-      lapply(x[, idx_logical, drop = FALSE], as.factor)
-    )
-  }
-  idx_intgr <- sapply(x, is.integer)
-  if (any(idx_intgr)) {
-    for (j in which(idx_intgr)) {
-      lvls <- sort(unique(x[, j]))
-      x[, j] <- factor(x[, j], levels = lvls, ordered = TRUE)
-    }
-  }
+  x <- suppressWarnings(prep_x(x))
   factor_cols <- sapply(x, is.factor)
   
   # Prep evidence
@@ -146,18 +128,6 @@ lik <- function(
   
   # Check ARF
   if (d == pc$meta[, .N] & !is.null(arf)) {
-    if ('y' %in% colnames(x)) {
-      colnames(x)[which(colnames(x) == 'y')] <- col_rename(x, 'y')
-    }
-    if ('obs' %in% colnames(x)) {
-      colnames(x)[which(colnames(x) == 'obs')] <- col_rename(x, 'obs')
-    }
-    if ('tree' %in% colnames(x)) {
-      colnames(x)[which(colnames(x) == 'tree')] <- col_rename(x, 'tree')
-    } 
-    if ('leaf' %in% colnames(x)) {
-      colnames(x)[which(colnames(x) == 'leaf')] <- col_rename(x, 'leaf')
-    } 
     preds <- stats::predict(arf, x, type = 'terminalNodes')$predictions + 1L
     preds <- rbindlist(lapply(seq_len(pc$forest[, max(tree)]), function(b) {
       data.table(tree = b, leaf = preds[, b], obs = seq_len(n))
@@ -170,6 +140,7 @@ lik <- function(
     colnames(x) <- pc$meta$variable
   } else {
     arf <- NULL
+    colnames(x) <- colnames_x
   }
   
   # PMF over leaves
@@ -195,18 +166,21 @@ lik <- function(
   }
   batch_idx <- suppressWarnings(split(seq_len(n), seq_len(k)))
   
-  # Likelihood function
+  # Likelihood function 
   lik_fn <- function(fold, arf) {
+    
+    # Prep work
     psi_cnt <- psi_cat <- NULL
-    if (!is.null(arf)) {
+    pure <- all(factor_cols) | all(!factor_cols)
+    if (!is.null(arf) | isTRUE(pure)) {
       leaves <- omega[, f_idx]
     } else {
       omega_tmp <- rbindlist(lapply(batch_idx[[fold]], function(i) {
         omega$obs <- i
         return(omega)
       })) 
-      leaves <- omega_tmp[, unique(f_idx)]
     }
+    
     # Continuous data
     if (any(!factor_cols)) {
       fam <- pc$meta[class == 'numeric', unique(family)]
@@ -218,76 +192,110 @@ lik <- function(
       if (is.null(arf)) {
         psi_cnt <- merge(pc$cnt[f_idx %in% leaves], x_long, by = 'variable', 
                          sort = FALSE, allow.cartesian = TRUE)
+        rm(x_long)
       } else {
         preds_cnt <- merge(preds[f_idx %in% leaves], x_long, by = 'obs', 
                            sort = FALSE, allow.cartesian = TRUE)
+        rm(x_long)
         psi_cnt <- merge(pc$cnt[f_idx %in% leaves], preds_cnt, 
                          by = c('f_idx', 'variable'), sort = FALSE)
         rm(preds_cnt)
       }
-      rm(x_long)
       if (fam == 'truncnorm') {
-        psi_cnt[, lik := log(truncnorm::dtruncnorm(value, a = min, b = max, 
-                                                   mean = mu, sd = sigma))]
+        psi_cnt[, lik := truncnorm::dtruncnorm(value, a = min, b = max, 
+                                               mean = mu, sd = sigma)]
       } else if (fam == 'unif') {
-        psi_cnt[, lik := stats::dunif(value, min = min, max = max, log = TRUE)]
+        psi_cnt[, lik := stats::dunif(value, min = min, max = max)]
       }
-      psi_cnt[value == min, lik := -Inf]
-      psi_cnt[, lik := sum(lik), by = .(obs, f_idx)]
+      psi_cnt[value == min, lik := 0]
+      psi_cnt[, lik := prod(lik), by = .(obs, f_idx)]
       psi_cnt <- unique(psi_cnt[, .(f_idx, obs, lik)])
-      if (is.null(arf)) {
-        psi_cnt <- psi_cnt[is.finite(lik)]
+      if (is.null(arf) & !isTRUE(pure)) {
+        psi_cnt <- psi_cnt[lik > 0]
         omega_tmp <- merge(omega_tmp, psi_cnt[, .(f_idx, obs)], 
                            by = c('f_idx', 'obs'), sort = FALSE)
         leaves <- omega_tmp[, unique(f_idx)]
       }
     }
+    
     # Categorical data
     if (any(factor_cols)) {
+      x_tmp <- x[batch_idx[[fold]], factor_cols, drop = FALSE]
+      n_tmp <- nrow(x_tmp)
+      x_long <- melt(
+        data.table(obs = batch_idx[[fold]], x_tmp), 
+        id.vars = 'obs', value.name = 'val', variable.factor = FALSE
+      )
+      # Speedups are possible if there are many duplicates
+      is_unique <- !duplicated(x_tmp)
+      if (all(is_unique)) {
+        x_unique <- x_long
+        colnames(x_unique)[1] <- 's_idx'
+      } else {
+        x_unique <- unique(x_tmp)
+        x_unique <- melt(
+          data.table(s_idx = seq_len(nrow(x_unique)), x_unique),
+          id.vars = 's_idx', value.name = 'val', variable.factor = FALSE
+        )
+        s_idx <- double(length = n_tmp)
+        s_idx[is_unique] <- seq_len(sum(is_unique))
+        for (i in 2:n_tmp) {
+          if (s_idx[i] == 0L) {
+            s_idx[i] <- s_idx[i - 1L]
+          }
+        }
+        idx_dt <- data.table(obs = batch_idx[[fold]], s_idx = s_idx)
+      }
       if (is.null(arf)) {
-        psi_cat <- rbindlist(lapply(which(factor_cols), function(j) {
-          psi_j <- pc$cat[variable == colnames(x)[j] & f_idx %in% leaves]
-          grd <- expand.grid(f_idx = leaves, val = psi_j[, unique(val)])
-          psi_j <- merge(psi_j, grd, by = c('f_idx', 'val'), all.y = TRUE, sort = FALSE)
-          rm(grd)
-          psi_j[is.na(prob), prob := 0][, variable := NULL][, lik := log(prob)]
-          x_long <- melt(
-            data.table(obs = batch_idx[[fold]], 
-                       x[batch_idx[[fold]], j, drop = FALSE]), 
-            id.vars = 'obs', value.name = 'val', variable.factor = FALSE
-          )
-          tmp <- merge(x_long, omega_tmp[, .(f_idx, obs)], by = 'obs', sort = FALSE)
-          psi_j <- merge(psi_j, tmp, by = c('f_idx', 'val'), sort = FALSE)
-          return(psi_j[, .(f_idx, obs, lik)])
+        grd <- rbindlist(lapply(which(factor_cols), function(j) {
+          expand.grid('f_idx' = leaves, 'variable' = colnames(x)[j],
+                      'val' = x_long[variable == colnames(x)[j], unique(val)],
+                      stringsAsFactors = FALSE)
         }))
-        psi_cat[, lik := sum(lik), by = .(obs, f_idx)]
-        psi_cat <- unique(psi_cat[is.finite(lik), .(f_idx, obs, lik)])
-        omega_tmp <- merge(omega_tmp, psi_cat[, .(f_idx, obs)], 
-                           by = c('f_idx', 'obs'), sort = FALSE)
-        if (!is.null(psi_cnt)) {
+        rm(x_long)
+        psi_cat <- merge(pc$cat[f_idx %in% leaves], grd, 
+                         by = c('f_idx', 'variable', 'val'), 
+                         sort = FALSE, all.y = TRUE)
+        rm(grd)
+        psi_cat[is.na(prob), prob := 0]
+        psi_cat <- merge(psi_cat, x_unique, by = c('variable', 'val'), 
+                         sort = FALSE, allow.cartesian = TRUE)
+        psi_cat[, lik := prod(prob), by = .(s_idx, f_idx)]
+        psi_cat <- unique(psi_cat[lik > 0, .(f_idx, s_idx, lik)])
+        if (all(is_unique)) {
+          setnames(psi_cat, 's_idx', 'obs')
+        } else {
+          psi_cat <- merge(psi_cat, idx_dt, by = 's_idx', sort = FALSE,
+                           allow.cartesian = TRUE)
+          psi_cat[, s_idx := NULL]
+          setcolorder(psi_cat, c('f_idx', 'obs', 'lik'))
+        }
+        if (!isTRUE(pure)) {
+          omega_tmp <- merge(omega_tmp, psi_cat[, .(f_idx, obs)], 
+                             by = c('f_idx', 'obs'), sort = FALSE)
           psi_cnt <- merge(psi_cnt, omega_tmp[, .(f_idx, obs)], 
                            by = c('f_idx', 'obs'), sort = FALSE)
+          rm(omega_tmp)
         }
       } else {
-        x_long <- melt(
-          data.table(obs = batch_idx[[fold]], 
-                     x[batch_idx[[fold]], factor_cols, drop = FALSE]), 
-          id.vars = 'obs', value.name = 'val', variable.factor = FALSE
-        )
         preds_cat <- merge(preds[f_idx %in% leaves], x_long, by = 'obs', 
                            sort = FALSE, allow.cartesian = TRUE)
         rm(x_long)
         psi_cat <- merge(pc$cat, preds_cat, by = c('f_idx', 'variable', 'val'),
                          sort = FALSE, allow.cartesian = TRUE, all.y = TRUE)
         rm(preds_cat)
-        psi_cat[is.na(prob), prob := 0][, lik := log(prob)]
-        psi_cat[, lik := sum(lik), by = .(obs, f_idx)]
-        psi_cat <- unique(psi_cat[, .(f_idx, obs, lik)])
+        psi_cat[is.na(prob), prob := 0]
+        psi_cat[, lik := prod(prob), by = .(obs, f_idx)]
+        psi_cat <- unique(psi_cat[lik > 0, .(f_idx, obs, lik)])
       }
     }
+    
     # Put it together
     psi_x <- rbind(psi_cnt, psi_cat)
-    psi_x <- unique(psi_x[, lik := sum(lik), by = .(obs, f_idx)])
+    if (!isTRUE(pure)) {
+      psi_x <- psi_x[, prod(lik), by = .(obs, f_idx)]
+      setnames(psi_x, 'V1', 'lik')
+    }
     return(psi_x)
   }
   if (isTRUE(parallel)) {
@@ -298,21 +306,21 @@ lik <- function(
   
   # Compute per-sample likelihoods
   out <- merge(out, omega, by = 'f_idx', sort = FALSE)
-  out[, ls := lik + log(wt)]
-  out <- out[, matrixStats::logSumExp(ls), by = obs]
+  out <- out[, log(crossprod(wt, lik)), by = obs]
+  setnames(out, 'V1', 'lik')
   
   # Anybody missing?
   zeros <- setdiff(seq_len(n), out[, obs])
   if (length(zeros) > 0L) {
-    zero_dt <- data.table(obs = zeros, V1 = -Inf)
+    zero_dt <- data.table(obs = zeros, lik = -Inf)
     out <- rbind(out, zero_dt)
   }
   
   # Export
   if (!isTRUE(log)) {
-    out[, V1 := exp(V1)]
+    out[, lik := exp(lik)]
   }
-  return(out[order(obs), V1])
+  return(out[order(obs), lik])
 }
 
 
