@@ -99,41 +99,8 @@ adversarial_rf <- function(
   i <- b <- cnt <- obs <- tree <- leaf <- . <- NULL
   
   # Prep data
-  x_real <- as.data.frame(x)
+  x_real <- prep_x(x_real)
   n <- nrow(x_real)
-  if ('y' %in% colnames(x_real)) {
-    colnames(x_real)[which(colnames(x_real) == 'y')] <- col_rename(x_real, 'y')
-  }
-  if ('obs' %in% colnames(x_real)) {
-    colnames(x_real)[which(colnames(x_real) == 'obs')] <- col_rename(x_real, 'obs')
-  }
-  if ('tree' %in% colnames(x_real)) {
-    colnames(x_real)[which(colnames(x_real) == 'tree')] <- col_rename(x_real, 'tree')
-  } 
-  if ('leaf' %in% colnames(x_real)) {
-    colnames(x_real)[which(colnames(x_real) == 'leaf')] <- col_rename(x_real, 'leaf')
-  } 
-  idx_char <- sapply(x_real, is.character)
-  if (any(idx_char)) {
-    x_real[, idx_char] <- as.data.frame(
-      lapply(x_real[, idx_char, drop = FALSE], as.factor)
-    )
-  }
-  idx_logical <- sapply(x_real, is.logical)
-  if (any(idx_logical)) {
-    x_real[, idx_logical] <- as.data.frame(
-      lapply(x_real[, idx_logical, drop = FALSE], as.factor)
-    )
-  }
-  idx_intgr <- sapply(x_real, is.integer)
-  if (any(idx_intgr)) {
-    warning('Recoding integer data as ordered factors. To override this behavior, ',
-            'explicitly code these variables as numeric.')
-    for (j in which(idx_intgr)) {
-      lvls <- sort(unique(x_real[, j]))
-      x_real[, j] <- factor(x_real[, j], levels = lvls, ordered = TRUE)
-    }
-  }
   factor_cols <- sapply(x_real, is.factor)
   if (any(!factor_cols) & min_node_size == 1L) {
     warning('Variance is undefined when a leaf contains just a single observation. ', 

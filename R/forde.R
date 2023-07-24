@@ -105,10 +105,11 @@ forde <- function(
   
   # Prep data
   input_class <- class(x)
+  colnames_x <- colnames(x)
+  classes <- sapply(x, class)
   x <- as.data.frame(x)
   n <- nrow(x)
   d <- ncol(x)
-  colnames_x <- colnames(x)
   if ('y' %in% colnames(x)) {
     y_new <- col_rename(x, 'y')
     colnames(x)[which(colnames(x) == 'y')] <- y_new
@@ -125,28 +126,7 @@ forde <- function(
     leaf_new <- col_rename(x, 'leaf')
     colnames(x)[which(colnames(x) == 'leaf')] <- leaf_new
   } 
-  classes <- sapply(x, class)
-  idx_char <- sapply(x, is.character)
-  if (any(idx_char)) {
-    x[, idx_char] <- as.data.frame(
-      lapply(x[, idx_char, drop = FALSE], as.factor)
-    )
-  }
-  idx_logical <- sapply(x, is.logical)
-  if (any(idx_logical)) {
-    x[, idx_logical] <- as.data.frame(
-      lapply(x[, idx_logical, drop = FALSE], as.factor)
-    )
-  }
-  idx_integer <- sapply(x, is.integer)
-  if (any(idx_integer)) {
-    warning('Recoding integer data as ordered factors. To override this behavior, ',
-            'explicitly code these variables as numeric.')
-    for (j in which(idx_integer)) {
-      lvls <- sort(unique(x[, j]))
-      x[, j] <- factor(x[, j], levels = lvls, ordered = TRUE)
-    }
-  }
+  x <- prep_x(x)
   factor_cols <- sapply(x, is.factor)
   if (!family %in% c('truncnorm', 'unif')) {
     stop('family not recognized.')
