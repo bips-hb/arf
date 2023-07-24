@@ -176,6 +176,7 @@ lik <- function(
     if (is.null(arf) & !isTRUE(pure)) {
       omega_tmp <- rbindlist(lapply(batch_idx[[fold]], function(i) {
         omega$obs <- i
+        omega$wt <- NULL
         return(omega)
       })) 
     }
@@ -208,9 +209,8 @@ lik <- function(
       }
       psi_cnt[value == min, lik := 0]
       psi_cnt[, lik := prod(lik), by = .(obs, f_idx)]
-      psi_cnt <- unique(psi_cnt[, .(f_idx, obs, lik)])
+      psi_cnt <- unique(psi_cnt[lik > 0, .(f_idx, obs, lik)])
       if (is.null(arf) & !isTRUE(pure)) {
-        psi_cnt <- psi_cnt[lik > 0]
         omega_tmp <- merge(omega_tmp, psi_cnt[, .(f_idx, obs)], 
                            by = c('f_idx', 'obs'), sort = FALSE)
         leaves <- omega_tmp[, unique(f_idx)]
@@ -264,17 +264,15 @@ lik <- function(
         if (all(is_unique)) {
           setnames(psi_cat, 's_idx', 'obs')
         } else {
-          psi_cat <- merge(psi_cat, idx_dt, by = 's_idx', sort = FALSE,
-                           allow.cartesian = TRUE)
-          psi_cat[, s_idx := NULL]
-          setcolorder(psi_cat, c('f_idx', 'obs', 'lik'))
-        }
-        if (!isTRUE(pure)) {
-          omega_tmp <- merge(omega_tmp, psi_cat[, .(f_idx, obs)], 
+          if (!isTRUE(pure)) {
+            omega_tmp <- merge(idx_dt, omega_tmp, by = 'obs', sort = FALSE)
+            psi_cat <- merge(psi_cat, omega_tmp, by = c('s_idx', 'f_idx'),
+                             sort = FALSE)[, s_idx := NULL]
+            rm(omega_tmp)
+            setcolorder(psi_cat, c('f_idx', 'obs', 'lik'))
+            psi_cnt <- merge(psi_cnt, psi_cat[, .(f_idx, obs)], 
                              by = c('f_idx', 'obs'), sort = FALSE)
-          psi_cnt <- merge(psi_cnt, omega_tmp[, .(f_idx, obs)], 
-                           by = c('f_idx', 'obs'), sort = FALSE)
-          rm(omega_tmp)
+          }
         }
       } else {
         preds_cat <- merge(preds[f_idx %in% leaves], x_long, by = 'obs', 
