@@ -4,7 +4,7 @@
 \alias{map}
 \title{Maximum A Posteriori Estimation}
 \usage{
-map(pc, query, evidence, n_eval = 100, parallel = FALSE)
+map(pc, query, evidence = NULL, n_eval = 100, parallel = FALSE)
 }
 \arguments{
 \item{pc}{Probabilistic circuit learned via \code{\link{forde}}.}
@@ -42,7 +42,7 @@ arf <- adversarial_rf(iris)
 psi <- forde(arf, iris)
 
 # What is the most likely Sepal.Length?
-map(psi, query = "Sepal.Length", pc = psi)
+map(psi, query = "Sepal.Length")
 
 # What if we condition on Species = "setosa"?
 evi <- data.frame(Species = "setosa")

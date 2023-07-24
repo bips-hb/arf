@@ -40,7 +40,7 @@
 #' psi <- forde(arf, iris)
 #' 
 #' # What is the most likely Sepal.Length?
-#' map(psi, query = "Sepal.Length", pc = psi)
+#' map(psi, query = "Sepal.Length")
 #' 
 #' # What if we condition on Species = "setosa"?
 #' evi <- data.frame(Species = "setosa")
@@ -59,7 +59,7 @@
 map <- function(
     pc, 
     query, 
-    evidence, 
+    evidence = NULL, 
     n_eval = 100, 
     parallel = FALSE) {
   
