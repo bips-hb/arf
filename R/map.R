@@ -1,0 +1,142 @@
+#' Maximum A Posteriori Estimation
+#' 
+#' Compute the most likely value of some query variable(s), optionally 
+#' conditioned on some event(s).
+#' 
+#' @param pc Probabilistic circuit learned via \code{\link{forde}}. 
+#' @param query Data frame of samples, optionally comprising just a subset of 
+#'   training features. Likelihoods will be computed for each sample. Missing
+#'   features will be marginalized out. See Details.
+#' @param evidence Optional set of conditioning events. This can take one of 
+#'   three forms: (1) a partial sample, i.e. a single row of data with some but
+#'   not all columns; (2) a data frame of conditioning events, which allows for 
+#'   inequalities; or (3) a posterior distribution over leaves. See Details.
+#' @param n_eval Number of points to use for grid search.
+#' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
+#'   via \code{doParallel}.
+#'   
+#'   
+#' @details 
+#' This function computes maximum a posteriori (MAP) values for any subset of
+#' features, optionally conditioned on some event(s). This technically covers
+#' a range of related query types, including most probable explanations (MPE) 
+#' and marginal MAP, which are special instances of MAP. 
+#' 
+#' 
+#' @return 
+#' A one row data frame with values for all query variables.
+#' 
+#' 
+#' @references 
+#' Watson, D., Blesch, K., Kapar, J., & Wright, M. (2023). Adversarial random 
+#' forests for density estimation and generative modeling. In \emph{Proceedings 
+#' of the 26th International Conference on Artificial Intelligence and 
+#' Statistics}, pp. 5357-5375.
+#' 
+#' 
+#' @examples
+#' # Train ARF and corresponding circuit
+#' arf <- adversarial_rf(iris)
+#' psi <- forde(arf, iris)
+#' 
+#' # What is the most likely Sepal.Length?
+#' map(psi, query = "Sepal.Length", pc = psi)
+#' 
+#' # What if we condition on Species = "setosa"?
+#' evi <- data.frame(Species = "setosa")
+#' map(psi, query = "Sepal.Length", evidence = evi)
+#' 
+#' 
+#' @seealso
+#' \code{\link{adversarial_rf}}, \code{\link{forde}}, \code{\link{lik}}
+#' 
+#'
+#' @export
+#' @import data.table
+#' @importFrom truncnorm dtruncnorm 
+#' 
+
+map <- function(
+    pc, 
+    query, 
+    evidence, 
+    n_eval = 100, 
+    parallel = FALSE) {
+  
+  # Check query
+  if (any(!query %in% pc$meta$variable)) {
+    err <- setdiff(query, pc$meta$variable)
+    stop('Unrecognized feature(s) in query: ', err)
+  }
+  factor_cols <- pc$meta[variable %in% query, family == 'multinom']
+  
+  # Prep evidence
+  if (!is.null(evidence)) {
+    evidence <- prep_evi(pc, evidence)
+    conj <- TRUE
+  } else {
+    conj <- FALSE
+  }
+  
+  # PMF over leaves
+  if (is.null(evidence)) {
+    num_trees <- pc$forest[, max(tree)]
+    omega <- pc$forest[, .(f_idx, cvg)]
+    omega[, wt := cvg / num_trees]
+    omega[, cvg := NULL]
+  } else if (conj) {
+    omega <- leaf_posterior(pc, evidence, parallel)
+  } else {
+    omega <- evidence
+  }
+  omega <- omega[wt > 0]
+  leaves <- omega[, f_idx]
+  
+  psi_cnt <- psi_cat <- NULL
+  # Continuous data...
+  if (any(!factor_cols)) {
+    # Grid search for continuous features...?
+    tmp <- merge(pc$cnt[variable %in% query], omega, by = 'f_idx', sort = FALSE)
+    min_j <- tmp[is.finite(min), min(min), by = variable]
+    max_j <- tmp[is.finite(max), max(max), by = variable]
+    x <- rbindlist(lapply(which(!factor_cols), function(j) {
+      data.table(
+        obs = seq_len(n_eval), variable = query[j], 
+        value = seq(min_j[variable == query[j], V1], 
+                    max_j[variable == query[j], V1], length.out = n_eval)
+      )
+    }))
+    tmp <- merge(tmp, x, by = 'variable', sort = FALSE, allow.cartesian = TRUE)
+    tmp[, lik := truncnorm::dtruncnorm(value, min, max, mu, sigma)]
+    tmp[value == min, lik := 0]
+    tmp <- tmp[, crossprod(lik, wt), by = .(obs, variable)]
+    tmp <- tmp[order(match(variable, query[!factor_cols]))]
+    mle_dt <- tmp[tmp[, .I[which.max(V1)], by = variable]$V1]
+    psi_cnt <- as.data.table(
+      do.call(cbind, lapply(which(!factor_cols), function(j) {
+        mle_idx <- mle_dt[variable == query[j], obs]
+        x[variable == query[j] & obs == mle_idx, value]
+      }))
+    )
+    setnames(psi_cnt, query[!factor_cols])
+  }
+  
+  # Categorical data
+  if (any(factor_cols)) {
+    tmp <- merge(pc$cat[variable %in% query], omega, by = 'f_idx', sort = FALSE)
+    tmp <- tmp[, crossprod(prob, wt), by = .(variable, val)]
+    tmp <- tmp[order(match(variable, query[factor_cols]))]
+    vals <- tmp[tmp[, .I[which.max(V1)], by = variable]$V1]$val
+    psi_cat <- as.data.table(
+      do.call(cbind, lapply(seq_along(vals), function(j) vals[j]))
+    )
+    setnames(psi_cat, query[factor_cols])
+  }
+  
+  # Put it all together
+  # REDO FORGE'S POST-PROCESSING HERE
+  out <- cbind(psi_cnt, psi_cat)
+  return(out)
+}
+
+
