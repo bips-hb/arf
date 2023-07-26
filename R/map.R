@@ -4,9 +4,8 @@
 #' conditioned on some event(s).
 #' 
 #' @param pc Probabilistic circuit learned via \code{\link{forde}}. 
-#' @param query Data frame of samples, optionally comprising just a subset of 
-#'   training features. Likelihoods will be computed for each sample. Missing
-#'   features will be marginalized out. See Details.
+#' @param query Character vector of variable names. MAP estimates will be 
+#'   computed for each. 
 #' @param evidence Optional set of conditioning events. This can take one of 
 #'   three forms: (1) a partial sample, i.e. a single row of data with some but
 #'   not all columns; (2) a data frame of conditioning events, which allows for 
@@ -94,7 +93,6 @@ map <- function(
     omega <- evidence
   }
   omega <- omega[wt > 0]
-  leaves <- omega[, f_idx]
   
   psi_cnt <- psi_cat <- NULL
   # Continuous data...

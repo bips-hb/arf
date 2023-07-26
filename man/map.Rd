@@ -9,9 +9,8 @@ map(pc, query, evidence = NULL, n_eval = 100, parallel = FALSE)
 \arguments{
 \item{pc}{Probabilistic circuit learned via \code{\link{forde}}.}
 
-\item{query}{Data frame of samples, optionally comprising just a subset of
-training features. Likelihoods will be computed for each sample. Missing
-features will be marginalized out. See Details.}
+\item{query}{Character vector of variable names. MAP estimates will be
+computed for each.}
 
 \item{evidence}{Optional set of conditioning events. This can take one of
 three forms: (1) a partial sample, i.e. a single row of data with some but
