@@ -126,7 +126,7 @@ forde <- function(
     leaf_new <- col_rename(x, 'leaf')
     colnames(x)[which(colnames(x) == 'leaf')] <- leaf_new
   } 
-  x <- prep_x(x)
+  x <- suppressWarnings(prep_x(x))
   factor_cols <- sapply(x, is.factor)
   if (!family %in% c('truncnorm', 'unif')) {
     stop('family not recognized.')
