@@ -74,12 +74,13 @@ map <- function(
   factor_cols <- pc$meta[variable %in% query, family == 'multinom']
   
   # Prep evidence
+  conj <- FALSE
   if (!is.null(evidence)) {
     evidence <- prep_evi(pc, evidence)
-    conj <- TRUE
-  } else {
-    conj <- FALSE
-  }
+    if (!all(c('f_idx', 'wt') %in% colnames(evidence))) {
+      conj <- TRUE
+    }
+  } 
   
   # PMF over leaves
   if (is.null(evidence)) {

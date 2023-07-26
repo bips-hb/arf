@@ -119,12 +119,13 @@ lik <- function(
   factor_cols <- sapply(x, is.factor)
   
   # Prep evidence
+  conj <- FALSE
   if (!is.null(evidence)) {
     evidence <- prep_evi(pc, evidence)
-    conj <- TRUE
-  } else {
-    conj <- FALSE
-  }
+    if (!all(c('f_idx', 'wt') %in% colnames(evidence))) {
+      conj <- TRUE
+    }
+  } 
   
   # Check ARF
   if (d == pc$meta[, .N] & !is.null(arf)) {
@@ -208,7 +209,7 @@ lik <- function(
         psi_cnt[, lik := stats::dunif(value, min = min, max = max)]
       }
       psi_cnt[value == min, lik := 0]
-      psi_cnt[, lik := prod(lik), by = .(obs, f_idx)]
+      psi_cnt[, lik := prod(lik), by = .(f_idx, obs)]
       psi_cnt <- unique(psi_cnt[lik > 0, .(f_idx, obs, lik)])
       if (is.null(arf) & !isTRUE(pure)) {
         omega_tmp <- merge(omega_tmp, psi_cnt[, .(f_idx, obs)], 
@@ -236,7 +237,7 @@ lik <- function(
           data.table(s_idx = seq_len(nrow(x_unique)), x_unique),
           id.vars = 's_idx', value.name = 'val', variable.factor = FALSE
         )
-        s_idx <- double(length = n_tmp)
+        s_idx <- integer(length = n_tmp)
         s_idx[is_unique] <- seq_len(sum(is_unique))
         for (i in 2:n_tmp) {
           if (s_idx[i] == 0L) {
@@ -259,14 +260,14 @@ lik <- function(
         psi_cat[is.na(prob), prob := 0]
         psi_cat <- merge(psi_cat, x_unique, by = c('variable', 'val'), 
                          sort = FALSE, allow.cartesian = TRUE)
-        psi_cat[, lik := prod(prob), by = .(s_idx, f_idx)]
+        psi_cat[, lik := prod(prob), by = .(f_idx, s_idx)]
         psi_cat <- unique(psi_cat[lik > 0, .(f_idx, s_idx, lik)])
         if (all(is_unique)) {
           setnames(psi_cat, 's_idx', 'obs')
         } else {
           if (!isTRUE(pure)) {
             omega_tmp <- merge(idx_dt, omega_tmp, by = 'obs', sort = FALSE)
-            psi_cat <- merge(psi_cat, omega_tmp, by = c('s_idx', 'f_idx'),
+            psi_cat <- merge(psi_cat, omega_tmp, by = c('f_idx', 's_idx'),
                              sort = FALSE)[, s_idx := NULL]
             rm(omega_tmp)
             setcolorder(psi_cat, c('f_idx', 'obs', 'lik'))
@@ -282,7 +283,7 @@ lik <- function(
                          sort = FALSE, allow.cartesian = TRUE, all.y = TRUE)
         rm(preds_cat)
         psi_cat[is.na(prob), prob := 0]
-        psi_cat[, lik := prod(prob), by = .(obs, f_idx)]
+        psi_cat[, lik := prod(prob), by = .(f_idx, obs)]
         psi_cat <- unique(psi_cat[lik > 0, .(f_idx, obs, lik)])
       }
     }
@@ -290,7 +291,7 @@ lik <- function(
     # Put it together
     psi_x <- rbind(psi_cnt, psi_cat)
     if (!isTRUE(pure)) {
-      psi_x <- psi_x[, prod(lik), by = .(obs, f_idx)]
+      psi_x <- psi_x[, prod(lik), by = .(f_idx, obs)]
       setnames(psi_x, 'V1', 'lik')
     }
     return(psi_x)
