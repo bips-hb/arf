@@ -15,17 +15,22 @@ forge_modified <- function (params, n_synth, parallel = TRUE)
   synth_cnt <- synth_cat <- NULL
   if (!is.null(params$cnt)) {
     fam <- params$meta[family != "multinom", unique(family)]
-    psi <- merge(omega, params$cnt[,c('f_idx','variable','min','max','mu','sigma')], by = "f_idx", sort = FALSE, 
+    
+    ## change: Do not draw from cnt distr when condition for cnt variable is scalar (val is not NA)
+    if(is.null(params$cnt$val)) {
+      params$cnt[,val:=NA]
+      params$cnt[,val := as.numeric(val)]
+    }
+    psi <- merge(omega, params$cnt[,c('f_idx','variable','min','max','mu','sigma','val')], by = "f_idx", sort = FALSE, 
                  allow.cartesian = TRUE)
     
-    ## change: Do not draw from cnt distr when condition for cnt variable is scalar (min == max) 
-    psi[min == max, dat:= min]
+    psi[!is.na(val), dat:= val]
     if (fam == "truncnorm") {
-      psi[min != max, `:=`(dat, truncnorm::rtruncnorm(.N, a = min,
-                                            b = max, mean = mu, sd = sigma))]
+      psi[is.na(val), dat := truncnorm::rtruncnorm(.N, a = min,
+                                            b = max, mean = mu, sd = sigma)]
     }
     else if (fam == "unif") {
-      psi[min != max, `:=`(dat, stats::runif(.N, min = min, max = max))]
+      psi[is.na(val), dat := stats::runif(.N, min = min, max = max)]
     }
     ### end change
     
