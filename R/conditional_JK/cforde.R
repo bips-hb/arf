@@ -20,8 +20,6 @@ source("forge_modified.R") # slightly modified FORGE function that can handle ou
 #    Discuss! I don't think a valid cond density could always be calculated this way
 #    Resulting hyperrectangles in lower-dimensional subspaces can then be completely differently oriented (-> no way to "weight" different zero-sets against each other)
 
-registerDoParallel(8)
-
 ### example
 arf <- adversarial_rf(iris)
 params_uncond <- forde(arf,iris)
