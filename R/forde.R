@@ -105,11 +105,11 @@ forde <- function(
   
   # Prep data
   input_class <- class(x)
-  colnames_x <- colnames(x)
-  classes <- sapply(x, class)
   x <- as.data.frame(x)
   n <- nrow(x)
   d <- ncol(x)
+  colnames_x <- colnames(x)
+  classes <- sapply(x, class)
   if ('y' %in% colnames(x)) {
     y_new <- col_rename(x, 'y')
     colnames(x)[which(colnames(x) == 'y')] <- y_new
