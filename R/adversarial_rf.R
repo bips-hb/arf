@@ -111,9 +111,9 @@ adversarial_rf <- function(
   }
   
   # Fit initial model: sample from marginals, concatenate data, train RF
-  x_synth <- as.data.frame(lapply(x_real, sample, n, replace = TRUE))
-  dat <- rbind(data.frame(y = 1L, x_real),
-               data.frame(y = 0L, x_synth))
+  x_synth <- setDT(lapply(x_real, sample, n, replace = TRUE))
+  dat <- rbind(data.table(y = 1L, x_real),
+               data.table(y = 0L, x_synth))
   if (isTRUE(parallel)) {
     rf0 <- ranger(y ~ ., dat, keep.inbag = TRUE, classification = TRUE, 
                   num.trees = num_trees, min.node.size = 2L * min_node_size, 
@@ -144,26 +144,27 @@ adversarial_rf <- function(
       if (generator == 'bootstrap') {
         # Create synthetic data by sampling from intra-leaf marginals
         nodeIDs <- stats::predict(rf0, x_real, type = 'terminalNodes')$predictions
-        tmp <- melt(as.data.table(nodeIDs), measure.vars = 1:num_trees,
+        tmp <- melt(as.data.table(nodeIDs), measure.vars = seq_len(num_trees),
                     variable.name = 'tree', value.name = 'leaf')
-        tmp[, tree := as.numeric(gsub('V', '', tree))][, obs := rep(1:n, num_trees)]
-        x_real_dt <- as.data.table(x_real)[, obs := 1:n] 
-        x_real_dt <- merge(x_real_dt, tmp, by = 'obs', sort = FALSE)
+        tmp[, tree := as.numeric(gsub('V', '', tree))][, obs := rep(seq_len(n), num_trees)]
+        x_real[, obs := seq_len(n)]
+        x_real_dt <- merge(x_real, tmp, by = 'obs', sort = FALSE)
+        x_real[, obs := NULL]
         tmp[, obs := NULL]
         tmp <- tmp[sample(.N, n, replace = TRUE)]
         tmp <- unique(tmp[, cnt := .N, by = .(tree, leaf)])
         draw_from <- merge(tmp, x_real_dt, by = c('tree', 'leaf'), sort = FALSE)
         x_synth <- draw_from[, lapply(.SD[, -c('cnt', 'obs')], sample_by_class, .SD[, cnt[1]]), 
                              by = .(tree, leaf)][, c('tree', 'leaf') := NULL]
-        rm(nodeIDs, tmp, x_real_dt, draw_from)
+        rm(nodeIDs, tmp, draw_from)
       } else if (generator == 'forge') {
         # Create synthetic data using forge
         psi <- forde(rf0, x_real)
         x_synth <- forge(psi, n)
       } 
       # Concatenate real and synthetic data
-      dat <- rbind(data.frame(y = 1L, x_real),
-                   data.frame(y = 0L, x_synth))
+      dat <- rbind(data.table(y = 1L, x_real),
+                   data.table(y = 0L, x_synth))
       # Train discriminator
       if (isTRUE(parallel)) {
         rf1 <- ranger(y ~ ., dat, keep.inbag = TRUE, classification = TRUE, 
@@ -217,9 +218,9 @@ adversarial_rf <- function(
     return(out)
   }
   if (isTRUE(parallel)) {
-    rf0$forest$child.nodeIDs <- foreach(b = 1:num_trees) %dopar% prune(b)
+    rf0$forest$child.nodeIDs <- foreach(b = seq_len(num_trees)) %dopar% prune(b)
   } else {
-    rf0$forest$child.nodeIDs <- foreach(b = 1:num_trees) %do% prune(b)
+    rf0$forest$child.nodeIDs <- foreach(b = seq_len(num_trees)) %do% prune(b)
   }
   
   # Export
