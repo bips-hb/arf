@@ -102,6 +102,12 @@ forde <- function(
   if (!family %in% c('truncnorm', 'unif')) {
     stop('family not recognized.')
   }
+  if (alpha < 0) {
+    stop('alpha must be nonnegative.')
+  }
+  if (epsilon < 0) {
+    stop('epsilon must be nonnegative.')
+  }
   
   # Prep data
   input_class <- class(x)
@@ -110,33 +116,8 @@ forde <- function(
   d <- ncol(x)
   colnames_x <- colnames(x)
   classes <- sapply(x, class)
-  if ('y' %in% colnames(x)) {
-    y_new <- col_rename(x, 'y')
-    colnames(x)[which(colnames(x) == 'y')] <- y_new
-  }
-  if ('obs' %in% colnames(x)) {
-    obs_new <- col_rename(x, 'obs')
-    colnames(x)[which(colnames(x) == 'obs')] <- obs_new
-  }
-  if ('tree' %in% colnames(x)) {
-    tree_new <- col_rename(x, 'tree')
-    colnames(x)[which(colnames(x) == 'tree')] <- tree_new
-  } 
-  if ('leaf' %in% colnames(x)) {
-    leaf_new <- col_rename(x, 'leaf')
-    colnames(x)[which(colnames(x) == 'leaf')] <- leaf_new
-  } 
   x <- suppressWarnings(prep_x(x))
   factor_cols <- sapply(x, is.factor)
-  if (!family %in% c('truncnorm', 'unif')) {
-    stop('family not recognized.')
-  }
-  if (alpha < 0) {
-    stop('alpha must be nonnegative.')
-  }
-  if (epsilon < 0) {
-    stop('epsilon must be nonnegative.')
-  }
   
   # Compute leaf bounds and coverage
   num_trees <- arf$num.trees
@@ -202,6 +183,7 @@ forde <- function(
   
   # Calculate distribution parameters for each variable
   fams <- fifelse(factor_cols, 'multinom', family)
+  setnames(x, colnames_x)
   # Continuous case
   if (any(!factor_cols)) {
     psi_cnt_fn <- function(tree) {
@@ -231,21 +213,11 @@ forde <- function(
       dt <- unique(dt[, c('tree', 'leaf', 'value') := NULL])
     }
     if (isTRUE(parallel)) {
-      psi_cnt <- foreach(tree = 1:num_trees, .combine = rbind) %dopar% psi_cnt_fn(tree)
+      psi_cnt <- foreach(tree = seq_len(num_trees), .combine = rbind) %dopar% 
+        psi_cnt_fn(tree)
     } else {
-      psi_cnt <- foreach(tree = 1:num_trees, .combine = rbind) %do% psi_cnt_fn(tree)
-    }
-    if (!is.null(y_new)) {
-      psi_cnt[variable == y_new, variable := 'y']
-    }
-    if (!is.null(obs_new)) {
-      psi_cnt[variable == obs_new, variable := 'obs']
-    }
-    if (!is.null(tree_new)) {
-      psi_cnt[variable == tree_new, variable := 'tree']
-    }
-    if (!is.null(leaf_new)) {
-      psi_cnt[variable == leaf_new, variable := 'leaf']
+      psi_cnt <- foreach(tree = seq_len(num_trees), .combine = rbind) %do% 
+        psi_cnt_fn(tree)
     }
     setkey(psi_cnt, f_idx, variable)
     setcolorder(psi_cnt, c('f_idx', 'variable'))
@@ -297,21 +269,11 @@ forde <- function(
       dt[, c('count', 'min', 'max') := NULL]
     }
     if (isTRUE(parallel)) {
-      psi_cat <- foreach(tree = 1:num_trees, .combine = rbind) %dopar% psi_cat_fn(tree)
+      psi_cat <- foreach(tree = seq_len(num_trees), .combine = rbind) %dopar% 
+        psi_cat_fn(tree)
     } else {
-      psi_cat <- foreach(tree = 1:num_trees, .combine = rbind) %do% psi_cat_fn(tree)
-    }
-    if (!is.null(y_new)) {
-      psi_cat[variable == y_new, variable := 'y']
-    }
-    if (!is.null(obs_new)) {
-      psi_cat[variable == obs_new, variable := 'obs']
-    }
-    if (!is.null(tree_new)) {
-      psi_cat[variable == tree_new, variable := 'tree']
-    }
-    if (!is.null(leaf_new)) {
-      psi_cat[variable == leaf_new, variable := 'leaf']
+      psi_cat <- foreach(tree = seq_len(num_trees), .combine = rbind) %do% 
+        psi_cat_fn(tree)
     }
     setkey(psi_cat, f_idx, variable)
     setcolorder(psi_cat, c('f_idx', 'variable'))
