@@ -65,6 +65,7 @@ prep_x <- function(x) {
   if ('leaf' %in% colnames(x)) {
     colnames(x)[which(colnames(x) == 'leaf')] <- col_rename(x, 'leaf')
   } 
+  setDT(x)
   return(x)
 }
 
@@ -81,10 +82,10 @@ prep_x <- function(x) {
 prep_evi <- function(pc, evidence) {
   
   # To avoid data.table check issues
-  relation <- N <- NULL
+  variable <- relation <- N <- NULL
   
   # Prep
-  evidence <- as.data.table(evidence)
+  setDT(evidence)
   part <- all(colnames(evidence) %in% pc$meta$variable)
   conj <- all(c('variable', 'relation', 'value') %in% colnames(evidence))
   post <- all(c('f_idx', 'wt') %in% colnames(evidence))
@@ -212,6 +213,9 @@ leaf_posterior <- function(pc, evidence, parallel) {
 #'
 
 post_x <- function(x, pc) {
+  
+  # To avoid data.table check issues
+  variable <- NULL
   
   # Order, classify features
   meta_tmp <- pc$meta[variable %in% colnames(x)]
