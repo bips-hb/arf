@@ -111,9 +111,9 @@ adversarial_rf <- function(
   }
   
   # Fit initial model: sample from marginals, concatenate data, train RF
-  x_synth <- setDT(lapply(x_real, sample, n, replace = TRUE))
-  dat <- rbind(data.table(y = 1L, x_real),
-               data.table(y = 0L, x_synth))
+  x_synth <- setDF(lapply(x_real, sample, n, replace = TRUE))
+  dat <- rbind(data.frame(y = 1L, x_real),
+               data.frame(y = 0L, x_synth))
   if (isTRUE(parallel)) {
     rf0 <- ranger(y ~ ., dat, keep.inbag = TRUE, classification = TRUE, 
                   num.trees = num_trees, min.node.size = 2L * min_node_size, 
@@ -163,8 +163,8 @@ adversarial_rf <- function(
         x_synth <- forge(psi, n)
       } 
       # Concatenate real and synthetic data
-      dat <- rbind(data.table(y = 1L, x_real),
-                   data.table(y = 0L, x_synth))
+      dat <- rbind(data.frame(y = 1L, x_real),
+                   data.frame(y = 0L, x_synth))
       # Train discriminator
       if (isTRUE(parallel)) {
         rf1 <- ranger(y ~ ., dat, keep.inbag = TRUE, classification = TRUE, 

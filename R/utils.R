@@ -65,7 +65,6 @@ prep_x <- function(x) {
   if ('leaf' %in% colnames(x)) {
     colnames(x)[which(colnames(x) == 'leaf')] <- col_rename(x, 'leaf')
   } 
-  setDT(x)
   return(x)
 }
 
