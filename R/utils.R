@@ -214,14 +214,14 @@ post_x <- function(x, pc) {
   meta_tmp <- pc$meta[variable %in% colnames(x)]
   setcolorder(x, match(colnames(x), meta_tmp$variable))
   setDF(x)
-  idx_character <- meta_tmp[, which(class == 'character')]
+  idx_factor <- meta_tmp[, which(class == 'factor')]
   idx_logical <- meta_tmp[, which(class == 'logical')]
   idx_integer <- meta_tmp[, which(class == 'integer')]
   
   # Recode
   if (sum(idx_character) > 0L) {
     x[, idx_character] <- setDF(
-      lapply(x[, idx_character, drop = FALSE], function(j) as.character(j))
+      lapply(x[, idx_character, drop = FALSE], function(j) as.factor(j))
     )
   }
   if (sum(idx_logical) > 0L) {
