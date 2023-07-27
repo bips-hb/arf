@@ -147,16 +147,15 @@ adversarial_rf <- function(
         tmp <- melt(as.data.table(nodeIDs), measure.vars = seq_len(num_trees),
                     variable.name = 'tree', value.name = 'leaf')
         tmp[, tree := as.numeric(gsub('V', '', tree))][, obs := rep(seq_len(n), num_trees)]
-        x_real[, obs := seq_len(n)]
-        x_real_dt <- merge(x_real, tmp, by = 'obs', sort = FALSE)
-        x_real[, obs := NULL]
+        x_real_dt <- as.data.table(x_real)[, obs := seq_len(n)]
+        x_real_dt <- merge(x_real_dt, tmp, by = 'obs', sort = FALSE)
         tmp[, obs := NULL]
         tmp <- tmp[sample(.N, n, replace = TRUE)]
         tmp <- unique(tmp[, cnt := .N, by = .(tree, leaf)])
         draw_from <- merge(tmp, x_real_dt, by = c('tree', 'leaf'), sort = FALSE)
         x_synth <- draw_from[, lapply(.SD[, -c('cnt', 'obs')], sample_by_class, .SD[, cnt[1]]), 
                              by = .(tree, leaf)][, c('tree', 'leaf') := NULL]
-        rm(nodeIDs, tmp, draw_from)
+        rm(nodeIDs, tmp, x_real_dt, draw_from)
       } else if (generator == 'forge') {
         # Create synthetic data using forge
         psi <- forde(rf0, x_real)
