@@ -175,33 +175,7 @@ forge <- function(
   }
   
   # Clean up, export
-  setcolorder(x_synth, pc$meta$variable)
-  setDF(x_synth)
-  idx_factor <- pc$meta[, which(class == 'factor')]
-  idx_logical <- pc$meta[, which(class == 'logical')]
-  idx_integer <- pc$meta[, which(class == 'integer')]
-  if (sum(idx_factor) > 0L) {
-    x_synth[, idx_factor] <- as.data.frame(
-      lapply(x_synth[, idx_factor, drop = FALSE], as.factor)
-    )
-  }
-  if (sum(idx_logical) > 0L) {
-    x_synth[, idx_logical] <- as.data.frame(
-      lapply(x_synth[, idx_logical, drop = FALSE], function(x) {x == 'TRUE'})
-    )
-  }
-  if (sum(idx_integer) > 0L) {
-    x_synth[, idx_integer] <- as.data.frame(
-      lapply(x_synth[, idx_integer, drop = FALSE], function(x) as.integer(x)) 
-    )
-  }
-  if ('data.table' %in% pc$input_class) {
-    x_synth <- as.data.table(x_synth)
-  } else if ('tbl_df' %in% pc$input_class) {
-    x_synth <- tibble::as_tibble(x_synth)
-  } else if ('matrix' %in% pc$input_class) {
-    x_synth <- as.matrix(x_synth)
-  }
+  x_synth <- post_x(x_synth, pc)
   return(x_synth)
 }
 

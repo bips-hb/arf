@@ -115,12 +115,10 @@ map <- function(
     tmp <- tmp[, crossprod(lik, wt), by = .(obs, variable)]
     tmp <- tmp[order(match(variable, query[!factor_cols]))]
     mle_dt <- tmp[tmp[, .I[which.max(V1)], by = variable]$V1]
-    psi_cnt <- as.data.table(
-      do.call(cbind, lapply(which(!factor_cols), function(j) {
-        mle_idx <- mle_dt[variable == query[j], obs]
-        x[variable == query[j] & obs == mle_idx, value]
-      }))
-    )
+    psi_cnt <- setDT(lapply(which(!factor_cols), function(j) {
+      mle_idx <- mle_dt[variable == query[j], obs]
+      x[variable == query[j] & obs == mle_idx, value]
+    }))
     setnames(psi_cnt, query[!factor_cols])
   }
   
@@ -130,15 +128,13 @@ map <- function(
     tmp <- tmp[, crossprod(prob, wt), by = .(variable, val)]
     tmp <- tmp[order(match(variable, query[factor_cols]))]
     vals <- tmp[tmp[, .I[which.max(V1)], by = variable]$V1]$val
-    psi_cat <- as.data.table(
-      do.call(cbind, lapply(seq_along(vals), function(j) vals[j]))
-    )
+    psi_cat <- setDT(lapply(seq_along(vals), function(j) vals[j]))
     setnames(psi_cat, query[factor_cols])
   }
   
-  # Put it all together
-  # REDO FORGE'S POST-PROCESSING HERE
+  # Clean up, export
   out <- cbind(psi_cnt, psi_cat)
+  out <- post_x(out, pc)
   return(out)
 }
 

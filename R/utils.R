@@ -33,13 +33,13 @@ prep_x <- function(x) {
   x <- as.data.frame(x)
   idx_char <- sapply(x, is.character)
   if (any(idx_char)) {
-    x[, idx_char] <- as.data.frame(
+    x[, idx_char] <- setDF(
       lapply(x[, idx_char, drop = FALSE], as.factor)
     )
   }
   idx_logical <- sapply(x, is.logical)
   if (any(idx_logical)) {
-    x[, idx_logical] <- as.data.frame(
+    x[, idx_logical] <- setDF(
       lapply(x[, idx_logical, drop = FALSE], as.factor)
     )
   }
@@ -164,7 +164,7 @@ leaf_posterior <- function(pc, evidence, parallel) {
   }
   if (any(evidence$class != 'numeric')) { # Categorical features
     evi <- evidence[class != 'numeric']
-    cat_upd8 <- function(k) {
+    cat_upd8 <- function(k) {             # Redo as rbindlist?
       j <- evi$variable[k]
       op <- evi$relation[k]
       value <- evi$value[k]
@@ -197,6 +197,53 @@ leaf_posterior <- function(pc, evidence, parallel) {
   out <- unique(psi[, .(f_idx, wt)])
   out[, wt := wt / sum(wt)]
   return(out)
+}
+
+
+#' Post-process data
+#' 
+#' This function prepares output data for map and forge.
+#' 
+#' @param x Input data.frame.
+#' @param pc Probabilistic circuit learned via \code{\link{forde}}.
+#' 
+
+post_x <- function(x, pc) {
+  
+  # Order, classify features
+  meta_tmp <- pc$meta[variable %in% colnames(x)]
+  setcolorder(x, match(colnames(x), meta_tmp$variable))
+  setDF(x)
+  idx_character <- meta_tmp[, which(class == 'character')]
+  idx_logical <- meta_tmp[, which(class == 'logical')]
+  idx_integer <- meta_tmp[, which(class == 'integer')]
+  
+  # Recode
+  if (sum(idx_character) > 0L) {
+    x[, idx_character] <- setDF(
+      lapply(x[, idx_character, drop = FALSE], function(j) as.character(j))
+    )
+  }
+  if (sum(idx_logical) > 0L) {
+    x[, idx_logical] <- setDF(
+      lapply(x[, idx_logical, drop = FALSE], function(j) as.logical(j))
+    )
+  }
+  if (sum(idx_integer) > 0L) {
+    x[, idx_integer] <- setDF(
+      lapply(x[, idx_integer, drop = FALSE], function(j) as.integer(j)) 
+    )
+  }
+  
+  # Export
+  if ('data.table' %in% pc$input_class) {
+    setDT(x)
+  } else if ('tbl_df' %in% pc$input_class) {
+    x <- tibble::as_tibble(x)
+  } else if ('matrix' %in% pc$input_class) {
+    x <- as.matrix(x)
+  }
+  return(x)
 }
 
 
