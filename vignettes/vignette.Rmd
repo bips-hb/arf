@@ -225,11 +225,11 @@ synth <- forge(params, n_synth = 1000)
 hist(synth$price)
 ```
 
-Using `family = 'truncnorm'`, the distribution for `price` will now be modeled with a truncated Gaussian mixture. Though the general outline of the histogram looks about right, we do find some implausible values, e.g. negative prices. This can be overcome by manually setting a hard lower bound.
+Using `family = 'truncnorm'`, the distribution for `price` will now be modeled with a truncated Gaussian mixture. Though the general outline of the histogram looks about right, we may find some implausible values, e.g. negative prices. This can be overcome by manually setting a hard lower bound. In fact, negative numbers are impossible for all continuous features in this dataset. 
 
 ```{r lb, fig.height=5, fig.width=5}
-# Set price minimum to empirical lower bound
-params$cnt[variable == 'price' & min == -Inf, min := min(diamonds$price)]
+# Set a lower bound of zero for continuous features
+params$cnt[min == -Inf, min := 0]
 
 # Re-forge, check histogram
 synth <- forge(params, n_synth = 1000)
