@@ -207,6 +207,9 @@ leaf_posterior <- function(pc, evidence, parallel) {
 #' @param x Input data.frame.
 #' @param pc Probabilistic circuit learned via \code{\link{forde}}.
 #' 
+#' @import data.table
+#' @importFrom tibble as_tibble
+#'
 
 post_x <- function(x, pc) {
   

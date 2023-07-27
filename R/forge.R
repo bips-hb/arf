@@ -72,7 +72,6 @@
 #' @import data.table
 #' @importFrom foreach foreach %do% %dopar%
 #' @importFrom truncnorm rtruncnorm 
-#' @importFrom tibble as_tibble
 #' 
 
 forge <- function(
