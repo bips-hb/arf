@@ -104,6 +104,7 @@ lik <- function(
   
   # Check query
   x <- as.data.frame(query)
+  colnames_x <- colnames(x)
   n <- nrow(x)
   d <- ncol(x)
   if (d == pc$meta[, .N] & is.null(arf)) {
@@ -137,10 +138,12 @@ lik <- function(
     }
     preds <- merge(preds, pc$forest[, .(tree, leaf, f_idx)], 
                    by = c('tree', 'leaf'), sort = FALSE)
+    setnames(x, pc$meta$variable)
   } else {
     arf <- NULL
+    setnames(x, colnames_x)
   }
-  setnames(x, pc$meta$variable)
+  
   
   # PMF over leaves
   if (is.null(evidence)) {
