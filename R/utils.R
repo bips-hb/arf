@@ -222,9 +222,9 @@ post_x <- function(x, pc) {
   idx_integer <- meta_tmp[, which(class == 'integer')]
   
   # Recode
-  if (sum(idx_character) > 0L) {
-    x[, idx_character] <- setDF(
-      lapply(x[, idx_character, drop = FALSE], function(j) as.factor(j))
+  if (sum(idx_factor) > 0L) {
+    x[, idx_factor] <- setDF(
+      lapply(x[, idx_factor, drop = FALSE], function(j) as.factor(j))
     )
   }
   if (sum(idx_logical) > 0L) {
