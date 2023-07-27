@@ -25,8 +25,8 @@ test_that("FORDE categories sum to unity", {
 test_that("Likelihood calculation returns vector of log-likelihoods", {
   arf <- adversarial_rf(iris, num_trees = 2, verbose = FALSE, parallel = FALSE)
   psi <- forde(arf, iris, parallel = FALSE)
-  loglik <- lik(psi, iris, arf = arf, parallel = FALSE)
-  loglik2 <- lik(psi, iris, parallel = FALSE)
+  expect_warning(loglik <- lik(psi, iris, arf = arf, parallel = FALSE))
+  expect_warning(loglik2 <- lik(psi, iris, parallel = FALSE))
   expect_type(loglik, "double")
   expect_length(loglik, nrow(iris))
   expect_true(all(!is.na(loglik)))
@@ -68,7 +68,7 @@ test_that("FORGE returns same column types", {
                     logical = (sample(0:1, n, replace = TRUE) == 1))
   
   expect_warning(arf <- adversarial_rf(dat, num_trees = 2, verbose = FALSE, parallel = FALSE))
-  expect_warning(psi <- forde(arf, dat, parallel = FALSE))
+  psi <- forde(arf, dat, parallel = FALSE)
   x_synth <- forge(psi, n_synth = 20, parallel = FALSE)
   
   # No NAs
