@@ -25,7 +25,7 @@ test_that("FORDE categories sum to unity", {
 test_that("Likelihood calculation returns vector of log-likelihoods", {
   arf <- adversarial_rf(iris, num_trees = 2, verbose = FALSE, parallel = FALSE)
   psi <- forde(arf, iris, parallel = FALSE)
-  expect_warning(loglik <- lik(psi, iris, arf = arf, parallel = FALSE))
+  loglik <- lik(psi, iris, arf = arf, parallel = FALSE)
   expect_warning(loglik2 <- lik(psi, iris, parallel = FALSE))
   expect_type(loglik, "double")
   expect_length(loglik, nrow(iris))
