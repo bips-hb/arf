@@ -86,15 +86,14 @@ forge <- function(
   
   # Prep evidence
   conj <- FALSE
+  to_sim <- pc$meta$variable
   if (!is.null(evidence)) {
     evidence <- prep_evi(pc, evidence)
     if (!all(c('f_idx', 'wt') %in% colnames(evidence))) {
       conj <- TRUE
       to_sim <- setdiff(pc$meta$variable, evidence[relation == '==', variable])
     }
-  } else {
-    to_sim <- pc$meta$variable
-  } 
+  }
   factor_cols <- pc$meta[variable %in% to_sim, family == 'multinom']
   
   # Prepare the event space
