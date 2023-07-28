@@ -98,7 +98,7 @@ prep_evi <- function(pc, evidence) {
       stop('Unrecognized feature(s) among colnames: ', err)
     }
     evidence <- suppressWarnings(
-      melt(evidence, measure.vars = colnames(evidence))
+      melt(evidence, measure.vars = colnames(evidence), variable.factor = FALSE)
     )
     evidence[, relation := '==']
     conj <- TRUE
@@ -218,13 +218,19 @@ post_x <- function(x, pc) {
   
   # Order, classify features
   meta_tmp <- pc$meta[variable %in% colnames(x)]
-  setcolorder(x, match(colnames(x), meta_tmp$variable))
+  setcolorder(x, match(meta_tmp$variable, colnames(x)))
   setDF(x)
+  idx_numeric <- meta_tmp[, which(class == 'numeric')]
   idx_factor <- meta_tmp[, which(class == 'factor')]
   idx_logical <- meta_tmp[, which(class == 'logical')]
   idx_integer <- meta_tmp[, which(class == 'integer')]
   
   # Recode
+  if (sum(idx_numeric) > 0L) {
+    x[, idx_numeric] <- setDF(
+      lapply(x[, idx_numeric, drop = FALSE], function(j) as.numeric(j))
+    )
+  }
   if (sum(idx_factor) > 0L) {
     x[, idx_factor] <- setDF(
       lapply(x[, idx_factor, drop = FALSE], function(j) as.factor(j))
