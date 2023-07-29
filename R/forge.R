@@ -2,7 +2,7 @@
 #' 
 #' Uses pre-trained FORDE model to simulate synthetic data.
 #' 
-#' @param pc Probabilistic circuit learned via \code{\link{forde}}. 
+#' @param params Circuit parameters learned via \code{\link{forde}}. 
 #' @param n_synth Number of synthetic samples to generate.
 #' @param evidence Optional set of conditioning events. This can take one of 
 #'   three forms: (1) a partial sample, i.e. a single row of data with
@@ -75,7 +75,7 @@
 #' 
 
 forge <- function(
-    pc, 
+    params, 
     n_synth, 
     evidence = NULL,
     parallel = TRUE) {
@@ -86,24 +86,24 @@ forge <- function(
   
   # Prep evidence
   conj <- FALSE
-  to_sim <- pc$meta$variable
+  to_sim <- params$meta$variable
   if (!is.null(evidence)) {
-    evidence <- prep_evi(pc, evidence)
+    evidence <- prep_evi(params, evidence)
     if (!all(c('f_idx', 'wt') %in% colnames(evidence))) {
       conj <- TRUE
-      to_sim <- setdiff(pc$meta$variable, evidence[relation == '==', variable])
+      to_sim <- setdiff(params$meta$variable, evidence[relation == '==', variable])
     }
   }
-  factor_cols <- pc$meta[variable %in% to_sim, family == 'multinom']
+  factor_cols <- params$meta[variable %in% to_sim, family == 'multinom']
   
   # Prepare the event space
   if (is.null(evidence)) {
-    num_trees <- pc$forest[, max(tree)]
-    omega <- pc$forest[, .(f_idx, cvg)]
+    num_trees <- params$forest[, max(tree)]
+    omega <- params$forest[, .(f_idx, cvg)]
     omega[, wt := cvg / num_trees]
     omega[, cvg := NULL]
   } else if (isTRUE(conj)) {
-    omega <- leaf_posterior(pc, evidence, parallel)
+    omega <- leaf_posterior(params, evidence, parallel)
   } else {
     omega <- evidence
   }
@@ -118,8 +118,8 @@ forge <- function(
   # Simulate ontinuous data
   synth_cnt <- synth_cat <- NULL
   if (any(!factor_cols)) {
-    fam <- pc$meta[family != 'multinom', unique(family)]
-    psi <- merge(omega, pc$cnt[variable %in% to_sim], by = 'f_idx', 
+    fam <- params$meta[family != 'multinom', unique(family)]
+    psi <- merge(omega, params$cnt[variable %in% to_sim], by = 'f_idx', 
                  sort = FALSE, allow.cartesian = TRUE)
     if (isTRUE(conj)) {
       if (any(evidence$relation %in% c('<', '<=', '>', '>='))) {
@@ -145,7 +145,7 @@ forge <- function(
   
   # Simulate categorical data
   if (any(factor_cols)) {
-    psi <- merge(omega, pc$cat[variable %in% to_sim], by = 'f_idx',
+    psi <- merge(omega, params$cat[variable %in% to_sim], by = 'f_idx',
                  sort = FALSE, allow.cartesian = TRUE)
     psi[prob == 1, dat := val] 
     if (isTRUE(conj)) {
@@ -163,7 +163,7 @@ forge <- function(
   
   # Combine, optionally impose constraint(s)
   x_synth <- cbind(synth_cnt, synth_cat)
-  if (length(to_sim) != pc$meta[, .N]) {
+  if (length(to_sim) != params$meta[, .N]) {
     tmp <- evidence[relation == '==']
     add_on <- setDT(lapply(tmp[, .I], function(k) rep(tmp[k, value], n_synth)))
     setnames(add_on, tmp[, variable])
@@ -171,7 +171,7 @@ forge <- function(
   }
   
   # Clean up, export
-  x_synth <- post_x(x_synth, pc)
+  x_synth <- post_x(x_synth, params)
   return(x_synth)
 }
 

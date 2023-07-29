@@ -5,7 +5,7 @@
 \title{Likelihood Estimation}
 \usage{
 lik(
-  pc,
+  params,
   query,
   evidence = NULL,
   arf = NULL,
@@ -16,7 +16,7 @@ lik(
 )
 }
 \arguments{
-\item{pc}{Probabilistic circuit learned via \code{\link{forde}}.}
+\item{params}{Circuit parameters learned via \code{\link{forde}}.}
 
 \item{query}{Data frame of samples, optionally comprising just a subset of
 training features. Likelihoods will be computed for each sample. Missing

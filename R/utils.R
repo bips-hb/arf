@@ -72,20 +72,20 @@ prep_x <- function(x) {
 #' 
 #' This function prepares the evidence for computing leaf posteriors.
 #' 
-#' @param pc Probabilistic circuit learned via \code{\link{forde}}. 
+#' @param params Circuit parameters learned via \code{\link{forde}}. 
 #' @param evidence Optional set of conditioning events.
 #' 
 #' @import data.table
 #' 
 
-prep_evi <- function(pc, evidence) {
+prep_evi <- function(params, evidence) {
   
   # To avoid data.table check issues
   variable <- relation <- N <- NULL
   
   # Prep
   setDT(evidence)
-  part <- all(colnames(evidence) %in% pc$meta$variable)
+  part <- all(colnames(evidence) %in% params$meta$variable)
   conj <- all(c('variable', 'relation', 'value') %in% colnames(evidence))
   post <- all(c('f_idx', 'wt') %in% colnames(evidence))
   if (part + conj + post != 1L) {
@@ -93,8 +93,8 @@ prep_evi <- function(pc, evidence) {
          'or a posterior distribution over leaves.')
   }
   if (isTRUE(part)) {
-    if (!all(colnames(evidence) %in% pc$meta$variable)) {
-      err <- setdiff(colnames(evidence), pc$meta$variable)
+    if (!all(colnames(evidence) %in% params$meta$variable)) {
+      err <- setdiff(colnames(evidence), params$meta$variable)
       stop('Unrecognized feature(s) among colnames: ', err)
     }
     evidence <- suppressWarnings(
@@ -107,7 +107,7 @@ prep_evi <- function(pc, evidence) {
     if (max(evidence[, .N, by = variable]$N > 1L)) {
       stop('Only one constraint per variable allowed when using conjuncts.')
     }
-    evi <- merge(pc$meta, evidence, by = 'variable', sort = FALSE)
+    evi <- merge(params$meta, evidence, by = 'variable', sort = FALSE)
     if (evi[class == 'numeric' & relation == '!=', .N] > 0) {
       evidence <- evidence[!(class == 'numeric' & relation == '!=')]
       warning('With continuous features, "!=" is not a valid relation. ', 
@@ -127,7 +127,7 @@ prep_evi <- function(pc, evidence) {
 #' This function returns a posterior distribution on leaves, conditional on some 
 #' evidence. 
 #' 
-#' @param pc Probabilistic circuit learned via \code{\link{forde}}.
+#' @param params Circuit parameters learned via \code{\link{forde}}.
 #' @param evidence Data frame of conditioning event(s).
 #' @param parallel Compute in parallel?
 #' 
@@ -135,7 +135,7 @@ prep_evi <- function(pc, evidence) {
 #' @importFrom truncnorm dtruncnorm ptruncnorm 
 #' 
 
-leaf_posterior <- function(pc, evidence, parallel) {
+leaf_posterior <- function(params, evidence, parallel) {
   
   # To avoid data.table check issues
   variable <- relation <- value <- prob <- f_idx <- cvg <- wt <- 
@@ -143,10 +143,10 @@ leaf_posterior <- function(pc, evidence, parallel) {
   
   # Likelihood per leaf-event combo
   psi_cnt <- psi_cat <- NULL
-  evidence <- merge(evidence, pc$meta, by = 'variable', sort = FALSE)
+  evidence <- merge(evidence, params$meta, by = 'variable', sort = FALSE)
   if (any(evidence$class == 'numeric')) { # Continuous features
     evi <- evidence[class == 'numeric']
-    psi <- merge(evi, pc$cnt, by = 'variable')
+    psi <- merge(evi, params$cnt, by = 'variable')
     if (any(evi$relation == '==')) {
       psi[relation == '==', prob := 
             truncnorm::dtruncnorm(value, a = min, b = max, mean = mu, sd = sigma)]
@@ -168,8 +168,8 @@ leaf_posterior <- function(pc, evidence, parallel) {
       j <- evi$variable[k]
       op <- evi$relation[k]
       value <- evi$value[k]
-      psi <- pc$cat[variable == j]
-      grd <- expand.grid(f_idx = pc$forest$f_idx, val = psi[, unique(val)])
+      psi <- params$cat[variable == j]
+      grd <- expand.grid(f_idx = params$forest$f_idx, val = psi[, unique(val)])
       psi <- merge(psi, grd, by = c('f_idx', 'val'), all.y = TRUE, sort = FALSE)
       psi[is.na(prob), prob := 0][is.na(variable), variable := j]
       if (op == '==') {
@@ -190,7 +190,7 @@ leaf_posterior <- function(pc, evidence, parallel) {
   psi <- rbind(psi_cnt, psi_cat)
   
   # Weight is proportional to coverage times product of likelihoods
-  psi <- merge(psi, pc$forest[, .(f_idx, cvg)], by = 'f_idx', sort = FALSE)
+  psi <- merge(psi, params$forest[, .(f_idx, cvg)], by = 'f_idx', sort = FALSE)
   psi[, wt := cvg * prod(prob), by = f_idx] # Worth doing in log space?
   
   # Normalize, export
@@ -205,19 +205,19 @@ leaf_posterior <- function(pc, evidence, parallel) {
 #' This function prepares output data for map and forge.
 #' 
 #' @param x Input data.frame.
-#' @param pc Probabilistic circuit learned via \code{\link{forde}}.
+#' @param params Circuit parameters learned via \code{\link{forde}}.
 #' 
 #' @import data.table
 #' @importFrom tibble as_tibble
 #'
 
-post_x <- function(x, pc) {
+post_x <- function(x, params) {
   
   # To avoid data.table check issues
   variable <- NULL
   
   # Order, classify features
-  meta_tmp <- pc$meta[variable %in% colnames(x)]
+  meta_tmp <- params$meta[variable %in% colnames(x)]
   setcolorder(x, match(meta_tmp$variable, colnames(x)))
   setDF(x)
   idx_numeric <- meta_tmp[, which(class == 'numeric')]
@@ -248,11 +248,11 @@ post_x <- function(x, pc) {
   }
   
   # Export
-  if ('data.table' %in% pc$input_class) {
+  if ('data.table' %in% params$input_class) {
     setDT(x)
-  } else if ('tbl_df' %in% pc$input_class) {
+  } else if ('tbl_df' %in% params$input_class) {
     x <- tibble::as_tibble(x)
-  } else if ('matrix' %in% pc$input_class) {
+  } else if ('matrix' %in% params$input_class) {
     x <- as.matrix(x)
   }
   return(x)

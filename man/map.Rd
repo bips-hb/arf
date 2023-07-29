@@ -4,10 +4,10 @@
 \alias{map}
 \title{Maximum A Posteriori Estimation}
 \usage{
-map(pc, query, evidence = NULL, n_eval = 100, parallel = FALSE)
+map(params, query, evidence = NULL, n_eval = 100, parallel = FALSE)
 }
 \arguments{
-\item{pc}{Probabilistic circuit learned via \code{\link{forde}}.}
+\item{params}{Circuit parameters learned via \code{\link{forde}}.}
 
 \item{query}{Character vector of variable names. MAP estimates will be
 computed for each.}

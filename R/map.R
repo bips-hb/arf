@@ -3,7 +3,7 @@
 #' Compute the most likely value of some query variable(s), optionally 
 #' conditioned on some event(s).
 #' 
-#' @param pc Probabilistic circuit learned via \code{\link{forde}}. 
+#' @param params Circuit parameters learned via \code{\link{forde}}. 
 #' @param query Character vector of variable names. MAP estimates will be 
 #'   computed for each. 
 #' @param evidence Optional set of conditioning events. This can take one of 
@@ -56,7 +56,7 @@
 #' 
 
 map <- function(
-    pc, 
+    params, 
     query, 
     evidence = NULL, 
     n_eval = 100, 
@@ -67,16 +67,16 @@ map <- function(
     mu <- sigma <- obs <- prob <- fold <- . <- NULL
   
   # Check query
-  if (any(!query %in% pc$meta$variable)) {
-    err <- setdiff(query, pc$meta$variable)
+  if (any(!query %in% params$meta$variable)) {
+    err <- setdiff(query, params$meta$variable)
     stop('Unrecognized feature(s) in query: ', err)
   }
-  factor_cols <- pc$meta[variable %in% query, family == 'multinom']
+  factor_cols <- params$meta[variable %in% query, family == 'multinom']
   
   # Prep evidence
   conj <- FALSE
   if (!is.null(evidence)) {
-    evidence <- prep_evi(pc, evidence)
+    evidence <- prep_evi(params, evidence)
     if (!all(c('f_idx', 'wt') %in% colnames(evidence))) {
       conj <- TRUE
     }
@@ -84,12 +84,12 @@ map <- function(
   
   # PMF over leaves
   if (is.null(evidence)) {
-    num_trees <- pc$forest[, max(tree)]
-    omega <- pc$forest[, .(f_idx, cvg)]
+    num_trees <- params$forest[, max(tree)]
+    omega <- params$forest[, .(f_idx, cvg)]
     omega[, wt := cvg / num_trees]
     omega[, cvg := NULL]
   } else if (conj) {
-    omega <- leaf_posterior(pc, evidence, parallel)
+    omega <- leaf_posterior(params, evidence, parallel)
   } else {
     omega <- evidence
   }
@@ -99,7 +99,7 @@ map <- function(
   # Continuous data...
   if (any(!factor_cols)) {
     # Grid search for continuous features...?
-    tmp <- merge(pc$cnt[variable %in% query], omega, by = 'f_idx', sort = FALSE)
+    tmp <- merge(params$cnt[variable %in% query], omega, by = 'f_idx', sort = FALSE)
     min_j <- tmp[is.finite(min), min(min), by = variable]
     max_j <- tmp[is.finite(max), max(max), by = variable]
     x <- rbindlist(lapply(which(!factor_cols), function(j) {
@@ -124,7 +124,7 @@ map <- function(
   
   # Categorical data
   if (any(factor_cols)) {
-    tmp <- merge(pc$cat[variable %in% query], omega, by = 'f_idx', sort = FALSE)
+    tmp <- merge(params$cat[variable %in% query], omega, by = 'f_idx', sort = FALSE)
     tmp <- tmp[, crossprod(prob, wt), by = .(variable, val)]
     tmp <- tmp[order(match(variable, query[factor_cols]))]
     vals <- tmp[tmp[, .I[which.max(V1)], by = variable]$V1]$val
@@ -134,8 +134,10 @@ map <- function(
   
   # Clean up, export
   out <- cbind(psi_cnt, psi_cat)
-  out <- post_x(out, pc)
+  out <- post_x(out, params)
   return(out)
 }
 
+
+# Allow evidence to be a data frame, and return one answer per row
 

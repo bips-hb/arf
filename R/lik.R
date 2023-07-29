@@ -2,7 +2,7 @@
 #' 
 #' Compute the likelihood of input data, optionally conditioned on some event(s).
 #' 
-#' @param pc Probabilistic circuit learned via \code{\link{forde}}. 
+#' @param params Circuit parameters learned via \code{\link{forde}}. 
 #' @param query Data frame of samples, optionally comprising just a subset of 
 #'   training features. Likelihoods will be computed for each sample. Missing
 #'   features will be marginalized out. See Details.
@@ -89,7 +89,7 @@
 #' 
 
 lik <- function(
-    pc, 
+    params, 
     query,
     evidence = NULL,
     arf = NULL,
@@ -107,12 +107,12 @@ lik <- function(
   colnames_x <- colnames(x)
   n <- nrow(x)
   d <- ncol(x)
-  if (d == pc$meta[, .N] & is.null(arf)) {
+  if (d == params$meta[, .N] & is.null(arf)) {
     warning('For total evidence queries, it is faster to include the ', 
             'pre-trained arf.')
   }
-  if (any(!colnames(x) %in% pc$meta$variable)) {
-    err <- setdiff(colnames(x), pc$meta$variable)
+  if (any(!colnames(x) %in% params$meta$variable)) {
+    err <- setdiff(colnames(x), params$meta$variable)
     stop('Unrecognized feature(s) among colnames: ', err)
   }
   x <- suppressWarnings(prep_x(x))
@@ -121,24 +121,24 @@ lik <- function(
   # Prep evidence
   conj <- FALSE
   if (!is.null(evidence)) {
-    evidence <- prep_evi(pc, evidence)
+    evidence <- prep_evi(params, evidence)
     if (!all(c('f_idx', 'wt') %in% colnames(evidence))) {
       conj <- TRUE
     }
   } 
   
   # Check ARF
-  if (d == pc$meta[, .N] & !is.null(arf)) {
+  if (d == params$meta[, .N] & !is.null(arf)) {
     preds <- stats::predict(arf, x, type = 'terminalNodes')$predictions + 1L
-    preds <- rbindlist(lapply(seq_len(pc$forest[, max(tree)]), function(b) {
+    preds <- rbindlist(lapply(seq_len(params$forest[, max(tree)]), function(b) {
       data.table(tree = b, leaf = preds[, b], obs = seq_len(n))
     }))
     if (isTRUE(oob)) {
       preds <- preds[!is.na(leaf)]
     }
-    preds <- merge(preds, pc$forest[, .(tree, leaf, f_idx)], 
+    preds <- merge(preds, params$forest[, .(tree, leaf, f_idx)], 
                    by = c('tree', 'leaf'), sort = FALSE)
-    setnames(x, pc$meta$variable)
+    setnames(x, params$meta$variable)
   } else {
     arf <- NULL
     setnames(x, colnames_x)
@@ -147,12 +147,12 @@ lik <- function(
   
   # PMF over leaves
   if (is.null(evidence)) {
-    num_trees <- pc$forest[, max(tree)]
-    omega <- pc$forest[, .(f_idx, cvg)]
+    num_trees <- params$forest[, max(tree)]
+    omega <- params$forest[, .(f_idx, cvg)]
     omega[, wt := cvg / num_trees]
     omega[, cvg := NULL]
   } else if (conj) {
-    omega <- leaf_posterior(pc, evidence, parallel)
+    omega <- leaf_posterior(params, evidence, parallel)
   } else {
     omega <- evidence
   }
@@ -185,21 +185,21 @@ lik <- function(
     
     # Continuous data
     if (any(!factor_cols)) {
-      fam <- pc$meta[class == 'numeric', unique(family)]
+      fam <- params$meta[class == 'numeric', unique(family)]
       x_long <- melt(
         data.table(obs = batch_idx[[fold]], 
                    x[batch_idx[[fold]], !factor_cols, drop = FALSE]), 
         id.vars = 'obs', variable.factor = FALSE
       )
       if (is.null(arf)) {
-        psi_cnt <- merge(pc$cnt[f_idx %in% leaves], x_long, by = 'variable', 
+        psi_cnt <- merge(params$cnt[f_idx %in% leaves], x_long, by = 'variable', 
                          sort = FALSE, allow.cartesian = TRUE)
         rm(x_long)
       } else {
         preds_cnt <- merge(preds[f_idx %in% leaves], x_long, by = 'obs', 
                            sort = FALSE, allow.cartesian = TRUE)
         rm(x_long)
-        psi_cnt <- merge(pc$cnt[f_idx %in% leaves], preds_cnt, 
+        psi_cnt <- merge(params$cnt[f_idx %in% leaves], preds_cnt, 
                          by = c('f_idx', 'variable'), sort = FALSE)
         rm(preds_cnt)
       }
@@ -254,7 +254,7 @@ lik <- function(
                       stringsAsFactors = FALSE)
         }))
         rm(x_long)
-        psi_cat <- merge(pc$cat[f_idx %in% leaves], grd, 
+        psi_cat <- merge(params$cat[f_idx %in% leaves], grd, 
                          by = c('f_idx', 'variable', 'val'), 
                          sort = FALSE, all.y = TRUE)
         rm(grd)
@@ -280,7 +280,7 @@ lik <- function(
         preds_cat <- merge(preds[f_idx %in% leaves], x_long, by = 'obs', 
                            sort = FALSE, allow.cartesian = TRUE)
         rm(x_long)
-        psi_cat <- merge(pc$cat, preds_cat, by = c('f_idx', 'variable', 'val'),
+        psi_cat <- merge(params$cat, preds_cat, by = c('f_idx', 'variable', 'val'),
                          sort = FALSE, allow.cartesian = TRUE, all.y = TRUE)
         rm(preds_cat)
         psi_cat[is.na(prob), prob := 0]

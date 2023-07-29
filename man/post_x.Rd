@@ -4,12 +4,12 @@
 \alias{post_x}
 \title{Post-process data}
 \usage{
-post_x(x, pc)
+post_x(x, params)
 }
 \arguments{
 \item{x}{Input data.frame.}
 
-\item{pc}{Probabilistic circuit learned via \code{\link{forde}}.}
+\item{params}{Circuit parameters learned via \code{\link{forde}}.}
 }
 \description{
 This function prepares output data for map and forge.

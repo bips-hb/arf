@@ -4,10 +4,10 @@
 \alias{prep_evi}
 \title{Preprocess evidence}
 \usage{
-prep_evi(pc, evidence)
+prep_evi(params, evidence)
 }
 \arguments{
-\item{pc}{Probabilistic circuit learned via \code{\link{forde}}.}
+\item{params}{Circuit parameters learned via \code{\link{forde}}.}
 
 \item{evidence}{Optional set of conditioning events.}
 }

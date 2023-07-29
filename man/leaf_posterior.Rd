@@ -4,10 +4,10 @@
 \alias{leaf_posterior}
 \title{Compute leaf posterior}
 \usage{
-leaf_posterior(pc, evidence, parallel)
+leaf_posterior(params, evidence, parallel)
 }
 \arguments{
-\item{pc}{Probabilistic circuit learned via \code{\link{forde}}.}
+\item{params}{Circuit parameters learned via \code{\link{forde}}.}
 
 \item{evidence}{Data frame of conditioning event(s).}
 

@@ -4,10 +4,10 @@
 \alias{forge}
 \title{Forests for Generative Modeling}
 \usage{
-forge(pc, n_synth, evidence = NULL, parallel = TRUE)
+forge(params, n_synth, evidence = NULL, parallel = TRUE)
 }
 \arguments{
-\item{pc}{Probabilistic circuit learned via \code{\link{forde}}.}
+\item{params}{Circuit parameters learned via \code{\link{forde}}.}
 
 \item{n_synth}{Number of synthetic samples to generate.}
 
