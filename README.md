@@ -41,9 +41,16 @@ To generate 100 synthetic samples:
 forge(psi, 100)
 ```
 
+### MAP estimation
+To estimate the most likely values for variables conditional on some evidence, say, `Species = "setosa"`:
+```R
+evi <- data.frame(Species = "setosa")
+map(psi, evidence = evi)
+```
+
 For more detailed examples, see the package [vignette](https://bips-hb.github.io/arf/articles/vignette.html).
 
-## Other distributions
+## Python library
 A Python implementation of ARF, `arfpy`, is available on [PyPI](https://pypi.org/project/arfpy/). For the development version, see [here](https://github.com/bips-hb/arfpy).
 
 ## References
