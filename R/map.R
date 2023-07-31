@@ -11,8 +11,6 @@
 #'   not all columns; (2) a data frame of conditioning events, which allows for 
 #'   inequalities; or (3) a posterior distribution over leaves. See Details.
 #' @param n_eval Number of points to use for grid search.
-#' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
-#'   via \code{doParallel}.
 #'   
 #'   
 #' @details 
@@ -59,8 +57,7 @@ map <- function(
     params, 
     query, 
     evidence = NULL, 
-    n_eval = 100, 
-    parallel = FALSE) {
+    n_eval = 100) {
   
   # To avoid data.table check issues
   variable <- family <- tree <- f_idx <- cvg <- wt <- V1 <- value <- val <- 
@@ -89,7 +86,7 @@ map <- function(
     omega[, wt := cvg / num_trees]
     omega[, cvg := NULL]
   } else if (conj) {
-    omega <- leaf_posterior(params, evidence, parallel)
+    omega <- leaf_posterior(params, evidence)
   } else {
     omega <- evidence
   }
@@ -140,4 +137,5 @@ map <- function(
 
 
 # Allow evidence to be a data frame, and return one answer per row
+# Need to consider the possibility of shared omega's across instances
 
