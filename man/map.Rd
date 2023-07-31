@@ -4,7 +4,7 @@
 \alias{map}
 \title{Maximum A Posteriori Estimation}
 \usage{
-map(params, query, evidence = NULL, n_eval = 100, parallel = FALSE)
+map(params, query, evidence = NULL, n_eval = 100)
 }
 \arguments{
 \item{params}{Circuit parameters learned via \code{\link{forde}}.}
@@ -18,9 +18,6 @@ not all columns; (2) a data frame of conditioning events, which allows for
 inequalities; or (3) a posterior distribution over leaves. See Details.}
 
 \item{n_eval}{Number of points to use for grid search.}
-
-\item{parallel}{Compute in parallel? Must register backend beforehand, e.g.
-via \code{doParallel}.}
 }
 \value{
 A one row data frame with values for all query variables.
