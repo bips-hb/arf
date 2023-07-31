@@ -81,7 +81,7 @@ prep_x <- function(x) {
 prep_evi <- function(params, evidence) {
   
   # To avoid data.table check issues
-  variable <- relation <- N <- NULL
+  variable <- relation <- N <- n <- family <- NULL
   
   # Prep
   setDT(evidence)
@@ -111,14 +111,14 @@ prep_evi <- function(params, evidence) {
       stop(paste('Inconsistent conditioning events for the following variable(s):', 
                  culprit))
     }
-    if (any(evi[family == 'multinom'])) {
+    if (any(evi[, family == 'multinom'])) {
       evi_tmp <- evi[family == 'multinom']
-      if (any(evi_tmp[!relation %in% c('==', '!=')])) {
+      if (any(evi_tmp[, !relation %in% c('==', '!=')])) {
         stop('With categorical features, the only valid relations are ',
              '"==" or "!=".')
       }
     }
-    if (any(evi[family != 'multinom'])) {
+    if (any(evi[, family != 'multinom'])) {
       evi_tmp <- evi[family != 'multinom']
       if (any(evi_tmp[, relation == '!='])) {
         evidence <- evidence[!(family != 'multinom' & relation == '!=')]
@@ -147,7 +147,7 @@ leaf_posterior <- function(params, evidence) {
   
   # To avoid data.table check issues
   variable <- relation <- value <- prob <- f_idx <- cvg <- wt <- 
-    mu <- sigma <- val <- k <- . <- NULL
+    mu <- sigma <- val <- k <- family <- n <- compl <- lik2 <- . <- NULL
   
   # Likelihood per leaf-event combo
   psi_cnt <- psi_cat <- NULL
