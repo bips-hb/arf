@@ -103,7 +103,7 @@ forge <- function(
     omega[, wt := cvg / num_trees]
     omega[, cvg := NULL]
   } else if (isTRUE(conj)) {
-    omega <- leaf_posterior(params, evidence, parallel)
+    omega <- leaf_posterior(params, evidence)
   } else {
     omega <- evidence
   }
