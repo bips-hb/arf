@@ -4,13 +4,14 @@
 \alias{map}
 \title{Maximum A Posteriori Estimation}
 \usage{
-map(params, query, evidence = NULL, n_eval = 100)
+map(params, query = NULL, evidence = NULL, n_eval = 100)
 }
 \arguments{
 \item{params}{Circuit parameters learned via \code{\link{forde}}.}
 
 \item{query}{Character vector of variable names. MAP estimates will be
-computed for each.}
+computed for each. If \code{NULL}, all variables other than those
+in \code{evidence} will be estimated.}
 
 \item{evidence}{Optional set of conditioning events. This can take one of
 three forms: (1) a partial sample, i.e. a single row of data with some but
@@ -43,6 +44,9 @@ map(psi, query = "Sepal.Length")
 # What if we condition on Species = "setosa"?
 evi <- data.frame(Species = "setosa")
 map(psi, query = "Sepal.Length", evidence = evi)
+
+# Compute MAP estimates for all features other than Species
+map(psi, evidence = evi)
 
 
 }

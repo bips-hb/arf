@@ -5,7 +5,8 @@
 #' 
 #' @param params Circuit parameters learned via \code{\link{forde}}. 
 #' @param query Character vector of variable names. MAP estimates will be 
-#'   computed for each. 
+#'   computed for each. If \code{NULL}, all variables other than those 
+#'   in \code{evidence} will be estimated.
 #' @param evidence Optional set of conditioning events. This can take one of 
 #'   three forms: (1) a partial sample, i.e. a single row of data with some but
 #'   not all columns; (2) a data frame of conditioning events, which allows for 
@@ -43,6 +44,9 @@
 #' evi <- data.frame(Species = "setosa")
 #' map(psi, query = "Sepal.Length", evidence = evi)
 #' 
+#' # Compute MAP estimates for all features other than Species
+#' map(psi, evidence = evi)
+#' 
 #' 
 #' @seealso
 #' \code{\link{adversarial_rf}}, \code{\link{forde}}, \code{\link{lik}}
@@ -55,20 +59,13 @@
 
 map <- function(
     params, 
-    query, 
+    query = NULL, 
     evidence = NULL, 
     n_eval = 100) {
   
   # To avoid data.table check issues
   variable <- family <- tree <- f_idx <- cvg <- wt <- V1 <- value <- val <- 
     mu <- sigma <- obs <- prob <- fold <- . <- NULL
-  
-  # Check query
-  if (any(!query %in% params$meta$variable)) {
-    err <- setdiff(query, params$meta$variable)
-    stop('Unrecognized feature(s) in query: ', err)
-  }
-  factor_cols <- params$meta[variable %in% query, family == 'multinom']
   
   # Prep evidence
   conj <- FALSE
@@ -78,6 +75,24 @@ map <- function(
       conj <- TRUE
     }
   } 
+  
+  # Check query
+  if (is.null(query)) {
+    if (isTRUE(conj)) {
+      query <- setdiff(params$meta$variable, evidence$variable)
+    } else {
+      query <- params$meta$variable
+      if (!is.null(evidence)) {
+        warning('Computing MAP estimates for all variables. To avoid this ',
+                'for conditioning variables, consider passing evidence in the ',
+                'form of a partial sample or data frame of events.')
+      }
+    }
+  } else if (any(!query %in% params$meta$variable)) {
+    err <- setdiff(query, params$meta$variable)
+    stop('Unrecognized feature(s) in query: ', err)
+  }
+  factor_cols <- params$meta[variable %in% query, family == 'multinom']
   
   # PMF over leaves
   if (is.null(evidence)) {
