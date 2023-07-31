@@ -104,18 +104,27 @@ prep_evi <- function(params, evidence) {
     conj <- TRUE
   }
   if (isTRUE(conj)) {
-    if (max(evidence[, .N, by = variable]$N > 1L)) {
-      stop('Only one constraint per variable allowed when using conjuncts.')
-    }
     evi <- merge(params$meta, evidence, by = 'variable', sort = FALSE)
-    if (evi[class == 'numeric' & relation == '!=', .N] > 0) {
-      evidence <- evidence[!(class == 'numeric' & relation == '!=')]
-      warning('With continuous features, "!=" is not a valid relation. ', 
-              'This constraint has been removed.')
+    evi[, n := .N, by = variable]
+    if (any(evi[n > 1L, relation == '=='])) {
+      culprit <- evi[n > 1L & relation == '==', variable]
+      stop(paste('Inconsistent conditioning events for the following variable(s):', 
+                 culprit))
     }
-    if (evi[class != 'numeric' & !relation %in% c('==', '!='), .N] > 0) {
-      stop('With categorical features, the only valid relations are ',
-           '"==" or "!=".')
+    if (any(evi[family == 'multinom'])) {
+      evi_tmp <- evi[family == 'multinom']
+      if (any(evi_tmp[!relation %in% c('==', '!=')])) {
+        stop('With categorical features, the only valid relations are ',
+             '"==" or "!=".')
+      }
+    }
+    if (any(evi[family != 'multinom'])) {
+      evi_tmp <- evi[family != 'multinom']
+      if (any(evi_tmp[, relation == '!='])) {
+        evidence <- evidence[!(family != 'multinom' & relation == '!=')]
+        warning('With continuous features, "!=" is not a valid relation. ', 
+                'This constraint has been removed.')
+      }
     }
   }
   return(evidence)
@@ -129,13 +138,12 @@ prep_evi <- function(params, evidence) {
 #' 
 #' @param params Circuit parameters learned via \code{\link{forde}}.
 #' @param evidence Data frame of conditioning event(s).
-#' @param parallel Compute in parallel?
 #' 
 #' @import data.table
 #' @importFrom truncnorm dtruncnorm ptruncnorm 
 #' 
 
-leaf_posterior <- function(params, evidence, parallel) {
+leaf_posterior <- function(params, evidence) {
   
   # To avoid data.table check issues
   variable <- relation <- value <- prob <- f_idx <- cvg <- wt <- 
@@ -144,54 +152,77 @@ leaf_posterior <- function(params, evidence, parallel) {
   # Likelihood per leaf-event combo
   psi_cnt <- psi_cat <- NULL
   evidence <- merge(evidence, params$meta, by = 'variable', sort = FALSE)
-  if (any(evidence$class == 'numeric')) { # Continuous features
-    evi <- evidence[class == 'numeric']
+  leaves <- params$forest$f_idx
+  
+  # Continuous features
+  if (any(evidence$family != 'multinom')) { 
+    evi <- evidence[family != 'multinom']
     psi <- merge(evi, params$cnt, by = 'variable')
+    evi[, n := .N, by = variable]
     if (any(evi$relation == '==')) {
-      psi[relation == '==', prob := 
+      psi[relation == '==', lik := 
             truncnorm::dtruncnorm(value, a = min, b = max, mean = mu, sd = sigma)]
     }
     if (any(evi$relation %in% c('<', '<='))) {
-      psi[relation %in% c('<', '<='), prob := 
+      psi[relation %in% c('<', '<='), lik := 
             truncnorm::ptruncnorm(value, a = min, b = max, mean = mu, sd = sigma)]
     }
     if (any(evi$relation %in% c('>', '>='))) {
-      psi[relation %in% c('>', '>='), prob := 
+      psi[relation %in% c('>', '>='), lik := 
             1 - truncnorm::ptruncnorm(value, a = min, b = max, mean = mu, sd = sigma)]
     }
-    psi[value == min, prob := 0]
-    psi_cnt <- psi[, .(f_idx, variable, prob)]
-  }
-  if (any(evidence$class != 'numeric')) { # Categorical features
-    evi <- evidence[class != 'numeric']
-    cat_upd8 <- function(k) {             # Redo as rbindlist?
-      j <- evi$variable[k]
-      op <- evi$relation[k]
-      value <- evi$value[k]
-      psi <- params$cat[variable == j]
-      grd <- expand.grid(f_idx = params$forest$f_idx, val = psi[, unique(val)])
-      psi <- merge(psi, grd, by = c('f_idx', 'val'), all.y = TRUE, sort = FALSE)
-      psi[is.na(prob), prob := 0][is.na(variable), variable := j]
-      if (op == '==') {
-        out <- psi[val == value, .(f_idx, variable, prob)]
-      } else if (op == '!=') {
-        psi <- psi[val != value]
-        psi[, prob := sum(prob), by = f_idx]
-        out <- unique(psi[, .(f_idx, variable, prob)])
-      }
-      return(out)
+    psi[value == min, lik := 0]
+    if (any(evi[, n > 1L])) {
+      vars <- evi[n > 1L, variable]
+      psi1 <- psi[!variable %in% vars]
+      psi2 <- psi[variable %in% vars]
+      psi2[, compl := 1 - lik]
+      psi2[, lik2 := 1 - sum(compl), by = .(f_idx, variable)]
+      psi2[, c('lik', 'compl') := NULL]
+      setnames(psi2, 'lik2', 'lik')
+      psi <- rbind(psi1, psi2)
     }
-    if (isTRUE(parallel)) {
-      psi_cat <- foreach(k = seq_len(evi[, .N]), .combine = rbind) %dopar% cat_upd8(k)
-    } else {
-      psi_cat <- foreach(k = seq_len(evi[, .N]), .combine = rbind) %do% cat_upd8(k)
+    psi_cnt <- unique(psi[lik > 0, .(f_idx, variable, lik)])
+    leaves <- psi_cnt[, unique(f_idx)]
+  }
+  
+  # Categorical features
+  psi_eq <- psi_ineq <- NULL
+  if (any(evidence$family == 'multinom')) { 
+    evi <- evidence[family == 'multinom']
+    grd <- rbindlist(lapply(evi[, variable], function(j) {
+      expand.grid('f_idx' = leaves, 'variable' = j,
+                  'val' = params$cat[variable == j, unique(val)],
+                  stringsAsFactors = FALSE)
+    }))
+    psi <- merge(params$cat, grd, by = c('f_idx', 'variable', 'val'),
+                 sort = FALSE, all.y = TRUE)
+    psi[is.na(prob), prob := 0]
+    setnames(psi, 'prob', 'lik')
+    if (any(evi[, relation == '=='])) {
+      evi_tmp <- evi[relation == '==', .(variable, value)]
+      setnames(evi_tmp, 'value', 'val')
+      psi_eq <- merge(psi, evi_tmp, by = c('variable', 'val'), sort = FALSE)
+    }
+    if (any(evi[, relation == '!='])) {
+      evi_tmp <- evi[relation == '!=', .(variable, value)]
+      psi_ineq <- rbindlist(lapply(evi_tmp[, .I], function(k) {
+        psi[variable == evi_tmp$variable[k] & val != evi_tmp$value[k]]
+      }))
+      psi_ineq[, lik := sum(lik), by = .(f_idx, variable)]
+      psi_ineq <- unique(psi_ineq[, .(f_idx, variable, lik)])
+    }
+    psi_cat <- rbind(psi_eq, psi_ineq)[lik > 0]
+    if (!is.null(psi_cnt)) {
+      leaves <- psi_cat[, unique(leaves)]
+      psi_cnt <- psi_cnt[f_idx %in% leaves]
     }
   }
   psi <- rbind(psi_cnt, psi_cat)
   
   # Weight is proportional to coverage times product of likelihoods
   psi <- merge(psi, params$forest[, .(f_idx, cvg)], by = 'f_idx', sort = FALSE)
-  psi[, wt := cvg * prod(prob), by = f_idx] # Worth doing in log space?
+  psi[, wt := cvg * prod(lik), by = f_idx] 
   
   # Normalize, export
   out <- unique(psi[, .(f_idx, wt)])
