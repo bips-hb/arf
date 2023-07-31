@@ -152,7 +152,6 @@ leaf_posterior <- function(params, evidence) {
   # Likelihood per leaf-event combo
   psi_cnt <- psi_cat <- NULL
   evidence <- merge(evidence, params$meta, by = 'variable', sort = FALSE)
-  leaves <- params$forest$f_idx
   
   # Continuous features
   if (any(evidence$family != 'multinom')) { 
@@ -182,8 +181,7 @@ leaf_posterior <- function(params, evidence) {
       setnames(psi2, 'lik2', 'lik')
       psi <- rbind(psi1, psi2)
     }
-    psi_cnt <- unique(psi[lik > 0, .(f_idx, variable, lik)])
-    leaves <- psi_cnt[, unique(f_idx)]
+    psi_cnt <- unique(psi[, .(f_idx, variable, lik)])
   }
   
   # Categorical features
@@ -191,7 +189,7 @@ leaf_posterior <- function(params, evidence) {
   if (any(evidence$family == 'multinom')) { 
     evi <- evidence[family == 'multinom']
     grd <- rbindlist(lapply(evi[, variable], function(j) {
-      expand.grid('f_idx' = leaves, 'variable' = j,
+      expand.grid('f_idx' = params$forest$f_idx, 'variable' = j,
                   'val' = params$cat[variable == j, unique(val)],
                   stringsAsFactors = FALSE)
     }))
@@ -203,6 +201,7 @@ leaf_posterior <- function(params, evidence) {
       evi_tmp <- evi[relation == '==', .(variable, value)]
       setnames(evi_tmp, 'value', 'val')
       psi_eq <- merge(psi, evi_tmp, by = c('variable', 'val'), sort = FALSE)
+      psi_eq <- psi_eq[, .(f_idx, variable, lik)]
     }
     if (any(evi[, relation == '!='])) {
       evi_tmp <- evi[relation == '!=', .(variable, value)]
@@ -212,11 +211,7 @@ leaf_posterior <- function(params, evidence) {
       psi_ineq[, lik := sum(lik), by = .(f_idx, variable)]
       psi_ineq <- unique(psi_ineq[, .(f_idx, variable, lik)])
     }
-    psi_cat <- rbind(psi_eq, psi_ineq)[lik > 0]
-    if (!is.null(psi_cnt)) {
-      leaves <- psi_cat[, unique(leaves)]
-      psi_cnt <- psi_cnt[f_idx %in% leaves]
-    }
+    psi_cat <- rbind(psi_eq, psi_ineq)
   }
   psi <- rbind(psi_cnt, psi_cat)
   
@@ -225,7 +220,7 @@ leaf_posterior <- function(params, evidence) {
   psi[, wt := cvg * prod(lik), by = f_idx] 
   
   # Normalize, export
-  out <- unique(psi[, .(f_idx, wt)])
+  out <- unique(psi[wt > 0, .(f_idx, wt)])
   out[, wt := wt / sum(wt)]
   return(out)
 }
