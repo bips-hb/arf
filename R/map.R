@@ -111,9 +111,21 @@ map <- function(
   # Continuous data...
   if (any(!factor_cols)) {
     # Grid search for continuous features...?
+    # Take the union of the bounds of all weighted likelihood-maximizing leaves
+    # for each tree-variable combo
     tmp <- merge(params$cnt[variable %in% query], omega, by = 'f_idx', sort = FALSE)
+    tmp <- merge(tmp, params$forest[, .(f_idx, tree)], by = 'f_idx', sort = FALSE)
+    tmp[, wt_lik := wt * truncnorm::dtruncnorm(mu, min, max, mu, sigma)]
     min_j <- tmp[is.finite(min), min(min), by = variable]
     max_j <- tmp[is.finite(max), max(max), by = variable]
+    tmp[, new_min := min][, new_max := max]
+    for (j in query[!factor_cols]) {
+      tmp[!is.finite(min) & variable == j, new_min := min_j[variable == j, V1]]
+      tmp[!is.finite(max) & variable == j, new_max := max_j[variable == j, V1]]
+    }
+    tmp <- tmp[tmp[, .I[which.max(wt_lik)], by = .(tree, variable)]$V1]
+    min_j <- tmp[, min(new_min), by = variable]
+    max_j <- tmp[, max(new_max), by = variable]
     x <- rbindlist(lapply(which(!factor_cols), function(j) {
       data.table(
         obs = seq_len(n_eval), variable = query[j], 
@@ -153,4 +165,5 @@ map <- function(
 
 # Allow evidence to be a data frame, and return one answer per row
 # Need to consider the possibility of shared omega's across instances
+
 
