@@ -4,7 +4,7 @@
 \alias{forge}
 \title{Forests for Generative Modeling}
 \usage{
-forge(params, n_synth, evidence = NULL, parallel = TRUE)
+forge(params, n_synth, evidence = NULL)
 }
 \arguments{
 \item{params}{Circuit parameters learned via \code{\link{forde}}.}
@@ -16,9 +16,6 @@ three forms: (1) a partial sample, i.e. a single row of data with
 some but not all columns; (2) a data frame of conditioning events,
 which allows for inequalities; or (3) a posterior distribution over leaves.
 See Details.}
-
-\item{parallel}{Compute in parallel? Must register backend beforehand, e.g.
-via \code{doParallel}.}
 }
 \value{
 A dataset of \code{n_synth} synthetic samples.

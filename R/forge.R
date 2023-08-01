@@ -9,8 +9,6 @@
 #'   some but not all columns; (2) a data frame of conditioning events, 
 #'   which allows for inequalities; or (3) a posterior distribution over leaves.
 #'   See Details.
-#' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
-#'   via \code{doParallel}.
 #'   
 #' @details  
 #' \code{forge} simulates a synthetic dataset of \code{n_synth} samples. First,
@@ -77,8 +75,7 @@
 forge <- function(
     params, 
     n_synth, 
-    evidence = NULL,
-    parallel = TRUE) {
+    evidence = NULL) {
   
   # To avoid data.table check issues
   tree <- cvg <- leaf <- idx <- family <- mu <- sigma <- prob <- dat <- 
@@ -115,7 +112,7 @@ forge <- function(
   )
   omega <- merge(draws, omega, sort = FALSE)[, idx := .I]
   
-  # Simulate ontinuous data
+  # Simulate continuous data
   synth_cnt <- synth_cat <- NULL
   if (any(!factor_cols)) {
     fam <- params$meta[family != 'multinom', unique(family)]
