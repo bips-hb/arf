@@ -52,7 +52,6 @@ cond$Species <- NA
 params_cond_array <- foreach(cond_i = 1:nrow(cond), .combine = rbind) %dopar% {cforde(params_uncond,cond[cond_i,])}
 x_c_synth <- foreach(params_cond_i = 1:nrow(params_cond_array), .combine = rbind) %dopar% {forge_modified(params_cond_array[params_cond_i,],1)}
 
-
 ### conditional FORDE
 
 cforde <- function(params_uncond,cond) {
@@ -87,66 +86,48 @@ cforde <- function(params_uncond,cond) {
   cnt_conds[,`:=` (variable = factor(variable),
                    val = as.numeric(val))]
   
-  # identify for every volume which leaf matches the conditions
-  relevant_leaves <- foreach(vol_id = 1:nvols, .combine = rbind) %dopar% {
-    
-    # store cat and cnt conditions for volume
-    cat_conds_vol <- cat_conds[volume_id == vol_id,]
-    cnt_conds_vol <- cnt_conds[volume_id == vol_id,]
-    
-    # identify leaves that match cat conditions for volume
-    if (length(cat_cols)>0) {
-      cat_matches <- table(merge(cat,cat_conds_vol,by = c("variable","val"))$f_idx)
-      relevant_leaves_volume_cat <- as.integer(names(cat_matches[cat_matches == nrow(cat_conds_vol)]))
-      
-      # only consider identified leaves for cnt
-      cnt_subsetted <- cnt[f_idx %in% relevant_leaves_volume_cat,]
-      cnt_subsetted[, variable := as.factor(variable)]
-    } else {
-      cnt_subsetted <- cnt
-    }
-    
-    if(length(cnt_cols)>0) {
-      # iterate through cnt conditions for volume
-      for (cnt_cond in 1:nrow(cnt_conds_vol)) {
-        
-        # store variable name, min, max for condition
-        cond_var <- cnt_conds_vol$variable[cnt_cond]
-        cond_min <- cnt_conds_vol$min[cnt_cond]
-        cond_max <- cnt_conds_vol$max[cnt_cond]
-        
-        if (is.na(cond_min)) cond_min <- cond_max <- cnt_conds_vol$val[cnt_cond]
-        
-        # identify leaves that match condition for this variable
-        cnt_matches <- cnt_subsetted[variable == cond_var & !(min >= cond_min & min >= cond_max | max <= cond_min & max <= cond_max),]$f_idx
-        
-        # only consider identified leaves for next variable
-        cnt_subsetted <- cnt_subsetted[cnt_subsetted$f_idx %in% cnt_matches]
+  # subset cat according to cat_conds
+  if (length(cat_cols)>0) {
+    cat_subsetted <- merge(cat,cat_conds,by = c("variable", "val"),allow.cartesian=T)[,N:=.N,by=.(volume_id,f_idx)]
+    cat_subsetted <- setorder(merge(cat_subsetted,cat_conds[,.N,by=volume_id],by=c("volume_id","N")),cols="volume_id","f_idx","variable","val")[,N:=NULL]
+    relevant_leaves_cat <- unique(cat_subsetted[,.(volume_id,f_idx)])
+  } else {
+    relevant_leaves_cat <- data.table(volume_id = rep(1:4,each=max(forest$f_idx)), f_idx = forest$f_idx)
+  }
+  
+  # calculate cnt_new according to cnt_conds
+  if (length(cnt_cols)>0) {
+      cnt_new <- merge(merge(relevant_leaves_cat,cnt,by="f_idx",allow.cartesian=T),cnt_conds,by=c("volume_id","variable"))
+      cnt_new[!is.na(val),`:=` (min = min.x,
+                                max = max.x)]
+      cnt_new[is.na(val),`:=` (min = pmax(min.x, min.y),
+                               max = pmin(max.x, max.y))]
+      cnt_new[,cvg_factor := NA]
+      cnt_new[,cvg_factor := as.numeric(cvg_factor)]
+      cnt_new[!is.na(val), cvg_factor := dtruncnorm(val, a=min.x, b=max.x, mean=mu, sd=sigma)]
+      cnt_new[is.na(val) ,cvg_factor := ptruncnorm(max, a=min.x, b=max.x, mean=mu, sd=sigma) - ptruncnorm(min, a=min.x, max.x, mean=mu,sd=sigma)]
+      relevant_leaves <- merge(cnt_new[cvg_factor != 0,.N,by=.(volume_id, f_idx)],cnt_conds[,.N,by=volume_id])[,.(volume_id,f_idx)]
+      if(is.null(relevant_leaves)) {
+        stop("Condition coverage equals 0 due to zero-probability values for categorical variables for the specified condition.")
       }
-    } else {
-      cnt_subsetted <- data.table(f_idx = relevant_leaves_volume_cat)
-    }
-    
-    # return identified leaves matching volume's conditions
-    if (nrow(cnt_subsetted) > 0) {
-      relevant_leaves_volume <- unique(cnt_subsetted$f_idx)
-      data.table(volume_id = vol_id, f_idx = relevant_leaves_volume)
-    } else {
-      NULL
-    }
+      cnt_new <- merge(relevant_leaves,cnt_new,by=c("volume_id","f_idx"))
+      cnt_new[,c("min.x","max.x","min.y","max.y") := NULL]
+      names(cnt_new) <- c("volume_id","f_idx_uncond","variable","mu","sigma","val","min","max","cvg_factor")
+      cnt_new[, f_idx := rep(1:(nrow(cnt_new)/length(cnt_cols)),each = length(cnt_cols))]
+      setcolorder(cnt_new,c("f_idx","volume_id","f_idx_uncond","variable","min","max","mu","sigma","val","cvg_factor"))
+      cvg_factor_cnt <- cnt_new[,.(factor = prod(cvg_factor)),by = f_idx]
+  }  else {
+    cnt_new <- NULL
+    cvg_factor_cnt <- data.table()
+    cvg_factor_cnt[, factor := 1]
   }
   
-  if(is.null(relevant_leaves)) {
-    stop("Condition coverage equals 0 due to zero-probability values for categorical variables for the specified condition.")
-  }
-  
-  # calculate new cat data.table
+  # calculate cat_new
   if (length(cat_cols) > 0) {
-    cat_new <- merge(cat_conds,merge(relevant_leaves,cat))
-    setorder(cat_new, cols = "volume_id", "f_idx", "variable")
-    names(cat_new) <- c("volume_id","variable","val","f_idx_uncond","cvg_factor")
+    cat_new <- merge(relevant_leaves,cat_subsetted,by=c("volume_id","f_idx"))
+    names(cat_new) <- c("volume_id","f_idx_uncond","variable","val","cvg_factor")
     cat_new[, `:=` (f_idx = rep(1:(nrow(cat_new)/length(cat_cols)),each = length(cat_cols)),
-                    prob = 1)]
+                          prob = 1)]
     setcolorder(cat_new,c("f_idx","volume_id","f_idx_uncond","variable","val","prob","cvg_factor"))
     cvg_factor_cat <- cat_new[,.(factor = prod(cvg_factor)),by = f_idx]
   } else {
@@ -154,31 +135,8 @@ cforde <- function(params_uncond,cond) {
     cvg_factor_cat <- data.table()
     cvg_factor_cat[,factor := 1]
   }
-  
-  # calculate new cnt data.table
-  if (length(cnt_cols) > 0) {
-    cnt_new <- merge(merge(relevant_leaves,cnt),cnt_conds,by=c("volume_id","variable"))
-    setorder(cnt_new,cols = "volume_id","f_idx")
-    names(cnt_new) <- c("volume_id","variable","f_idx_uncond","min.x","max.x","mu","sigma","min.y","max.y","val")
-    cnt_new[!is.na(val),`:=` (min = min.x,
-                              max = max.x)]
-    cnt_new[is.na(val),`:=` (min = pmax(min.x, min.y),
-                             max = pmin(max.x, max.y))]
-    cnt_new[,cvg_factor := NA]
-    cnt_new[,cvg_factor := as.numeric(cvg_factor)]
-    cnt_new[!is.na(val), cvg_factor := dtruncnorm(val, a=min.x, b=max.x, mean=mu, sd=sigma)]
-    cnt_new[is.na(val) ,cvg_factor := ptruncnorm(max, a=min.x, b=max.x, mean=mu, sd=sigma) - ptruncnorm(min, a=min.x, max.x, mean=mu,sd=sigma)]
-    cnt_new[,c("min.x","max.x","min.y","max.y") := NULL]
-    cnt_new[, f_idx := rep(1:(nrow(cnt_new)/length(cnt_cols)),each = length(cnt_cols))]
-    setcolorder(cnt_new,c("f_idx","volume_id","f_idx_uncond","variable","min","max","mu","sigma","val","cvg_factor"))
-    cvg_factor_cnt <- cnt_new[,.(factor = prod(cvg_factor)),by = f_idx]
-  } else {
-    cnt_new <- NULL
-    cvg_factor_cnt <- data.table()
-    cvg_factor_cnt[, factor := 1]
-  }
-
-  # calculate new forest data.table
+    
+  # calculate new forest
   forest_new <- merge(relevant_leaves,forest)
   setorder(forest_new, cols = "volume_id",  "f_idx")
   names(forest_new) <- c("f_idx_uncond","volume_id","tree","leaf","cvg_arf")
@@ -209,7 +167,7 @@ cond2volumes <- function(cond, params_uncond) {
   if (length(cat_cols) > 0) {
       cond[,(cat_cols) := mapply(function(colname,col) {
         lvls_str <- paste(levels(as.factor(cat[cat$variable == colname]$val)),collapse="|")
-        replace(col,which(is.na(col)),lvls_str)
+        list(replace(col,which(is.na(col)),lvls_str))
         },colname = colnames(.SD),
             col = .SD),
         .SDcols = cat_cols]
