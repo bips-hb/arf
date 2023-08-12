@@ -1,4 +1,4 @@
-library("arf")
+library("ranger")
 library("data.table")
 library("doParallel")
 library("foreach")
@@ -6,7 +6,10 @@ library("stringr")
 library("truncnorm")
 
 source("unoverlap_hyperrectangles.R") # routine for unoverlapping hyperrectangles
-source("forge_modified.R") # slightly modified FORGE function that can handle outputs from both FORDE and cFORDE
+source("forge.R") # slightly modified FORGE function that can handle outputs from both FORDE and cFORDE
+source("../forde.R")
+source("../utils.R")
+source("adversarial_rf.R")
 
 ### TODOs
 # 1. Exception handling (check for input errors in cond vec)
@@ -40,17 +43,17 @@ params_uncond <- forde(arf,iris)
 
 
 # Calculate cond density and sample 10 times (respecting the probabilities of entered "OR-ed" conditions)
-cond <- data.frame(rbind(c("(4,5)",3,NA,NA,NA),
-                         c("(5,6)",2.7,NA,NA,"versicolor")))
+cond <- data.frame(rbind(c("(4,6)",NA,NA,NA,NA),
+                         c("(5,6)",NA,NA,NA,"versicolor")))
 names(cond) <- names(iris)
 params_cond <- cforde(params_uncond,cond)
-x_c_synth <- forge_modified(params_cond,10)
+x_c_synth <- forge(params_cond,10)
 
 # For imputation: Calculate cond density separately for each row in c and sample once from each cond. density
 cond <- data.frame(iris)
 cond$Species <- NA
 params_cond_array <- foreach(cond_i = 1:nrow(cond), .combine = rbind) %dopar% {cforde(params_uncond,cond[cond_i,])}
-x_c_synth <- foreach(params_cond_i = 1:nrow(params_cond_array), .combine = rbind) %dopar% {forge_modified(params_cond_array[params_cond_i,],1)}
+x_c_synth <- foreach(params_cond_i = 1:nrow(params_cond_array), .combine = rbind) %dopar% {forge(params_cond_array[params_cond_i,],1)}
 
 ### conditional FORDE
 
@@ -70,8 +73,6 @@ cforde <- function(params_uncond,cond) {
   cnt <- params_uncond$cnt
   cnt_cols <-meta[class != "factor", variable]
   cat_cols <-meta[class == "factor", variable]
-  cond <- data.table(cond)
-  cond[,(cat_cols) := lapply(.SD,as.character),.SDcols = cat_cols]
   
   # format c, calculate DNF and output disjoint hyperrectangles
   volumes <- cond2volumes(cond,params_uncond)
@@ -104,7 +105,7 @@ cforde <- function(params_uncond,cond) {
                                max = pmin(max.x, max.y))]
       cnt_new[,cvg_factor := NA]
       cnt_new[,cvg_factor := as.numeric(cvg_factor)]
-      cnt_new[!is.na(val), cvg_factor := dtruncnorm(val, a=min.x, b=max.x, mean=mu, sd=sigma)]
+      cnt_new[!is.na(val), cvg_factor := dtruncnorm(val, a=min.x, b=max.x, mean=mu, sd=sigma)*(val != min.x)]
       cnt_new[is.na(val) ,cvg_factor := ptruncnorm(max, a=min.x, b=max.x, mean=mu, sd=sigma) - ptruncnorm(min, a=min.x, max.x, mean=mu,sd=sigma)]
       relevant_leaves <- merge(cnt_new[cvg_factor != 0,.N,by=.(volume_id, f_idx)],cnt_conds[,.N,by=volume_id])[,.(volume_id,f_idx)]
       if(is.null(relevant_leaves)) {
@@ -161,6 +162,9 @@ cond2volumes <- function(cond, params_uncond) {
   cnt_cols <-meta[class != "factor", variable]
   cat_cols <-meta[class == "factor", variable]
   
+  cond <- data.table(cond)
+  cond[,(cat_cols) := lapply(.SD,as.character),.SDcols = cat_cols]
+  
   if (length(cnt_cols) > 0) {
     cond[,(cnt_cols) := lapply(.SD,function(col) replace(col, which(is.na(col)), "(-Inf,Inf)")),.SDcols = cnt_cols]
   }
@@ -204,8 +208,7 @@ cond2volumes <- function(cond, params_uncond) {
     max = as.numeric(unlist(transpose(lapply(cond,str_extract,"(?<=\\,).+(?=\\))"))))
   )
   if (!(all(cols_check == 0) | nrow(cond) == 1)) {
-    volumes <- as.data.frame(volumes)
-    volumes <- as.data.table(unoverlap_hyperrectangles(volumes))
+    volumes <- unoverlap_hyperrectangles(volumes)
   }
   if (length(factor_cols) > 0) {
     volumes[variable %in% factor_cols, `:=` (val = apply(.SD,1,function(x){

@@ -1,7 +1,7 @@
 ### slightly modified forge function that can handle outputs from both FORDE and cFORDE.
 # changes marked with comments '## change'
 
-forge_modified <- function (params, n_synth, parallel = TRUE) 
+forge <- function (params, n_synth, parallel = TRUE) 
 {
   tree <- cvg <- leaf <- idx <- family <- mu <- sigma <- prob <- dat <- variable <- j <- f_idx <- val <- . <- NULL
   
