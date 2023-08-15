@@ -101,6 +101,7 @@ adversarial_rf <- function(
   # Prep data
   x_real <- prep_x(x)
   n <- nrow(x_real)
+  d <- ncol(x_real)
   factor_cols <- sapply(x_real, is.factor)
   if (any(!factor_cols) & min_node_size == 1L) {
     warning('Variance is undefined when a leaf contains just a single observation. ', 
@@ -132,30 +133,34 @@ adversarial_rf <- function(
                ', Accuracy: ', round(acc0 * 100, 2), '%\n'))
   }
   if (acc0 > 0.5 + delta & iters < max_iters) {
-    sample_by_class <- function(x, n) {
-      if (is.numeric(x)) {
-        as.numeric(sample(x, n, replace = TRUE))
-      } else {
-        sample(x, n, replace = TRUE)
-      }
-    }
     converged <- FALSE
     while (!isTRUE(converged)) { # Adversarial loop begins...
       if (generator == 'bootstrap') {
         # Create synthetic data by sampling from intra-leaf marginals
         nodeIDs <- stats::predict(rf0, x_real, type = 'terminalNodes')$predictions
-        tmp <- melt(as.data.table(nodeIDs), measure.vars = seq_len(num_trees),
-                    variable.name = 'tree', value.name = 'leaf')
-        tmp[, tree := as.numeric(gsub('V', '', tree))][, obs := rep(seq_len(n), num_trees)]
+        tmp <- data.table(tree = rep(seq_len(num_trees),each = n), leaf = as.vector((nodeIDs)), obs = rep(seq_len(n), num_trees))
         x_real_dt <- as.data.table(x_real)[, obs := seq_len(n)]
         x_real_dt <- merge(x_real_dt, tmp, by = 'obs', sort = FALSE)
         tmp[, obs := NULL]
         tmp <- tmp[sample(.N, n, replace = TRUE)]
         tmp <- unique(tmp[, cnt := .N, by = .(tree, leaf)])
-        draw_from <- merge(tmp, x_real_dt, by = c('tree', 'leaf'), sort = FALSE)
-        x_synth <- draw_from[, lapply(.SD[, -c('cnt', 'obs')], sample_by_class, .SD[, cnt[1]]), 
-                             by = .(tree, leaf)][, c('tree', 'leaf') := NULL]
-        rm(nodeIDs, tmp, x_real_dt, draw_from)
+        draw_from <- merge(tmp, x_real_dt, by = c('tree', 'leaf'), sort = FALSE)[, N:=.N, by = .(tree,leaf)]
+        draw_params_within <- unique(draw_from, by = c('tree','leaf'))[, .(cnt,N)]
+        adjustment_absolut_col <- rep(c(0, cumsum(draw_params_within[, N][-nrow(draw_params_within)])), draw_params_within[, cnt])
+        adjustment_absolut <- rep(adjustment_absolut_col, d) + rep(seq(0, d-1) * nrow(draw_from), each = n)
+        indices_drawn_within <- ceiling(runif(n * d, 0, rep(draw_params_within[, N], draw_params_within[, cnt])))
+        indices_drawn <- indices_drawn_within + adjustment_absolut
+        draw_from_stacked <- unlist(draw_from[, -c('obs','tree','leaf','cnt','N')], use.names = FALSE)
+        values_drawn_stacked <- data.table(col_id = rep(seq_len(d), each = n), values = draw_from_stacked[indices_drawn])
+        x_synth <- as.data.table(split(values_drawn_stacked, by = 'col_id', keep.by = FALSE))
+        setnames(x_synth, names(x_real))
+        if(any(factor_cols)){
+          x_synth[, (names(which(factor_cols)))] <- lapply(names(which(factor_cols)), function(x){
+            lvls[[x]][unlist(x_synth[,..x])]
+          })
+        }
+        rm(nodeIDs, tmp, x_real_dt, draw_from, draw_params_within, adjustment_absolut_col, 
+           adjustment_absolut, indices_drawn_within, indices_drawn, draw_from_stacked)
       } else if (generator == 'forge') {
         # Create synthetic data using forge
         psi <- forde(rf0, x_real)
