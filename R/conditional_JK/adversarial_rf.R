@@ -147,6 +147,7 @@ adversarial_rf <- function(
         tmp <- tmp[sample(.N, n, replace = TRUE)]
         tmp <- unique(tmp[, cnt := .N, by = .(tree, leaf)])
         draw_from <- merge(tmp, x_real_dt, by = c('tree', 'leaf'), sort = FALSE)[,N:=.N, by = .(tree,leaf)]
+        nrow(draw_from)*5
         draw_params_within <- unique(draw_from, by = c("tree","leaf"))[,.(cnt,N)]
         adjustment_absolut_col <- rep(c(0,cumsum(draw_params_within[,N][-nrow(draw_params_within)])),draw_params_within[,cnt])
         adjustment_absolut <- rep(adjustment_absolut_col,d) + rep(seq(0,d-1)*nrow(draw_from), each = n)
