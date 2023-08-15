@@ -103,6 +103,7 @@ adversarial_rf <- function(
   n <- nrow(x_real)
   d <- ncol(x_real)
   factor_cols <- sapply(x_real, is.factor)
+  lvls <- lapply(x_real[factor_cols], levels)
   if (any(!factor_cols) & min_node_size == 1L) {
     warning('Variance is undefined when a leaf contains just a single observation. ', 
             'Consider increasing min_node_size.')
