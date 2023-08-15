@@ -9,8 +9,8 @@ map(params, query = NULL, evidence = NULL, n_eval = 100)
 \arguments{
 \item{params}{Circuit parameters learned via \code{\link{forde}}.}
 
-\item{query}{Character vector of variable names. MAP estimates will be
-computed for each. If \code{NULL}, all variables other than those
+\item{query}{Optional character vector of variable names. MAP estimates will
+be computed for each. If \code{NULL}, all variables other than those
 in \code{evidence} will be estimated.}
 
 \item{evidence}{Optional set of conditioning events. This can take one of

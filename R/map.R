@@ -4,8 +4,8 @@
 #' conditioned on some event(s).
 #' 
 #' @param params Circuit parameters learned via \code{\link{forde}}. 
-#' @param query Character vector of variable names. MAP estimates will be 
-#'   computed for each. If \code{NULL}, all variables other than those 
+#' @param query Optional character vector of variable names. MAP estimates will 
+#'   be computed for each. If \code{NULL}, all variables other than those 
 #'   in \code{evidence} will be estimated.
 #' @param evidence Optional set of conditioning events. This can take one of 
 #'   three forms: (1) a partial sample, i.e. a single row of data with some but
