@@ -1,5 +1,4 @@
 ### handles NAs
-x <- copy(iris_na)
 
 #' Forests for Density Estimation
 #' 
