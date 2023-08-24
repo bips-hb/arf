@@ -7,7 +7,7 @@ library("truncnorm")
 
 source("unoverlap_hyperrectangles.R") # routine for unoverlapping hyperrectangles
 source("forge.R") # slightly modified FORGE function that can handle outputs from both FORDE and cFORDE
-source("../forde.R")
+source("forde.R") # handles missing values
 source("../utils.R")
 source("adversarial_rf.R")
 
@@ -24,8 +24,10 @@ source("adversarial_rf.R")
 #    Resulting hyperrectangles in lower-dimensional subspaces can then be completely differently oriented (-> no way to "weight" different zero-sets against each other)
 
 ### example
+
 arf <- adversarial_rf(iris)
 params_uncond <- forde(arf,iris)
+forge(params_uncond,10)
 
 # define conditional vector cond
 # data.frame with colnames(cond) = colnames(data)
