@@ -27,7 +27,6 @@ source("adversarial_rf.R")
 
 arf <- adversarial_rf(iris)
 params_uncond <- forde(arf,iris)
-forge(params_uncond,10)
 
 # define conditional vector cond
 # data.frame with colnames(cond) = colnames(data)
@@ -49,11 +48,18 @@ cond <- data.frame(rbind(c("(4,6)",NA,NA,NA,NA),
                          c("(5,6)",NA,NA,NA,"versicolor")))
 names(cond) <- names(iris)
 params_cond <- cforde(params_uncond,cond)
-x_c_synth <- forge(params_cond,10)
+x_c_synth <- forge(params_cond,100)
 
 # For imputation: Calculate cond density separately for each row in c and sample once from each cond. density
-cond <- data.frame(iris)
-cond$Species <- NA
+
+iris_na <- copy(iris)
+iris_na[seq(10,150,10),5] <- NA
+iris_na[seq(9,150,7),4] <- NA
+
+arf <- adversarial_rf(iris_na)
+cond <- iris_na[!complete.cases(iris_na), ]
+rownames(cond) <- NULL
+
 params_cond_array <- foreach(cond_i = 1:nrow(cond), .combine = rbind) %dopar% {cforde(params_uncond,cond[cond_i,])}
 x_c_synth <- foreach(params_cond_i = 1:nrow(params_cond_array), .combine = rbind) %dopar% {forge(params_cond_array[params_cond_i,],1)}
 

@@ -17,11 +17,12 @@ forge <- function (params, n_synth, parallel = TRUE)
     fam <- params$meta[family != "multinom", unique(family)]
     
     ## change: Do not draw from cnt distr when condition for cnt variable is scalar (val is not NA)
+    cnt <- copy(params$cnt)
     if(is.null(params$cnt$val)) {
-      params$cnt[,val:=NA]
-      params$cnt[,val := as.numeric(val)]
+      cnt[,val := NA]
+      cnt[,val := as.numeric(val)]
     }
-    psi <- merge(omega, params$cnt[,c('f_idx','variable','min','max','mu','sigma','val')], by = "f_idx", sort = FALSE, 
+    psi <- merge(omega, cnt[,c('f_idx','variable','min','max','mu','sigma','val')], by = "f_idx", sort = FALSE, 
                  allow.cartesian = TRUE)
     
     psi[!is.na(val), dat:= val]
