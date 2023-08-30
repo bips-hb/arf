@@ -128,9 +128,9 @@ map <- function(
     max_j <- tmp[, max(new_max), by = variable]
     x <- rbindlist(lapply(which(!factor_cols), function(j) {
       data.table(
-        obs = seq_len(n_eval), variable = query[j], 
-        value = seq(min_j[variable == query[j], V1], 
-                    max_j[variable == query[j], V1], length.out = n_eval)
+        'obs' = seq_len(n_eval), 'variable' = query[j], 
+        'value' = seq(min_j[variable == query[j], V1], 
+                      max_j[variable == query[j], V1], length.out = n_eval)
       )
     }))
     tmp <- merge(tmp, x, by = 'variable', sort = FALSE, allow.cartesian = TRUE)
