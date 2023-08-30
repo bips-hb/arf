@@ -114,10 +114,10 @@ forde <- function(
   x <- as.data.frame(x)
   n <- nrow(x)
   d <- ncol(x)
+  factor_cols <- sapply(x, is.factor)
   colnames_x <- colnames(x)
   classes <- sapply(x, class)
   x <- suppressWarnings(prep_x(x))
-  factor_cols <- sapply(x, is.factor)
   
   # Compute leaf bounds and coverage
   num_trees <- arf$num.trees
@@ -150,8 +150,7 @@ forde <- function(
       }
     }
     leaves <- which(arf$forest$child.nodeIDs[[tree]][[1]] == 0L) 
-    colnames(lb) <- arf$forest$independent.variable.names
-    colnames(ub) <- arf$forest$independent.variable.names
+    colnames(lb) <- colnames(ub) <- colnames_x
     merge(melt(data.table(tree = tree, leaf = leaves, lb[leaves, ]), 
                id.vars = c('tree', 'leaf'), value.name = 'min'), 
           melt(data.table(tree = tree, leaf = leaves, ub[leaves, ]), 
@@ -159,13 +158,13 @@ forde <- function(
           by = c('tree', 'leaf', 'variable'), sort = FALSE)
   }
   if (isTRUE(parallel)) {
-    bnds <- foreach(tree = 1:num_trees, .combine = rbind) %dopar% bnd_fn(tree)
+    bnds <- foreach(tree = seq_len(num_trees), .combine = rbind) %dopar% bnd_fn(tree)
   } else {
-    bnds <- foreach(tree = 1:num_trees, .combine = rbind) %do% bnd_fn(tree)
+    bnds <- foreach(tree = seq_len(num_trees), .combine = rbind) %do% bnd_fn(tree)
   }
   # Use only OOB data?
   if (isTRUE(oob)) {
-    inbag <- (do.call(cbind, arf$inbag.counts) > 0L)[1:(arf$num.samples/2), ]
+    inbag <- (do.call(cbind, arf$inbag.counts) > 0L)[1:(arf$num.samples / 2), ]
     pred[inbag] <- NA_integer_
     bnds[, n_oob := sum(!is.na(pred[, tree])), by = tree]
     bnds[, cvg := sum(pred[, tree] == leaf, na.rm = TRUE) / n_oob, by = .(tree, leaf)]
