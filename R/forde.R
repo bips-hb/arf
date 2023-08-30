@@ -114,10 +114,11 @@ forde <- function(
   x <- as.data.frame(x)
   n <- nrow(x)
   d <- ncol(x)
-  factor_cols <- sapply(x, is.factor)
   colnames_x <- colnames(x)
   classes <- sapply(x, class)
   x <- suppressWarnings(prep_x(x))
+  factor_cols <- sapply(x, is.factor)
+  names(factor_cols) <- colnames_x
   
   # Compute leaf bounds and coverage
   num_trees <- arf$num.trees
