@@ -17,6 +17,7 @@
 #'   marginals (\code{generator = "bootstrap"}). Alternatively, compile the 
 #'   forest into a probabilistic circuit and synthesize data from the model 
 #'   (\code{generator = "forge"}). See Details.
+#' @param prune Impose \code{min_node_size} by pruning? 
 #' @param verbose Print discriminator accuracy after each round?
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
 #'   via \code{doParallel}.
@@ -91,6 +92,7 @@ adversarial_rf <- function(
     max_iters = 10L,
     early_stop = TRUE,
     generator = 'bootstrap',
+    prune = TRUE,
     verbose = TRUE,
     parallel = TRUE,
     ...) {
@@ -139,29 +141,36 @@ adversarial_rf <- function(
       if (generator == 'bootstrap') {
         # Create synthetic data by sampling from intra-leaf marginals
         nodeIDs <- stats::predict(rf0, x_real, type = 'terminalNodes')$predictions
-        tmp <- data.table(tree = rep(seq_len(num_trees),each = n), leaf = as.vector((nodeIDs)), obs = rep(seq_len(n), num_trees))
+        tmp <- data.table('tree' = rep(seq_len(num_trees), each = n), 
+                          'leaf' = as.vector(nodeIDs), 
+                          'obs' = rep(seq_len(n), num_trees))
         x_real_dt <- as.data.table(x_real)[, obs := seq_len(n)]
         x_real_dt <- merge(x_real_dt, tmp, by = 'obs', sort = FALSE)
         tmp[, obs := NULL]
         tmp <- tmp[sample(.N, n, replace = TRUE)]
         tmp <- unique(tmp[, cnt := .N, by = .(tree, leaf)])
-        draw_from <- merge(tmp, x_real_dt, by = c('tree', 'leaf'), sort = FALSE)[, N:=.N, by = .(tree,leaf)]
-        draw_params_within <- unique(draw_from, by = c('tree','leaf'))[, .(cnt,N)]
-        adjustment_absolut_col <- rep(c(0, cumsum(draw_params_within[, N][-nrow(draw_params_within)])), draw_params_within[, cnt])
-        adjustment_absolut <- rep(adjustment_absolut_col, d) + rep(seq(0, d-1) * nrow(draw_from), each = n)
-        indices_drawn_within <- ceiling(runif(n * d, 0, rep(draw_params_within[, N], draw_params_within[, cnt])))
-        indices_drawn <- indices_drawn_within + adjustment_absolut
-        draw_from_stacked <- unlist(draw_from[, -c('obs','tree','leaf','cnt','N')], use.names = FALSE)
-        values_drawn_stacked <- data.table(col_id = rep(seq_len(d), each = n), values = draw_from_stacked[indices_drawn])
+        draw_from <- merge(tmp, x_real_dt, by = c('tree', 'leaf'), 
+                           sort = FALSE)[, N := .N, by = .(tree, leaf)]
+        rm(nodeIDs, tmp, x_real_dt)
+        draw_params_within <- unique(draw_from, by = c('tree','leaf'))[, .(cnt, N)]
+        adj_absolut_col <- rep(c(0, cumsum(draw_params_within$N[-nrow(draw_params_within)])), 
+                               draw_params_within$cnt)
+        adj_absolut <- rep(adj_absolut_col, d) + rep(seq(0, d - 1) * nrow(draw_from), each = n)
+        idx_drawn_within <- ceiling(runif(n * d, 0, rep(draw_params_within$N, draw_params_within$cnt)))
+        idx_drawn <- idx_drawn_within + adj_absolut
+        draw_from_stacked <- unlist(draw_from[, -c('obs', 'tree', 'leaf', 'cnt', 'N')], 
+                                    use.names = FALSE)
+        values_drawn_stacked <- data.table('col_id' = rep(seq_len(d), each = n), 
+                                           'values' = draw_from_stacked[idx_drawn])
         x_synth <- as.data.table(split(values_drawn_stacked, by = 'col_id', keep.by = FALSE))
         setnames(x_synth, names(x_real))
-        if(any(factor_cols)){
-          x_synth[, (names(which(factor_cols)))] <- lapply(names(which(factor_cols)), function(x){
-            lvls[[x]][unlist(x_synth[,..x])]
+        if (any(factor_cols)) {
+          x_synth[, (names(which(factor_cols)))] <- lapply(names(which(factor_cols)), function(x) {
+            lvls[[x]][unlist(x_synth[, ..x])]
           })
         }
-        rm(nodeIDs, tmp, x_real_dt, draw_from, draw_params_within, adjustment_absolut_col, 
-           adjustment_absolut, indices_drawn_within, indices_drawn, draw_from_stacked)
+        rm(draw_from, draw_params_within, adj_absolut_col, 
+           adj_absolut, idx_drawn_within, idx_drawn, draw_from_stacked)
       } else if (generator == 'forge') {
         # Create synthetic data using forge
         psi <- forde(rf0, x_real)
@@ -200,32 +209,34 @@ adversarial_rf <- function(
   }
   
   # Prune leaves to ensure min_node_size w.r.t. real data
-  pred <- stats::predict(rf0, x_real, type = 'terminalNodes')$predictions + 1L
-  prune <- function(tree) {
-    out <- rf0$forest$child.nodeIDs[[tree]]
-    leaves <- which(out[[1]] == 0L)
-    to_prune <- leaves[!(leaves %in% which(tabulate(pred[, tree]) >= min_node_size))]
-    while(length(to_prune) > 0) {
-      for (tp in to_prune) {
-        # Find parents
-        parent <- which((out[[1]] + 1L) == tp)
-        if (length(parent) > 0) {
-          # Left child
-          out[[1]][parent] <- out[[2]][parent]
-        } else {
-          # Right child
-          parent <- which((out[[2]] + 1L) == tp)
-          out[[2]][parent] <- out[[1]][parent]
+  if (isTRUE(prune)) {
+    pred <- stats::predict(rf0, x_real, type = 'terminalNodes')$predictions + 1L
+    prune <- function(tree) {
+      out <- rf0$forest$child.nodeIDs[[tree]]
+      leaves <- which(out[[1]] == 0L)
+      to_prune <- leaves[!(leaves %in% which(tabulate(pred[, tree]) >= min_node_size))]
+      while(length(to_prune) > 0) {
+        for (tp in to_prune) {
+          # Find parents
+          parent <- which((out[[1]] + 1L) == tp)
+          if (length(parent) > 0) {
+            # Left child
+            out[[1]][parent] <- out[[2]][parent]
+          } else {
+            # Right child
+            parent <- which((out[[2]] + 1L) == tp)
+            out[[2]][parent] <- out[[1]][parent]
+          }
         }
+        to_prune <- which((out[[1]] + 1L) %in% to_prune)
       }
-      to_prune <- which((out[[1]] + 1L) %in% to_prune)
+      return(out)
     }
-    return(out)
-  }
-  if (isTRUE(parallel)) {
-    rf0$forest$child.nodeIDs <- foreach(b = seq_len(num_trees)) %dopar% prune(b)
-  } else {
-    rf0$forest$child.nodeIDs <- foreach(b = seq_len(num_trees)) %do% prune(b)
+    if (isTRUE(parallel)) {
+      rf0$forest$child.nodeIDs <- foreach(b = seq_len(num_trees)) %dopar% prune(b)
+    } else {
+      rf0$forest$child.nodeIDs <- foreach(b = seq_len(num_trees)) %do% prune(b)
+    }
   }
   
   # Export

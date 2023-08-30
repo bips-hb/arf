@@ -12,6 +12,7 @@ adversarial_rf(
   max_iters = 10L,
   early_stop = TRUE,
   generator = "bootstrap",
+  prune = TRUE,
   verbose = TRUE,
   parallel = TRUE,
   ...
@@ -39,6 +40,8 @@ round to the next?}
 marginals (\code{generator = "bootstrap"}). Alternatively, compile the
 forest into a probabilistic circuit and synthesize data from the model
 (\code{generator = "forge"}). See Details.}
+
+\item{prune}{Impose \code{min_node_size} by pruning?}
 
 \item{verbose}{Print discriminator accuracy after each round?}
 
