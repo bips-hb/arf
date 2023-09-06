@@ -127,13 +127,11 @@ forde <- function(
     num_nodes <- length(arf$forest$split.varIDs[[tree]])
     lb <- matrix(-Inf, nrow = num_nodes, ncol = d)
     ub <- matrix(Inf, nrow = num_nodes, ncol = d)
-    if (family == 'unif') {
-      for (j in seq_len(d)) {
-        if (!isTRUE(factor_cols[j])) {
-          gap <- max(x[[j]]) - min(x[[j]])
-          lb[, j] <- min(x[[j]]) - epsilon/2 * gap
-          ub[, j] <- max(x[[j]]) + epsilon/2 * gap
-        }
+    if (family == 'unif' & any(!factor_cols)) {
+      for (j in which(!factor_cols)) {
+        gap <- max(x[[j]]) - min(x[[j]])
+        lb[, j] <- min(x[[j]]) - epsilon / 2 * gap
+        ub[, j] <- max(x[[j]]) + epsilon / 2 * gap
       }
     }
     for (i in 1:num_nodes) {
@@ -163,20 +161,26 @@ forde <- function(
   } else {
     bnds <- foreach(tree = seq_len(num_trees), .combine = rbind) %do% bnd_fn(tree)
   }
-  # Use only OOB data?
+  # Compute coverage
   if (isTRUE(oob)) {
     inbag <- (do.call(cbind, arf$inbag.counts) > 0L)[1:(arf$num.samples / 2), ]
     pred[inbag] <- NA_integer_
-    bnds[, n_oob := sum(!is.na(pred[, tree])), by = tree]
-    bnds[, cvg := sum(pred[, tree] == leaf, na.rm = TRUE) / n_oob, by = .(tree, leaf)]
-    if (any(!factor_cols)) {
-      bnds[cvg == 1 / n_oob, cvg := 0]
-    }
+    keep <- melt(as.data.table(pred), measure.vars = seq_len(num_trees),
+                 variable.name = 'tree', value.name = 'leaf')
+    keep <- na.omit(keep)
+    keep <- unique(keep[, cnt := .N, by = .(tree, leaf)])
+    keep[, tree := as.numeric(gsub('V', '', tree))]
+    keep[, n_oob := sum(!is.na(pred[, tree])), by = tree]
+    keep[, cvg := cnt / n_oob][, c('cnt', 'n_oob') := NULL]
   } else {
-    bnds[, cvg := sum(pred[, tree] == leaf) / n, by = .(tree, leaf)]
+    keep <- melt(as.data.table(pred), measure.vars = seq_len(num_trees),
+                 variable.name = 'tree', value.name = 'leaf')
+    keep <- unique(keep[, cnt := .N, by = .(tree, leaf)])
+    keep[, tree := as.numeric(gsub('V', '', tree))]
+    keep[, cvg := cnt / n][, cnt := NULL]
   }
-  # No parameters to learn for zero coverage leaves
-  bnds <- bnds[cvg > 0]
+  bnds <- merge(bnds, keep, by = c('tree', 'leaf'), sort = FALSE)
+  rm(keep)
   # Create forest index
   setkey(bnds, tree, leaf)
   bnds[, f_idx := .GRP, by = key(bnds)]
