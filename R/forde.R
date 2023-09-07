@@ -200,6 +200,7 @@ forde <- function(
                   by = c('tree', 'leaf', 'variable'), sort = FALSE)
       if (family == 'truncnorm') {
         dt[, c('mu', 'sigma') := .(mean(value), sd(value)), by = .(leaf, variable)]
+        dt[is.na(sigma), sigma := 0]
         if (dt[sigma == 0, .N] > 0L) {
           dt[, new_min := fifelse(!is.finite(min), min(value), min), by = variable]
           dt[, new_max := fifelse(!is.finite(max), max(value), max), by = variable]
@@ -214,7 +215,7 @@ forde <- function(
           dt[, c('new_min', 'new_max', 'mid', 'sigma0') := NULL]
         }
       }
-      dt <- unique(dt[, c('tree', 'leaf', 'value') := NULL])
+      return(unique(dt[, c('tree', 'leaf', 'value') := NULL]))
     }
     if (isTRUE(parallel)) {
       psi_cnt <- foreach(tree = seq_len(num_trees), .combine = rbind) %dopar% 
