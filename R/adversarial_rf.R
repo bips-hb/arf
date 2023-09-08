@@ -173,7 +173,7 @@ adversarial_rf <- function(
            adj_absolut, idx_drawn_within, idx_drawn, draw_from_stacked)
       } else if (generator == 'forge') {
         # Create synthetic data using forge
-        psi <- forde(rf0, x_real)
+        psi <- forde(rf0, x_real, finite_bounds = TRUE)
         x_synth <- forge(psi, n)
       } 
       # Concatenate real and synthetic data

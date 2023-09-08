@@ -11,14 +11,16 @@
 #'   features. Current options include truncated normal (the default
 #'   \code{family = "truncnorm"}) and uniform (\code{family = "unif"}). See 
 #'   Details.
+#' @param finite_bounds Impose finite bounds on all continuous variables? 
 #' @param alpha Optional pseudocount for Laplace smoothing of categorical 
 #'   features. This avoids zero-mass points when test data fall outside the 
 #'   support of training data. Effectively parametrizes a flat Dirichlet prior
 #'   on multinomial likelihoods.
 #' @param epsilon Optional slack parameter on empirical bounds when 
-#'   \code{family = "unif"}. This avoids zero-density points when test data fall 
-#'   outside the support of training data. The gap between lower and upper 
-#'   bounds is expanded by a factor of \code{1 + epsilon}. 
+#'   \code{family = "unif"} or \code{finite_bounds = TRUE}. This avoids 
+#'   zero-density points when test data fall outside the support of training 
+#'   data. The gap between lower and upper bounds is expanded by a factor of 
+#'   \code{1 + epsilon}. 
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
 #'   via \code{doParallel}.
 #'   
@@ -86,6 +88,7 @@ forde <- function(
     x, 
     oob = FALSE,
     family = 'truncnorm', 
+    finite_bounds = FALSE,
     alpha = 0.1,
     epsilon = 0.1,
     parallel = TRUE) {
@@ -127,7 +130,7 @@ forde <- function(
     num_nodes <- length(arf$forest$split.varIDs[[tree]])
     lb <- matrix(-Inf, nrow = num_nodes, ncol = d)
     ub <- matrix(Inf, nrow = num_nodes, ncol = d)
-    if (family == 'unif' & any(!factor_cols)) {
+    if (family == 'unif' | isTRUE(finite_bounds) & any(!factor_cols)) {
       for (j in which(!factor_cols)) {
         gap <- max(x[[j]]) - min(x[[j]])
         lb[, j] <- min(x[[j]]) - epsilon / 2 * gap

@@ -9,6 +9,7 @@ forde(
   x,
   oob = FALSE,
   family = "truncnorm",
+  finite_bounds = FALSE,
   alpha = 0.1,
   epsilon = 0.1,
   parallel = TRUE
@@ -28,15 +29,18 @@ features. Current options include truncated normal (the default
 \code{family = "truncnorm"}) and uniform (\code{family = "unif"}). See
 Details.}
 
+\item{finite_bounds}{Impose finite bounds on all continuous variables?}
+
 \item{alpha}{Optional pseudocount for Laplace smoothing of categorical
 features. This avoids zero-mass points when test data fall outside the
 support of training data. Effectively parametrizes a flat Dirichlet prior
 on multinomial likelihoods.}
 
 \item{epsilon}{Optional slack parameter on empirical bounds when
-\code{family = "unif"}. This avoids zero-density points when test data fall
-outside the support of training data. The gap between lower and upper
-bounds is expanded by a factor of \code{1 + epsilon}.}
+\code{family = "unif"} or \code{finite_bounds = TRUE}. This avoids
+zero-density points when test data fall outside the support of training
+data. The gap between lower and upper bounds is expanded by a factor of
+\code{1 + epsilon}.}
 
 \item{parallel}{Compute in parallel? Must register backend beforehand, e.g.
 via \code{doParallel}.}
