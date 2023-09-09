@@ -94,9 +94,9 @@ forde <- function(
     parallel = TRUE) {
   
   # To avoid data.table check issues
-  y_new <- obs_new <- tree_new <- leaf_new <- tree <- n_oob <- cvg <- leaf <- 
-    variable <- count <- sd <- value <- psi_cnt <- psi_cat <- f_idx <- sigma <- 
-    new_min <- new_max <- mid <- sigma0 <- prob <- val <- val_count <- k <- . <- NULL
+  tree <- n_oob <- cvg <- leaf <- variable <- count <- sd <- value <- psi_cnt <- 
+    psi_cat <- f_idx <- sigma <- new_min <- new_max <- mid <- sigma0 <- prob <- 
+    val <- val_count <- k <- . <- NULL
   
   # Prelimz
   if (isTRUE(oob) & !nrow(x) %in% c(arf$num.samples, arf$num.samples/2)) {
@@ -189,7 +189,6 @@ forde <- function(
   bnds[, f_idx := .GRP, by = key(bnds)]
   
   # Calculate distribution parameters for each variable
-  fams <- fifelse(factor_cols, 'multinom', family)
   setnames(x, colnames_x)
   # Continuous case
   if (any(!factor_cols)) {
@@ -291,7 +290,8 @@ forde <- function(
   psi <- list(
     'cnt' = psi_cnt, 'cat' = psi_cat, 
     'forest' = unique(bnds[, .(f_idx, tree, leaf, cvg)]),
-    'meta' = data.table(variable = colnames_x, class = classes, family = fams), 
+    'meta' = data.table(variable = colnames_x, class = classes, 
+                        family = fifelse(factor_cols, 'multinom', family)), 
     'input_class' = input_class
   )
   return(psi)
