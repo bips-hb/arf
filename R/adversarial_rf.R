@@ -103,9 +103,6 @@ adversarial_rf <- function(
     warning('Variance is undefined when a leaf contains just a single observation. ', 
             'Consider increasing min_node_size.')
   }
-  if (!generator %in% c('bootstrap', 'forge')) {
-    stop('generator not recognized.')
-  }
   
   # Fit initial model: sample from marginals, concatenate data, train RF
   x_synth <- setDF(lapply(x_real, sample, n, replace = TRUE))
