@@ -91,7 +91,7 @@ adversarial_rf <- function(
     ...) {
   
   # To avoid data.table check issues
-  i <- b <- cnt <- obs <- tree <- leaf <- . <- NULL
+  i <- b <- cnt <- obs <- tree <- leaf <- N <- . <- NULL
   
   # Prep data
   x_real <- prep_x(x)
@@ -99,10 +99,6 @@ adversarial_rf <- function(
   d <- ncol(x_real)
   factor_cols <- sapply(x_real, is.factor)
   lvls <- lapply(x_real[factor_cols], levels)
-  if (any(!factor_cols) & min_node_size == 1L) {
-    warning('Variance is undefined when a leaf contains just a single observation. ', 
-            'Consider increasing min_node_size.')
-  }
   
   # Fit initial model: sample from marginals, concatenate data, train RF
   x_synth <- setDF(lapply(x_real, sample, n, replace = TRUE))
@@ -131,31 +127,30 @@ adversarial_rf <- function(
       # Create synthetic data by sampling from intra-leaf marginals
       nodeIDs <- stats::predict(rf0, x_real, type = 'terminalNodes')$predictions
       tmp <- data.table('tree' = rep(seq_len(num_trees), each = n), 
-                        'leaf' = as.vector(nodeIDs), 
-                        'obs' = rep(seq_len(n), num_trees))
-      x_real_dt <- as.data.table(x_real)[, obs := seq_len(n)]
-      x_real_dt <- merge(x_real_dt, tmp, by = 'obs', sort = FALSE)
-      tmp[, obs := NULL]
+                        'leaf' = as.vector(nodeIDs))
+      x_real_dt <- rbindlist(lapply(seq_len(num_trees), function(b) {
+        cbind(x_real, tmp[tree == b])
+      }))
       tmp <- tmp[sample(.N, n, replace = TRUE)]
       tmp <- unique(tmp[, cnt := .N, by = .(tree, leaf)])
       draw_from <- merge(tmp, x_real_dt, by = c('tree', 'leaf'), 
                          sort = FALSE)[, N := .N, by = .(tree, leaf)]
       rm(nodeIDs, tmp, x_real_dt)
       draw_params_within <- unique(draw_from, by = c('tree','leaf'))[, .(cnt, N)]
-      adj_absolut_col <- rep(c(0, cumsum(draw_params_within$N[-nrow(draw_params_within)])), 
-                             draw_params_within$cnt)
+      adj_absolut_col <- rep(c(0, draw_params_within[-.N, cumsum(N)]), 
+                             times = draw_params_within$cnt)
       adj_absolut <- rep(adj_absolut_col, d) + rep(seq(0, d - 1) * nrow(draw_from), each = n)
       idx_drawn_within <- ceiling(runif(n * d, 0, rep(draw_params_within$N, draw_params_within$cnt)))
       idx_drawn <- idx_drawn_within + adj_absolut
-      draw_from_stacked <- unlist(draw_from[, -c('obs', 'tree', 'leaf', 'cnt', 'N')], 
+      draw_from_stacked <- unlist(draw_from[, -c('tree', 'leaf', 'cnt', 'N')], 
                                   use.names = FALSE)
       values_drawn_stacked <- data.table('col_id' = rep(seq_len(d), each = n), 
                                          'values' = draw_from_stacked[idx_drawn])
       x_synth <- as.data.table(split(values_drawn_stacked, by = 'col_id', keep.by = FALSE))
       setnames(x_synth, names(x_real))
       if (any(factor_cols)) {
-        x_synth[, (names(which(factor_cols)))] <- lapply(names(which(factor_cols)), function(x) {
-          lvls[[x]][unlist(x_synth[, ..x])]
+        x_synth[, names(which(factor_cols))] <- lapply(names(which(factor_cols)), function(j) {
+          lvls[[j]][x_synth[[j]]]
         })
       }
       rm(draw_from, draw_params_within, adj_absolut_col, 

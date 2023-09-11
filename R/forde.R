@@ -125,7 +125,6 @@ forde <- function(
   
   # Compute leaf bounds and coverage
   num_trees <- arf$num.trees
-  pred <- stats::predict(arf, x, type = 'terminalNodes')$predictions + 1L
   bnd_fn <- function(tree) {
     num_nodes <- length(arf$forest$split.varIDs[[tree]])
     lb <- matrix(-Inf, nrow = num_nodes, ncol = d)
@@ -165,21 +164,19 @@ forde <- function(
     bnds <- foreach(tree = seq_len(num_trees), .combine = rbind) %do% bnd_fn(tree)
   }
   # Compute coverage
+  pred <- stats::predict(arf, x, type = 'terminalNodes')$predictions + 1L
+  keep <- data.table('tree' = rep(seq_len(num_trees), each = n), 
+                     'leaf' = as.vector(pred))
   if (isTRUE(oob)) {
-    inbag <- (do.call(cbind, arf$inbag.counts) > 0L)[1:(arf$num.samples / 2), ]
-    pred[inbag] <- NA_integer_
-    keep <- melt(as.data.table(pred), measure.vars = seq_len(num_trees),
-                 variable.name = 'tree', value.name = 'leaf')
-    keep <- na.omit(keep)
+    keep[, oob := as.vector(sapply(seq_len(num_trees), function(b) {
+      arf$inbag.counts[[b]][seq_len(n)] == 0L
+    }))]
+    keep <- keep[oob == TRUE]
     keep <- unique(keep[, cnt := .N, by = .(tree, leaf)])
-    keep[, tree := as.numeric(gsub('V', '', tree))]
-    keep[, n_oob := sum(!is.na(pred[, tree])), by = tree]
-    keep[, cvg := cnt / n_oob][, c('cnt', 'n_oob') := NULL]
+    keep[, n_oob := sum(oob), by = tree]
+    keep[, cvg := cnt / n_oob][, c('oob', 'cnt', 'n_oob') := NULL]
   } else {
-    keep <- melt(as.data.table(pred), measure.vars = seq_len(num_trees),
-                 variable.name = 'tree', value.name = 'leaf')
     keep <- unique(keep[, cnt := .N, by = .(tree, leaf)])
-    keep[, tree := as.numeric(gsub('V', '', tree))]
     keep[, cvg := cnt / n][, cnt := NULL]
   }
   bnds <- merge(bnds, keep, by = c('tree', 'leaf'), sort = FALSE)

@@ -64,7 +64,13 @@ prep_x <- function(x) {
   } 
   if ('leaf' %in% colnames(x)) {
     colnames(x)[which(colnames(x) == 'leaf')] <- col_rename(x, 'leaf')
-  } 
+  }
+  if ('cnt' %in% colnames(x)) {
+    colnames(x)[which(colnames(x) == 'cnt')] <- col_rename(x, 'cnt')
+  }
+  if ('N' %in% colnames(x)) {
+    colnames(x)[which(colnames(x) == 'N')] <- col_rename(x, 'N')
+  }
   return(x)
 }
 
