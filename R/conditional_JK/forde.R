@@ -88,8 +88,8 @@ forde <- function(
     x, 
     oob = FALSE,
     family = 'truncnorm', 
-    alpha = 0.1,
-    epsilon = 0.1,
+    alpha = 0,
+    epsilon = 0,
     parallel = TRUE) {
   
   # To avoid data.table check issues
@@ -175,13 +175,24 @@ forde <- function(
       bnds[cvg == 1 / n_oob, cvg := 0]
     }
   } else {
-    bnds[, cvg := sum(pred[, tree] == leaf) / n, by = .(tree, leaf)]
+    
+    pred_ <- data.table(tree = rep(seq_len(num_trees),each = n), leaf = as.vector((pred)))
+    x_leaves <- cbind(pred_,x)[, sort := 1:nrow(pred_)]
+    setorder(x_leaves,"tree","leaf")
+    setorder(pred_,"tree","leaf")
+    pred_[,f_idx := .GRP, by = .(tree,leaf)]
+    x_leaves[,f_idx := pred_[,f_idx]][,-c("tree","leaf")]
+    
+    tmp <- unique(pred_[, cvg := .N/n, by = f_idx])
+    bnds <- merge(bnds,tmp, by = c("tree", "leaf"))
+    
+    #bnds[, cvg := sum(pred[, tree] == leaf) / n, by = .(tree, leaf)]
   }
   # No parameters to learn for zero coverage leaves
-  bnds <- bnds[cvg > 0]
+  #bnds <- bnds[cvg > 0]
   # Create forest index
-  setkey(bnds, tree, leaf)
-  bnds[, f_idx := .GRP, by = key(bnds)]
+  #setkey(bnds, tree, leaf)
+  #bnds[, f_idx := .GRP, by = key(bnds)]
   
   # Calculate distribution parameters for each variable
   fams <- fifelse(factor_cols, 'multinom', family)
@@ -221,6 +232,7 @@ forde <- function(
       psi_cnt <- foreach(tree = seq_len(num_trees), .combine = rbind) %do% 
         psi_cnt_fn(tree)
     }
+    
     setkey(psi_cnt, f_idx, variable)
     setcolorder(psi_cnt, c('f_idx', 'variable'))
   } 
@@ -233,7 +245,8 @@ forde <- function(
       }
       dt <- melt(dt, id.vars = 'leaf', variable.factor = FALSE,
                  value.factor = FALSE, value.name = 'val')[, tree := tree]
-      dt[, count := .N, by = .(leaf, variable)]
+      dt[, count := uniqueN(val), by = .(leaf, variable)]
+      dt <- dt[!is.na(val) | count == 1,][,count := .N, by = .(leaf,variable)]
       dt <- merge(dt, bnds[, .(tree, leaf, variable, min, max, f_idx)], 
                   by = c('tree', 'leaf', 'variable'), sort = FALSE)
       dt[, c('tree', 'leaf') := NULL]
@@ -271,10 +284,10 @@ forde <- function(
       dt[, c('count', 'min', 'max') := NULL]
     }
     if (isTRUE(parallel)) {
-      psi_cat <- foreach(tree = seq_len(num_trees), .combine = rbind) %dopar% 
+      psi_cat <- foreach(tree = seq_len(num_trees), .combine = rbind) %dopar%
         psi_cat_fn(tree)
     } else {
-      psi_cat <- foreach(tree = seq_len(num_trees), .combine = rbind) %do% 
+      psi_cat <- foreach(tree = seq_len(num_trees), .combine = rbind) %do%
         psi_cat_fn(tree)
     }
     setkey(psi_cat, f_idx, variable)
@@ -290,5 +303,3 @@ forde <- function(
   )
   return(psi)
 }
-
-

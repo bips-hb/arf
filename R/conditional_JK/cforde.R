@@ -44,11 +44,12 @@ params_uncond <- forde(arf,iris)
 
 
 # Calculate cond density and sample 10 times (respecting the probabilities of entered "OR-ed" conditions)
-cond <- data.frame(rbind(c("(4,6)",NA,NA,NA,NA),
-                         c("(5,6)",NA,NA,NA,"versicolor")))
+cond <- data.frame(rbind(c(c("(4,6)",NA,NA,NA,NA)),
+                           c("(5,7)",NA,NA,NA,"versicolor")))
 names(cond) <- names(iris)
 params_cond <- cforde(params_uncond,cond)
 x_c_synth <- forge(params_cond,100)
+
 
 # For imputation: Calculate cond density separately for each row in c and sample once from each cond. density
 
@@ -56,7 +57,8 @@ iris_na <- copy(iris)
 iris_na[seq(10,150,10),5] <- NA
 iris_na[seq(9,150,7),4] <- NA
 
-arf <- adversarial_rf(iris_na)
+arf <- adversarial_rf(iris_na,40,min_node_size = 4)
+params_uncond <- forde(arf, iris_na)
 cond <- iris_na[!complete.cases(iris_na), ]
 rownames(cond) <- NULL
 
@@ -64,11 +66,10 @@ params_cond_array <- foreach(cond_i = 1:nrow(cond), .combine = rbind) %dopar% {c
 x_c_synth <- foreach(params_cond_i = 1:nrow(params_cond_array), .combine = rbind) %dopar% {forge(params_cond_array[params_cond_i,],1)}
 
 ### conditional FORDE
-
 cforde <- function(params_uncond,cond) {
   
   # store cond as data.frame if cond is atomic vector (will be the case if cforde is called row-wise via apply())
-  input_class_cond <- class(cond)
+  
   if (is.atomic(cond)) {
     names_cond <- names(cond)
     cond <- transpose(data.frame(cond))
@@ -95,36 +96,45 @@ cforde <- function(params_uncond,cond) {
   cnt_conds[,`:=` (variable = factor(variable),
                    val = as.numeric(val))]
   
-  # subset cat according to cat_conds
-  if (length(cat_cols)>0) {
+  # subset cat according to cat_conds ##############
+  if (length(cat_cols)>0 & nrow(cat_conds) > 0) {
     cat_subsetted <- merge(cat,cat_conds,by = c("variable", "val"),allow.cartesian=T)[,N:=.N,by=.(volume_id,f_idx)]
-    cat_subsetted <- setorder(merge(cat_subsetted,cat_conds[,.N,by=volume_id],by=c("volume_id","N")),cols="volume_id","f_idx","variable","val")[,N:=NULL]
+    cat_subsetted <- setorder(merge(cat_subsetted,cat_conds[,.N,by=volume_id],by=c("volume_id","N"), allow.cartesian = T, sort = F),cols="volume_id","f_idx","variable","val")[,N:=NULL]
     relevant_leaves_cat <- unique(cat_subsetted[,.(volume_id,f_idx)])
+    
+    if(nrow(cat_conds) < nvols * length(cat_cols)){
+      cat_subsetted <- rbind(cat_subsetted,merge(cat[!(variable %in% cat_conds[,variable])],relevant_leaves_cat, by = "f_idx", allow.cartesian = T, sort = F))
+    }
   } else {
-    relevant_leaves_cat <- data.table(volume_id = rep(1:4,each=max(forest$f_idx)), f_idx = forest$f_idx)
+    relevant_leaves_cat <- data.table(volume_id = rep(1:nvols,each=max(forest$f_idx)), f_idx = forest$f_idx)
+    if(length(cat_cols)>0) {
+      cat_subsetted <- setorder(merge(cat, relevant_leaves_cat, by = "f_idx", allow.cartesian = T, sort = F), cols="volume_id","f_idx","variable","val")
+    }
   }
   
   # calculate cnt_new according to cnt_conds
   if (length(cnt_cols)>0) {
-      cnt_new <- merge(merge(relevant_leaves_cat,cnt,by="f_idx",allow.cartesian=T),cnt_conds,by=c("volume_id","variable"))
-      cnt_new[!is.na(val),`:=` (min = min.x,
-                                max = max.x)]
-      cnt_new[is.na(val),`:=` (min = pmax(min.x, min.y),
-                               max = pmin(max.x, max.y))]
-      cnt_new[,cvg_factor := NA]
-      cnt_new[,cvg_factor := as.numeric(cvg_factor)]
-      cnt_new[!is.na(val), cvg_factor := dtruncnorm(val, a=min.x, b=max.x, mean=mu, sd=sigma)*(val != min.x)]
-      cnt_new[is.na(val) ,cvg_factor := ptruncnorm(max, a=min.x, b=max.x, mean=mu, sd=sigma) - ptruncnorm(min, a=min.x, max.x, mean=mu,sd=sigma)]
-      relevant_leaves <- merge(cnt_new[cvg_factor != 0,.N,by=.(volume_id, f_idx)],cnt_conds[,.N,by=volume_id])[,.(volume_id,f_idx)]
-      if(is.null(relevant_leaves)) {
-        stop("Condition coverage equals 0 due to zero-probability values for categorical variables for the specified condition.")
-      }
-      cnt_new <- merge(relevant_leaves,cnt_new,by=c("volume_id","f_idx"))
-      cnt_new[,c("min.x","max.x","min.y","max.y") := NULL]
-      names(cnt_new) <- c("volume_id","f_idx_uncond","variable","mu","sigma","val","min","max","cvg_factor")
-      cnt_new[, f_idx := rep(1:(nrow(cnt_new)/length(cnt_cols)),each = length(cnt_cols))]
-      setcolorder(cnt_new,c("f_idx","volume_id","f_idx_uncond","variable","min","max","mu","sigma","val","cvg_factor"))
-      cvg_factor_cnt <- cnt_new[,.(factor = prod(cvg_factor)),by = f_idx]
+    cnt_new <- merge(merge(relevant_leaves_cat,cnt,by="f_idx",allow.cartesian=T),cnt_conds,by=c("volume_id","variable"))
+    cnt_new[!is.na(val),`:=` (min = min.x,
+                              max = max.x)]
+    cnt_new[is.na(val),`:=` (min = pmax(min.x, min.y),
+                             max = pmin(max.x, max.y))]
+    cnt_new[,cvg_factor := NA]
+    cnt_new[,cvg_factor := as.numeric(cvg_factor)]
+    cnt_new[!is.na(val), cvg_factor := dtruncnorm(val, a=min.x, b=max.x, mean=mu, sd=sigma)*(val != min.x)]
+    cnt_new[is.na(val) ,cvg_factor := ptruncnorm(max, a=min.x, b=max.x, mean=mu, sd=sigma) - ptruncnorm(min, a=min.x, max.x, mean=mu,sd=sigma)]
+    relevant_leaves <- merge(cnt_new[cvg_factor != 0,.N,by=.(volume_id, f_idx)],cnt_conds[,.N,by=volume_id])[,.(volume_id,f_idx)]
+    if(is.null(relevant_leaves)) {
+      stop("Condition coverage equals 0 due to zero-probability values for categorical variables for the specified condition.")
+    }
+    cnt_new <- merge(relevant_leaves,cnt_new,by=c("volume_id","f_idx"))
+    cnt_new[,c("min.x","max.x","min.y","max.y") := NULL]
+    names(cnt_new) <- c("volume_id","f_idx_uncond","variable","mu","sigma","val","min","max","cvg_factor")
+    cnt_new[, f_idx := rep(1:(nrow(cnt_new)/length(cnt_cols)),each = length(cnt_cols))]
+    setcolorder(cnt_new,c("f_idx","volume_id","f_idx_uncond","variable","min","max","mu","sigma","val","cvg_factor"))
+    cvg_factor_cnt <- cnt_new[,.(factor = prod(cvg_factor)),by = f_idx]
+    
+    cnt_new[,cvg_factor := NULL]
   }  else {
     cnt_new <- NULL
     cvg_factor_cnt <- data.table()
@@ -135,16 +145,24 @@ cforde <- function(params_uncond,cond) {
   if (length(cat_cols) > 0) {
     cat_new <- merge(relevant_leaves,cat_subsetted,by=c("volume_id","f_idx"))
     names(cat_new) <- c("volume_id","f_idx_uncond","variable","val","cvg_factor")
-    cat_new[, `:=` (f_idx = rep(1:(nrow(cat_new)/length(cat_cols)),each = length(cat_cols)),
-                          prob = 1)]
+    if(nrow(cond) == 1){ ##############nrow(cat_conds) == 0
+      cat_new[,f_idx := .GRP, by = .(volume_id,f_idx_uncond)]
+      cat_new[,c("cvg_factor","prob") := .(sum(cvg_factor), cvg_factor/sum(cvg_factor)), by = .(f_idx,variable)]
+      cvg_factor_cat <- unique(cat_new)[,.(factor = prod(cvg_factor)),by = f_idx]
+    } else{
+      cat_new[, `:=` (f_idx = rep(1:(nrow(cat_new)/length(cat_cols)),each = length(cat_cols)),
+                      prob = 1)]
+      cvg_factor_cat <- cat_new[,.(factor = prod(cvg_factor)),by = f_idx]
+    }
     setcolorder(cat_new,c("f_idx","volume_id","f_idx_uncond","variable","val","prob","cvg_factor"))
-    cvg_factor_cat <- cat_new[,.(factor = prod(cvg_factor)),by = f_idx]
+    
+    cat_new[,cvg_factor := NULL]
   } else {
     cat_new <- NULL
     cvg_factor_cat <- data.table()
     cvg_factor_cat[,factor := 1]
   }
-    
+  
   # calculate new forest
   forest_new <- merge(relevant_leaves,forest)
   setorder(forest_new, cols = "volume_id",  "f_idx")
@@ -159,12 +177,13 @@ cforde <- function(params_uncond,cond) {
   }
   setcolorder(forest_new,c("f_idx","volume_id","f_idx_uncond","tree","leaf","cvg_arf","cvg"))
   
-  list(condition = cond, volumes = volumes, prob_condition = sum(cvg_new_unnormalized)/max(params_uncond$forest$tree), cnt = cnt_new, cat = cat_new, forest = forest_new, meta = meta, input_class_x = params_uncond$input_class, input_class_cond = input_class_cond)
+  list(condition = cond, volumes = volumes, prob_condition = sum(cvg_new_unnormalized)/max(params_uncond$forest$tree), cnt = cnt_new, cat = cat_new, forest = forest_new, meta = meta, input_class = params_uncond$input_class)
 }
 
 ### preprocessing (formatting, DNF and unoverlapping hyperrectangles)
 
 cond2volumes <- function(cond, params_uncond) {
+  n_row_cond <- nrow(cond)
   meta <- params_uncond$meta
   cat <- params_uncond$cat
   cnt_cols <-meta[class != "factor", variable]
@@ -173,16 +192,17 @@ cond2volumes <- function(cond, params_uncond) {
   cond <- data.table(cond)
   cond[,(cat_cols) := lapply(.SD,as.character),.SDcols = cat_cols]
   
+  
   if (length(cnt_cols) > 0) {
     cond[,(cnt_cols) := lapply(.SD,function(col) replace(col, which(is.na(col)), "(-Inf,Inf)")),.SDcols = cnt_cols]
   }
-  if (length(cat_cols) > 0) {
-      cond[,(cat_cols) := mapply(function(colname,col) {
-        lvls_str <- paste(levels(as.factor(cat[cat$variable == colname]$val)),collapse="|")
-        list(replace(col,which(is.na(col)),lvls_str))
-        },colname = colnames(.SD),
-            col = .SD),
-        .SDcols = cat_cols]
+  if (length(cat_cols) > 0 & n_row_cond > 1) {
+    cond[,(cat_cols) := mapply(function(colname,col) {
+      lvls_str <- paste(levels(as.factor(cat[cat$variable == colname]$val)),collapse="|")
+      list(replace(col,which(is.na(col)),lvls_str))
+    },colname = colnames(.SD),
+    col = .SD),
+    .SDcols = cat_cols]
   }
   
   #cond <- lapply(cond,str_replace_all," ",""))
@@ -199,30 +219,50 @@ cond2volumes <- function(cond, params_uncond) {
     cond[,(scalar_cols) := lapply(.SD,as.factor),.SDcols = scalar_cols]
   }
   factor_cols <- c(scalar_cols, cat_cols)
-  if (length(factor_cols) > 0) {
-    lvls <- lapply(cond[,..factor_cols],levels)
-    cond[,(factor_cols) := lapply(.SD,function(x){
-      int <- as.numeric(x)
-      paste("(",int - 0.1,",",int + 0.1,")", sep="")
+  if (n_row_cond == 1){
+    volumes <- data.table(
+      volume_id = rep(1:nrow(cond), each=ncol(cond)),
+      variable = factor(rep(names(cond), nrow(cond)), levels = names(cond)),
+      min = as.numeric(unlist(transpose(lapply(cond,str_extract,"(?<=\\().+(?=\\,)")))),
+      max = as.numeric(unlist(transpose(lapply(cond,str_extract,"(?<=\\,).+(?=\\))"))))
+    )
+    if(length(factor_cols) > 0) {
+      val <- as.character(unlist(transpose(cond[,..factor_cols]),use.names = F))
+      volumes[variable %in% factor_cols,val:=val]
+    } else {
+      volumes[,val:= NA]
+    }
+    volumes <- volumes[is.na(max)*is.na(min)*is.na(val) != 1,]
+  } else {
+    
+    if (length(factor_cols) > 0) {
+      lvls <- lapply(cond[,..factor_cols],levels)
+      cond[,(factor_cols) := lapply(.SD,function(x){
+        int <- as.numeric(x)
+        paste("(",int - 0.1,",",int + 0.1,")", sep="")
       }),
       .SDcols = factor_cols
       ]
-  }
-  
-  volumes <- data.table(
-    volume_id = rep(1:nrow(cond), each=ncol(cond)),
-    variable = factor(rep(names(cond), nrow(cond)), levels = names(cond)),
-    min = as.numeric(unlist(transpose(lapply(cond,str_extract,"(?<=\\().+(?=\\,)")))),
-    max = as.numeric(unlist(transpose(lapply(cond,str_extract,"(?<=\\,).+(?=\\))"))))
-  )
-  if (!(all(cols_check == 0) | nrow(cond) == 1)) {
-    volumes <- unoverlap_hyperrectangles(volumes)
-  }
-  if (length(factor_cols) > 0) {
-    volumes[variable %in% factor_cols, `:=` (val = apply(.SD,1,function(x){
-      lvls[[x["variable"]]][round(as.numeric(x["max"]))]
-    }), min = NA, max= NA)]
+    }
+    
+    volumes <- data.table(
+      volume_id = rep(1:nrow(cond), each=ncol(cond)),
+      variable = factor(rep(names(cond), nrow(cond)), levels = names(cond)),
+      min = as.numeric(unlist(transpose(lapply(cond,str_extract,"(?<=\\().+(?=\\,)")))),
+      max = as.numeric(unlist(transpose(lapply(cond,str_extract,"(?<=\\,).+(?=\\))"))))
+    )
+    if (!(all(cols_check == 0) | n_row_cond == 1)) {
+      volumes <- unoverlap_hyperrectangles(volumes)
+    }
+    
+    if (n_row_cond == 1) {
+      factor_cols <- scalar_cols
+    } 
+    if (length(factor_cols) > 0) {
+      volumes[variable %in% factor_cols, `:=` (val = apply(.SD,1,function(x){
+        lvls[[x["variable"]]][round(as.numeric(x["max"]))]
+      }), min = NA, max= NA)]
+    }
   }
   volumes
 }
-
