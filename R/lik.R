@@ -129,12 +129,13 @@ lik <- function(
   
   # Check ARF
   if (d == params$meta[, .N] & !is.null(arf)) {
+    num_trees <- arf$num.trees
     preds <- stats::predict(arf, x, type = 'terminalNodes')$predictions + 1L
-    preds <- rbindlist(lapply(seq_len(params$forest[, max(tree)]), function(b) {
-      data.table(tree = b, leaf = preds[, b], obs = seq_len(n))
-    }))
+    preds <- data.table('tree' = rep(seq_len(num_trees), each = n), 
+                        'leaf' = as.vector(preds),
+                        'obs' = rep(seq_len(n), times = num_trees))
     if (isTRUE(oob)) {
-      preds <- preds[!is.na(leaf)]
+      preds <- na.omit(preds)
     }
     preds <- merge(preds, params$forest[, .(tree, leaf, f_idx)], 
                    by = c('tree', 'leaf'), sort = FALSE)
@@ -144,14 +145,13 @@ lik <- function(
     setnames(x, colnames_x)
   }
   
-  
   # PMF over leaves
   if (is.null(evidence)) {
     num_trees <- params$forest[, max(tree)]
     omega <- params$forest[, .(f_idx, cvg)]
     omega[, wt := cvg / num_trees]
     omega[, cvg := NULL]
-  } else if (conj) {
+  } else if (isTRUE(conj)) {
     omega <- leaf_posterior(params, evidence)
   } else {
     omega <- evidence
