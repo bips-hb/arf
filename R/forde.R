@@ -246,7 +246,7 @@ forde <- function(
         dt <- unique(dt[, val_count := .N, by = .(f_idx, variable, val)])
         dt[, k := length(unique(val)), by = variable]
         dt[min == -Inf, min := 0.5][max == Inf, max := k + 0.5]
-        dt[!grepl('.5', min), min := min + 0.5][!grepl('.5', max), max := max + 0.5]
+        dt[!grepl('\\.5', min), min := min + 0.5][!grepl('\\.5', max), max := max + 0.5]
         dt[, k := max - min]
         # Enumerate each possible leaf-variable-value combo
         tmp <- dt[, seq(min[1] + 0.5, max[1] - 0.5), by = .(f_idx, variable)]
