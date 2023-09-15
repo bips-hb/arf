@@ -61,7 +61,7 @@ expct <- function(
     evidence = NULL) {
   
   # To avoid data.table check issues
-  variable <- tree <- f_idx <- cvg <- wt <- V1 <- value <- val <- 
+  variable <- tree <- f_idx <- cvg <- wt <- V1 <- value <- val <- family <-
     mu <- sigma <- obs <- prob <- . <- NULL
   
   # Prep evidence

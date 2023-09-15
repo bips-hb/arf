@@ -65,7 +65,7 @@ map <- function(
   
   # To avoid data.table check issues
   variable <- family <- tree <- f_idx <- cvg <- wt <- V1 <- value <- val <- 
-    mu <- sigma <- obs <- prob <- fold <- . <- NULL
+    mu <- sigma <- obs <- prob <- fold <- wt_lik <- new_min <- new_max <- . <- NULL
   
   # Prep evidence
   conj <- FALSE

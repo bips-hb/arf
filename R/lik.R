@@ -135,7 +135,7 @@ lik <- function(
                         'leaf' = as.vector(preds),
                         'obs' = rep(seq_len(n), times = num_trees))
     if (isTRUE(oob)) {
-      preds <- na.omit(preds)
+      preds <- stats::na.omit(preds)
     }
     preds <- merge(preds, params$forest[, .(tree, leaf, f_idx)], 
                    by = c('tree', 'leaf'), sort = FALSE)
