@@ -10,8 +10,8 @@ forde(
   oob = FALSE,
   family = "truncnorm",
   finite_bounds = FALSE,
-  alpha = 0.1,
-  epsilon = 0.1,
+  alpha = 0,
+  epsilon = 0,
   parallel = TRUE
 )
 }
