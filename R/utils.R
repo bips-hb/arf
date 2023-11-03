@@ -131,8 +131,16 @@ prep_evi <- function(params, evidence) {
         warning('With continuous features, "!=" is not a valid relation. ', 
                 'This constraint has been removed.')
       }
+      #if (any(evi_tmp[, n > 2L])) {
+      #  inf <- 
+      #}
     }
   }
+  
+  ### ALSO: Reduce redundant events to most informative condition
+  ###       and check for inconsistencies, e.g. >3 & <2
+  
+  
   return(evidence)
 }
 
@@ -176,17 +184,17 @@ leaf_posterior <- function(params, evidence) {
       psi[relation %in% c('>', '>='), lik := 
             1 - truncnorm::ptruncnorm(value, a = min, b = max, mean = mu, sd = sigma)]
     }
-    psi[value == min, lik := 0]
     if (any(evi[, n > 1L])) {
       vars <- evi[n > 1L, variable]
       psi1 <- psi[!variable %in% vars]
       psi2 <- psi[variable %in% vars]
-      psi2[, compl := 1 - lik]
-      psi2[, lik2 := 1 - sum(compl), by = .(f_idx, variable)]
-      psi2[, c('lik', 'compl') := NULL]
-      setnames(psi2, 'lik2', 'lik')
+      psi2[, tmp := truncnorm::ptruncnorm(value, a = min, b = max, mean = mu, sd = sigma)]
+      psi2[, lik := rep(psi2[relation %in% c('<', '<='), tmp] - 
+                          psi2[relation %in% c('>', '>='), tmp], 2)]
+      psi2[, tmp := NULL]
       psi <- rbind(psi1, psi2)
     }
+    psi[value == min, lik := 0]
     psi_cnt <- unique(psi[, .(f_idx, variable, lik)])
   }
   
