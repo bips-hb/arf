@@ -132,7 +132,8 @@ prep_evi <- function(params, evidence) {
                 'This constraint has been removed.')
       }
       #if (any(evi_tmp[, n > 2L])) {
-      #  inf <- 
+      #  inf <- blah
+      #  sup <- blah
       #}
     }
   }
@@ -176,23 +177,20 @@ leaf_posterior <- function(params, evidence) {
       psi[relation == '==', lik := 
             truncnorm::dtruncnorm(value, a = min, b = max, mean = mu, sd = sigma)]
     }
-    if (any(evi$relation %in% c('<', '<='))) {
-      psi[relation %in% c('<', '<='), lik := 
+    if (any(evi$relation != '==')) {
+      psi[relation != '==', lik := 
             truncnorm::ptruncnorm(value, a = min, b = max, mean = mu, sd = sigma)]
     }
-    if (any(evi$relation %in% c('>', '>='))) {
-      psi[relation %in% c('>', '>='), lik := 
-            1 - truncnorm::ptruncnorm(value, a = min, b = max, mean = mu, sd = sigma)]
-    }
     if (any(evi[, n > 1L])) {
-      vars <- evi[n > 1L, variable]
-      psi1 <- psi[!variable %in% vars]
-      psi2 <- psi[variable %in% vars]
-      psi2[, tmp := truncnorm::ptruncnorm(value, a = min, b = max, mean = mu, sd = sigma)]
-      psi2[, lik := rep(psi2[relation %in% c('<', '<='), tmp] - 
-                          psi2[relation %in% c('>', '>='), tmp], 2)]
-      psi2[, tmp := NULL]
+      interval_vars <- evi[n > 1L, variable]
+      psi1 <- psi[!variable %in% interval_vars]
+      psi2 <- psi[variable %in% interval_vars]
+      psi2[, lik := rep(psi2[relation %in% c('<', '<='), lik] - 
+                          psi2[relation %in% c('>', '>='), lik], 2)]
       psi <- rbind(psi1, psi2)
+    }
+    if (any(evi[, n == 1 & relation %in% c('>', '>=')])) {
+      psi[n == 1 & relation %in% c('>', '>='), lik := 1 - lik]
     }
     psi[value == min, lik := 0]
     psi_cnt <- unique(psi[, .(f_idx, variable, lik)])
