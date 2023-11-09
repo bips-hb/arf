@@ -115,6 +115,10 @@ forde <- function(
   # Prep data
   input_class <- class(x)
   x <- as.data.frame(x)
+  inf_flag <- sapply(seq_along(x), function(j) any(is.infinite(x[, j])))
+  if (any(inf_flag)) {
+    stop('x contains infinite values.')
+  }
   n <- nrow(x)
   d <- ncol(x)
   colnames_x <- colnames(x)
