@@ -115,7 +115,7 @@ forde <- function(
   # Prep data
   input_class <- class(x)
   x <- as.data.frame(x)
-  inf_flag <- sapply(seq_along(x), function(j) any(is.infinite(x[, j])))
+  inf_flag <- sapply(seq_along(x), function(j) any(is.infinite(x[[j]])))
   if (any(inf_flag)) {
     stop('x contains infinite values.')
   }
@@ -123,6 +123,19 @@ forde <- function(
   d <- ncol(x)
   colnames_x <- colnames(x)
   classes <- sapply(x, class)
+  factor_cols <- sapply(x, is.factor)  
+  lvls <- lapply(x[factor_cols], levels)
+  prec <- rep(NA_real_, d) 
+  if (any(!factor_cols)) {
+    prec[!factor_cols] <- sapply(which(!factor_cols), function(j) {
+      if (any(grepl('\\.', x[[j]]))) {
+        out <- max(nchar(sub('.*[.]', '', x[[j]])))
+      } else {
+        out <- 0
+      }
+      return(out)
+    })
+  }
   x <- suppressWarnings(prep_x(x))
   factor_cols <- sapply(x, is.factor)
   names(factor_cols) <- colnames_x
@@ -289,10 +302,13 @@ forde <- function(
   
   # Add metadata, export
   psi <- list(
-    'cnt' = psi_cnt, 'cat' = psi_cat, 
+    'cnt' = psi_cnt, 
+    'cat' = psi_cat, 
     'forest' = unique(bnds[, .(f_idx, tree, leaf, cvg)]),
-    'meta' = data.table(variable = colnames_x, class = classes, 
-                        family = fifelse(factor_cols, 'multinom', family)), 
+    'meta' = data.table('variable' = colnames_x, 'class' = classes, 
+                        'family' = fifelse(factor_cols, 'multinom', family),
+                        'precision' = prec), 
+    'levels' = lvls, 
     'input_class' = input_class
   )
   return(psi)

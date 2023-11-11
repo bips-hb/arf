@@ -240,7 +240,7 @@ leaf_posterior <- function(params, evidence) {
 
 #' Post-process data
 #' 
-#' This function prepares output data for map and forge.
+#' This function prepares output data for forge.
 #' 
 #' @param x Input data.frame.
 #' @param params Circuit parameters learned via \code{\link{forde}}.
@@ -260,18 +260,30 @@ post_x <- function(x, params) {
   setDF(x)
   idx_numeric <- meta_tmp[, which(class == 'numeric')]
   idx_factor <- meta_tmp[, which(class == 'factor')]
+  idx_ordered <- meta_tmp[, which(grepl('ordered', class))]
   idx_logical <- meta_tmp[, which(class == 'logical')]
   idx_integer <- meta_tmp[, which(class == 'integer')]
   
   # Recode
   if (sum(idx_numeric) > 0L) {
     x[, idx_numeric] <- setDF(
-      lapply(x[, idx_numeric, drop = FALSE], function(j) as.numeric(j))
+      lapply(idx_numeric, function(j) {
+        round(as.numeric(x[[j]]), meta_tmp$precision[j])
+      })
     )
   }
   if (sum(idx_factor) > 0L) {
     x[, idx_factor] <- setDF(
-      lapply(x[, idx_factor, drop = FALSE], function(j) as.factor(j))
+      lapply(idx_factor, function(j) {
+        factor(x[[j]], levels = params$levels[[colnames(x)[j]]])
+      })
+    )
+  }
+  if (sum(idx_ordered) > 0L) {
+    x[, idx_ordered] <- setDF(
+      lapply(idx_ordered, function(j) {
+        factor(x[[j]], levels = params$levels[[colnames(x)[j]]], ordered = TRUE)
+      })
     )
   }
   if (sum(idx_logical) > 0L) {
@@ -281,7 +293,7 @@ post_x <- function(x, params) {
   }
   if (sum(idx_integer) > 0L) {
     x[, idx_integer] <- setDF(
-      lapply(x[, idx_integer, drop = FALSE], function(j) as.integer(j)) 
+      lapply(x[, idx_integer, drop = FALSE], function(j) as.integer(as.character(j))) 
     )
   }
   
