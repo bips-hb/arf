@@ -125,13 +125,13 @@ forde <- function(
   classes <- sapply(x, class)
   factor_cols <- sapply(x, is.factor)  
   lvls <- lapply(x[factor_cols], levels)
-  prec <- rep(NA_real_, d) 
+  prec <- rep(NA_integer_, d) 
   if (any(!factor_cols)) {
     prec[!factor_cols] <- sapply(which(!factor_cols), function(j) {
       if (any(grepl('\\.', x[[j]]))) {
         out <- max(nchar(sub('.*[.]', '', x[[j]])))
       } else {
-        out <- 0
+        out <- 0L
       }
       return(out)
     })
