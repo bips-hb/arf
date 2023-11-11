@@ -7,7 +7,7 @@ test_that("FORDE returns correct list object", {
   arf <- adversarial_rf(iris, num_trees = 2, verbose = FALSE, parallel = FALSE)
   psi <- forde(arf, iris, parallel = FALSE)
   expect_type(psi, "list")
-  expect_named(psi, c("cnt", "cat", "forest", "meta", "input_class"))
+  expect_named(psi, c("cnt", "cat", "forest", "meta", "levels", "input_class"))
   expect_s3_class(psi$cnt, "data.table")
   expect_s3_class(psi$cat, "data.table")
   expect_s3_class(psi$forest, "data.table")
@@ -79,3 +79,27 @@ test_that("FORGE returns same column types", {
   types_synth <- sapply(x_synth, typeof)
   expect_equal(types, types_synth)
 })
+
+# test_that("MAP returns proper column types", {
+#   n <- 50
+#   dat <- data.frame(numeric = rnorm(n), 
+#                     integer = sample(1L:5L, n, replace = TRUE), 
+#                     character = sample(letters[1:5], n, replace = TRUE), 
+#                     factor = factor(sample(letters[1:5], n, replace = TRUE)), 
+#                     logical = (sample(0:1, n, replace = TRUE) == 1))
+#   
+#   expect_warning(arf <- adversarial_rf(dat, num_trees = 2, verbose = FALSE, parallel = FALSE))
+#   psi <- forde(arf, dat, parallel = FALSE)
+#   map_out <- map(psi)
+#   
+#   # No NAs
+#   expect_true(all(!is.na(map_out)))
+#   
+#   # Keep column types
+#   types <- sapply(dat, typeof)
+#   types_map <- sapply(map_out, typeof)
+#   expect_equal(types, types_map)
+# })
+
+
+
