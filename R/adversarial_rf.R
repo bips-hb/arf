@@ -131,9 +131,7 @@ adversarial_rf <- function(
       x_real_dt <- do.call(rbind, lapply(seq_len(num_trees), function(b) {
         cbind(x_real, tmp[tree == b])
       }))
-      x_real_dt[, factor_cols] <- setDF(
-        lapply(x_real_dt[, factor_cols, drop = FALSE], as.numeric)
-      )
+      x_real_dt[, factor_cols] <- lapply(x_real_dt[, factor_cols, drop = FALSE], as.numeric)
       tmp <- tmp[sample(.N, n, replace = TRUE)]
       tmp <- unique(tmp[, cnt := .N, by = .(tree, leaf)])
       draw_from <- merge(tmp, x_real_dt, by = c('tree', 'leaf'), 

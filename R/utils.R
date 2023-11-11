@@ -33,24 +33,20 @@ prep_x <- function(x) {
   x <- as.data.frame(x)
   idx_char <- sapply(x, is.character)
   if (any(idx_char)) {
-    x[, idx_char] <- setDF(
-      lapply(x[, idx_char, drop = FALSE], as.factor)
-    )
+    x[, idx_char] <- lapply(x[, idx_char, drop = FALSE], as.factor)
   }
   idx_logical <- sapply(x, is.logical)
   if (any(idx_logical)) {
-    x[, idx_logical] <- setDF(
-      lapply(x[, idx_logical, drop = FALSE], as.factor)
-    )
+    x[, idx_logical] <- lapply(x[, idx_logical, drop = FALSE], as.factor)
   }
   idx_integer <- sapply(x, is.integer)
   if (any(idx_integer)) {
     warning('Recoding integer data as ordered factors. To override this behavior, ',
             'explicitly code these variables as numeric.')
-    for (j in which(idx_integer)) {
-      lvls <- sort(unique(x[, j]))
-      x[, j] <- factor(x[, j], levels = lvls, ordered = TRUE)
-    }
+    x[, idx_integer] <- lapply(idx_integer, function(j) {
+        lvls <- sort(unique(x[[j]]))
+        factor(x[[j]], levels = lvls, ordered = TRUE)
+    })
   }
   # Rename annoying columns
   if ('y' %in% colnames(x)) {
@@ -266,35 +262,27 @@ post_x <- function(x, params) {
   
   # Recode
   if (sum(idx_numeric) > 0L) {
-    x[, idx_numeric] <- setDF(
-      lapply(idx_numeric, function(j) {
+    x[, idx_numeric] <- lapply(idx_numeric, function(j) {
         round(as.numeric(x[[j]]), meta_tmp$precision[j])
-      })
-    )
+    })
   }
   if (sum(idx_factor) > 0L) {
-    x[, idx_factor] <- setDF(
-      lapply(idx_factor, function(j) {
+    x[, idx_factor] <- lapply(idx_factor, function(j) {
         factor(x[[j]], levels = params$levels[[colnames(x)[j]]])
-      })
-    )
+    })
   }
   if (sum(idx_ordered) > 0L) {
-    x[, idx_ordered] <- setDF(
-      lapply(idx_ordered, function(j) {
+    x[, idx_ordered] <- lapply(idx_ordered, function(j) {
         factor(x[[j]], levels = params$levels[[colnames(x)[j]]], ordered = TRUE)
-      })
-    )
+    })
   }
   if (sum(idx_logical) > 0L) {
-    x[, idx_logical] <- setDF(
-      lapply(x[, idx_logical, drop = FALSE], function(j) as.logical(j))
-    )
+    x[, idx_logical] <- lapply(x[, idx_logical, drop = FALSE], as.logical)
   }
   if (sum(idx_integer) > 0L) {
-    x[, idx_integer] <- setDF(
-      lapply(x[, idx_integer, drop = FALSE], function(j) as.integer(as.character(j))) 
-    )
+    x[, idx_integer] <- lapply(idx_integer, function(j) {
+      as.integer(as.character(x[[j]]))
+    }) 
   }
   
   # Export
