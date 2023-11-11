@@ -75,9 +75,9 @@ test_that("FORGE returns same column types", {
   expect_true(all(!is.na(x_synth)))
 
   # Keeps column types
-  types <- sapply(dat, typeof)
-  types_synth <- sapply(x_synth, typeof)
-  expect_equal(types, types_synth)
+  classes <- sapply(dat, class)
+  classes_synth <- sapply(x_synth, class)
+  expect_equal(classes, classes_synth)
 })
 
 # test_that("MAP returns proper column types", {

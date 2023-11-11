@@ -43,7 +43,7 @@ prep_x <- function(x) {
   if (any(idx_integer)) {
     warning('Recoding integer data as ordered factors. To override this behavior, ',
             'explicitly code these variables as numeric.')
-    x[, idx_integer] <- lapply(idx_integer, function(j) {
+    x[, idx_integer] <- lapply(which(idx_integer), function(j) {
         lvls <- sort(unique(x[[j]]))
         factor(x[[j]], levels = lvls, ordered = TRUE)
     })
