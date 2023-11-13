@@ -129,7 +129,8 @@ forde <- function(
   if (any(!factor_cols)) {
     prec[!factor_cols] <- sapply(which(!factor_cols), function(j) {
       if (any(grepl('\\.', x[[j]]))) {
-        out <- max(nchar(sub('.*[.]', '', x[[j]])))
+        tmp <- x[grepl('\\.', x[[j]]), j]
+        out <- max(nchar(sub('.*[.]', '', tmp)))
       } else {
         out <- 0L
       }
