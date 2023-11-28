@@ -167,8 +167,8 @@ leaf_posterior <- function(params, evidence) {
   # Continuous features
   if (any(evidence$family != 'multinom')) { 
     evi <- evidence[family != 'multinom']
-    psi <- merge(evi, params$cnt, by = 'variable')
     evi[, n := .N, by = variable]
+    psi <- merge(evi, params$cnt, by = 'variable')
     if (any(evi$relation == '==')) {
       psi[relation == '==', lik := 
             truncnorm::dtruncnorm(value, a = min, b = max, mean = mu, sd = sigma)]
