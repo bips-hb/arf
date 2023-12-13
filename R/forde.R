@@ -123,12 +123,14 @@ forde <- function(
   d <- ncol(x)
   colnames_x <- colnames(x)
   classes <- sapply(x, class)
+  x <- suppressWarnings(prep_x(x))
   factor_cols <- sapply(x, is.factor)
   lvls <- arf$forest$covariate.levels[factor_cols]
   lvl_df <- rbindlist(lapply(seq_along(lvls), function(j) {
     melt(as.data.table(lvls[j]), measure.vars = names(lvls)[j], 
          value.name = 'val')[, level := .I]
   }))
+  names(factor_cols) <- colnames_x
   prec <- rep(NA_integer_, d) 
   if (any(!factor_cols)) {
     prec[!factor_cols] <- sapply(which(!factor_cols), function(j) {
@@ -141,9 +143,6 @@ forde <- function(
       return(out)
     })
   }
-  x <- suppressWarnings(prep_x(x))
-  factor_cols <- sapply(x, is.factor)
-  names(factor_cols) <- colnames_x
   
   # Compute leaf bounds and coverage
   num_trees <- arf$num.trees
