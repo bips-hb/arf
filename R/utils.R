@@ -268,12 +268,12 @@ post_x <- function(x, params) {
   }
   if (sum(idx_factor) > 0L) {
     x[, idx_factor] <- lapply(idx_factor, function(j) {
-        factor(x[[j]], levels = params$levels[[colnames(x)[j]]])
+      factor(x[[j]], levels = params$levels[variable == colnames(x)[j], val])
     })
   }
   if (sum(idx_ordered) > 0L) {
     x[, idx_ordered] <- lapply(idx_ordered, function(j) {
-        factor(x[[j]], levels = params$levels[[colnames(x)[j]]], ordered = TRUE)
+        factor(x[[j]], levels = params$levels[variable == colnames(x)[j], val], ordered = TRUE)
     })
   }
   if (sum(idx_logical) > 0L) {
