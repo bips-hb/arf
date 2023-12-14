@@ -96,7 +96,7 @@ forde <- function(
   # To avoid data.table check issues
   tree <- n_oob <- cvg <- leaf <- variable <- count <- sd <- value <- psi_cnt <- 
     psi_cat <- f_idx <- sigma <- new_min <- new_max <- mid <- sigma0 <- prob <- 
-    val <- val_count <- k <- cnt <- . <- NULL
+    val <- val_count <- level <- all_na <- i <- k <- cnt <- . <- NULL
   
   # Prelimz
   if (isTRUE(oob) & !nrow(x) %in% c(arf$num.samples, arf$num.samples/2)) {
@@ -290,14 +290,13 @@ forde <- function(
           all_na[!grepl('\\.5', min), min := min + 0.5]
           all_na[!grepl('\\.5', max), max := max + 0.5]
           all_na[, min := min + 0.5][, max := max - 0.5]
-          all_na <- foreach(i = all_na[, unique(leaf)], .combine = rbind) %:%
-            foreach(j = all_na[, unique(variable)], .combine = rbind) %do% {
-              data.table(
-                leaf = i, 
-                variable = j, 
-                level = all_na[leaf == i & variable == j, seq(min, max)]
-              )
-            }
+          grd <- expand.grid(leaf = all_na[, unique(leaf)],
+                             variable = all_na[, unique(variable)])
+          all_na <- rbindlist(lapply(seq_len(nrow(grd)), function(i) {
+            data.table(
+              leaf = grd$leaf[i], variable = grd$variable[i],
+              level = all_na[leaf == grd$leaf[i] & variable == grd$variable[i], seq(min, max)])
+          }))
           all_na <- merge(all_na, lvl_df, by = c('variable', 'level'))
           all_na[, level := NULL][, tree := tree]
           setcolorder(all_na, colnames(dt))
