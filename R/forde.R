@@ -131,9 +131,9 @@ forde <- function(
          value.name = 'val')[, level := .I]
   }))
   names(factor_cols) <- colnames_x
-  prec <- rep(NA_integer_, d) 
+  deci <- rep(NA_integer_, d) 
   if (any(!factor_cols)) {
-    prec[!factor_cols] <- sapply(which(!factor_cols), function(j) {
+    deci[!factor_cols] <- sapply(which(!factor_cols), function(j) {
       if (any(grepl('\\.', x[[j]]))) {
         tmp <- x[grepl('\\.', x[[j]]), j]
         out <- max(nchar(sub('.*[.]', '', tmp)))
@@ -152,9 +152,11 @@ forde <- function(
     ub <- matrix(Inf, nrow = num_nodes, ncol = d)
     if (family == 'unif' | isTRUE(finite_bounds) & any(!factor_cols)) {
       for (j in which(!factor_cols)) {
-        gap <- max(x[[j]]) - min(x[[j]])
-        lb[, j] <- min(x[[j]]) - epsilon / 2 * gap
-        ub[, j] <- max(x[[j]]) + epsilon / 2 * gap
+        min_j <- min(x[[j]], na.rm = TRUE)
+        max_j <- max(x[[j]], na.rm = TRUE)
+        gap <- max_j - min_j
+        lb[, j] <- min_j - epsilon / 2 * gap
+        ub[, j] <- max_j + epsilon / 2 * gap
       }
     }
     for (i in 1:num_nodes) {
@@ -224,12 +226,12 @@ forde <- function(
           if (any(dt[, all_na == TRUE])) {
             if (any(dt[all_na == TRUE, !is.finite(min)])) {
               for (j in names(which(!factor_cols))) {
-                dt[all_na == TRUE & !is.finite(min) & variable == j, min := min(x[[j]])]
+                dt[all_na == TRUE & !is.finite(min) & variable == j, min := min(x[[j]], na.rm = TRUE)]
               }
             }
             if (any(dt[all_na == TRUE, !is.finite(max)])) {
               for (j in names(which(!factor_cols))) {
-                dt[all_na == TRUE & !is.finite(max) & variable == j, max := max(x[[j]])]
+                dt[all_na == TRUE & !is.finite(max) & variable == j, max := max(x[[j]], na.rm = TRUE)]
               }
             }
             dt[all_na == TRUE, value := (max - min) / 2]
@@ -302,6 +304,7 @@ forde <- function(
           setcolorder(all_na, colnames(dt))
           dt <- rbind(dt, all_na)
         }
+        dt[, all_na := NULL]
       }
       dt[, count := .N, by = .(leaf, variable)]
       dt <- merge(dt, bnds[, .(tree, leaf, variable, min, max, f_idx)], 
@@ -353,7 +356,7 @@ forde <- function(
     'forest' = unique(bnds[, .(f_idx, tree, leaf, cvg)]),
     'meta' = data.table('variable' = colnames_x, 'class' = classes, 
                         'family' = fifelse(factor_cols, 'multinom', family),
-                        'precision' = prec), 
+                        'decimals' = deci), 
     'levels' = lvl_df, 
     'input_class' = input_class
   )
