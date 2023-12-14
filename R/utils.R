@@ -263,7 +263,7 @@ post_x <- function(x, params) {
   # Recode
   if (sum(idx_numeric) > 0L) {
     x[, idx_numeric] <- lapply(idx_numeric, function(j) {
-        round(as.numeric(x[[j]]), meta_tmp$precision[j])
+        round(as.numeric(x[[j]]), meta_tmp$decimals[j])
     })
   }
   if (sum(idx_factor) > 0L) {
