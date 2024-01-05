@@ -321,9 +321,9 @@ forde <- function(
         dt[, k := max - min]
         # Enumerate each possible leaf-variable-value combo
         tmp <- dt[, seq(min[1] + 0.5, max[1] - 0.5), by = .(f_idx, variable)]
-        setnames(tmp, 'V1', 'levels')
-        tmp <- merge(tmp, lvl_df, by = c('variable', 'levels'), 
-                     sort = FALSE)[, levels := NULL]
+        setnames(tmp, 'V1', 'level')
+        tmp <- merge(tmp, lvl_df, by = c('variable', 'level'), 
+                     sort = FALSE)[, level := NULL]
         # Populate count, k
         tmp <- merge(tmp, unique(dt[, .(f_idx, variable, count, k)]),
                      by = c('f_idx', 'variable'), sort = FALSE)
