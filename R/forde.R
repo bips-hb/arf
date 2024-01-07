@@ -292,19 +292,19 @@ forde <- function(
           all_na[!grepl('\\.5', min), min := min + 0.5]
           all_na[!grepl('\\.5', max), max := max + 0.5]
           all_na[, min := min + 0.5][, max := max - 0.5]
-          grd <- expand.grid(leaf = all_na[, unique(leaf)],
-                             variable = all_na[, unique(variable)])
-          all_na <- rbindlist(lapply(seq_len(nrow(grd)), function(i) {
+          all_na <- rbindlist(lapply(seq_len(nrow(all_na)), function(i) {
             data.table(
-              leaf = grd$leaf[i], variable = grd$variable[i],
-              level = all_na[leaf == grd$leaf[i] & variable == grd$variable[i], seq(min, max)])
+              leaf = all_na[i, leaf], variable = all_na[i, variable],
+              level = all_na[i, seq(min, max)]
+            )
           }))
           all_na <- merge(all_na, lvl_df, by = c('variable', 'level'))
           all_na[, level := NULL][, tree := tree]
           setcolorder(all_na, colnames(dt))
           dt <- rbind(dt, all_na)
+        } else {
+          dt[, all_na := NULL]
         }
-        dt[, all_na := NULL]
       }
       dt[, count := .N, by = .(leaf, variable)]
       dt <- merge(dt, bnds[, .(tree, leaf, variable, min, max, f_idx)], 
