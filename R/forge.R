@@ -108,12 +108,14 @@ forge <- function(
   
   if (nrow(omega) == 0) {
     stop("All leaves have zero likelihood.")
+  } else if (nrow(omega) == 1) {
+    draws <- omega[, .(f_idx)]
+  } else {
+    # Draw random leaves with probability proportional to weight
+    draws <- data.table(
+      'f_idx' = omega[, sample(f_idx, size = n_synth, replace = TRUE, prob = wt)]
+    )
   }
-  
-  # Draw random leaves with probability proportional to weight
-  draws <- data.table(
-    'f_idx' = omega[, sample(f_idx, size = n_synth, replace = TRUE, prob = wt)]
-  )
   omega <- merge(draws, omega, sort = FALSE)[, idx := .I]
   
   # Simulate continuous data
