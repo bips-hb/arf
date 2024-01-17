@@ -106,6 +106,10 @@ forge <- function(
   }
   omega <- omega[wt > 0]
   
+  if (nrow(omega) == 0) {
+    stop("All leaves have zero likelihood.")
+  }
+  
   # Draw random leaves with probability proportional to weight
   draws <- data.table(
     'f_idx' = omega[, sample(f_idx, size = n_synth, replace = TRUE, prob = wt)]
