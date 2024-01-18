@@ -225,13 +225,20 @@ leaf_posterior <- function(params, evidence) {
   
   # Weight is proportional to coverage times product of likelihoods
   psi <- merge(psi, params$forest[, .(f_idx, cvg)], by = 'f_idx', sort = FALSE)
-  psi[, wt := cvg * prod(lik), by = f_idx]
+  psi[, wt:= {
+    if (any(lik == 0)) {
+      0
+    } else {
+      exp(mean(log(c(cvg[1], lik))))
+    }
+  }
+  , by = f_idx]
   
   # Normalize, export
+  
   out <- unique(psi[wt > 0, .(f_idx, wt)])
-  out[!is.finite(wt), wt := 1]
-  out[, wt := wt / sum(wt)]
-  return(out)
+  out[, wt := (wt / (1*(max(wt, na.rm = T))))^(nrow(evidence) + 1)][wt > 0, wt := wt / sum(wt)]
+  return(out[])
 }
 
 
