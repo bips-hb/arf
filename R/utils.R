@@ -216,21 +216,32 @@ leaf_posterior <- function(params, evidence) {
       psi_ineq <- rbindlist(lapply(evi_tmp[, .I], function(k) {
         psi[variable == evi_tmp$variable[k] & val != evi_tmp$value[k]]
       }))
-      psi_ineq[, lik := sum(lik), by = .(f_idx, variable)]
+      psi_ineq[, lik := sum(lik, na.rm = T), by = .(f_idx, variable)]
       psi_ineq <- unique(psi_ineq[, .(f_idx, variable, lik)])
     }
     psi_cat <- rbind(psi_eq, psi_ineq)
   }
   psi <- rbind(psi_cnt, psi_cat)
   
+  
   # Weight is proportional to coverage times product of likelihoods
   psi <- merge(psi, params$forest[, .(f_idx, cvg)], by = 'f_idx', sort = FALSE)
-  psi[, wt := cvg * prod(lik), by = f_idx] 
+
+  psi[, wt:= {
+    if (any(lik == 0)) {
+      0
+    } else {
+      exp(mean(log(c(cvg[1], lik))))
+    }
+  }
+  , by = f_idx]
   
   # Normalize, export
+
   out <- unique(psi[wt > 0, .(f_idx, wt)])
-  out[, wt := wt / sum(wt)]
-  return(out)
+  out[, wt := (wt / (1*(max(wt, na.rm = T))))^(nrow(evidence) + 1)][wt > 0, wt := wt / sum(wt)]
+  
+  return(out[])
 }
 
 
@@ -295,5 +306,3 @@ post_x <- function(x, params) {
   }
   return(x)
 }
-
-
