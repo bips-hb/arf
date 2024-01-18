@@ -237,7 +237,7 @@ leaf_posterior <- function(params, evidence) {
   # Normalize, export
   
   out <- unique(psi[wt > 0, .(f_idx, wt)])
-  out[, wt := (wt / (1*(max(wt, na.rm = T))))^(nrow(evidence) + 1)][wt > 0, wt := wt / sum(wt)]
+  out[, wt := (wt / max(wt, na.rm = T))^(nrow(evidence) + 1)][wt > 0, wt := wt / sum(wt)]
   return(out[])
 }
 
