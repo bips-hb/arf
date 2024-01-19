@@ -235,8 +235,13 @@ leaf_posterior <- function(params, evidence) {
   , by = f_idx]
   
   # Normalize, export
-  
   out <- unique(psi[wt > 0, .(f_idx, wt)])
+  if (nrow(out) == 0) {
+    # If all leaves have zero weight, choose one randomly
+    warning("All leaves have zero likelihood. This is probably because evidence contains an (almost) impossible combination. For categorical data, consider setting alpha>0 in forde().")
+    out <- unique(psi[, .(f_idx)])
+    out[, wt := 1]
+  }
   out[, wt := (wt / max(wt, na.rm = T))^(nrow(evidence) + 1)][wt > 0, wt := wt / sum(wt)]
   return(out[])
 }
@@ -256,7 +261,7 @@ leaf_posterior <- function(params, evidence) {
 post_x <- function(x, params) {
   
   # To avoid data.table check issues
-  variable <- NULL
+  variable <- val <- NULL
   
   # Order, classify features
   meta_tmp <- params$meta[variable %in% colnames(x)]
