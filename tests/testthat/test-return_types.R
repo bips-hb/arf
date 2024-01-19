@@ -19,7 +19,7 @@ test_that("FORDE categories sum to unity", {
   arf <- adversarial_rf(iris, num_trees = 2, verbose = FALSE, parallel = FALSE)
   psi <- forde(arf, iris, parallel = FALSE)
   tmp <- psi$cat[, sum(prob), by = f_idx]
-  expect_true(all.equal(tmp$V1, rep(1, times = tmp[, .N])))
+  expect_equal(tmp$V1, rep(1, times = tmp[, .N]))
 })
 
 test_that("Likelihood calculation returns vector of log-likelihoods", {
@@ -30,7 +30,7 @@ test_that("Likelihood calculation returns vector of log-likelihoods", {
   expect_type(loglik, "double")
   expect_length(loglik, nrow(iris))
   expect_true(all(!is.na(loglik)))
-  expect_true(all.equal(loglik, loglik2))
+  expect_equal(loglik, loglik2)
 })
 
 test_that("FORGE returns data frame when called with data frame", {
