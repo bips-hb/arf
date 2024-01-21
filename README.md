@@ -41,11 +41,11 @@ To generate 100 synthetic samples:
 forge(psi, 100)
 ```
 
-### MAP estimation
-To estimate the most likely values for variables conditional on some evidence, say, `Species = "setosa"`:
+### Conditional expectations
+To estimate the mean of some variable(s), optionally conditioned on some event(s):
 ```R
 evi <- data.frame(Species = "setosa")
-map(psi, evidence = evi)
+expct(psi, query = "Sepal.Length", evidence = evi)
 ```
 
 For more detailed examples, see the package [vignette](https://bips-hb.github.io/arf/articles/vignette.html).
