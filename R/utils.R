@@ -50,7 +50,9 @@ prep_x <- function(x) {
               'To override this behavior, explicitly code these variables as factors.')
       x[, to_numeric] <- lapply(x[, to_numeric, drop = FALSE], as.numeric)
     }
-    to_factor <- !to_numeric
+    to_factor <- sapply(seq_len(ncol(x)), function(j) {
+      idx_integer[j] & length(unique(x[[j]])) < 6
+    })
     if (any(to_factor)) {
       warning('Recoding integers with fewer than 6 unique values as ordered factors. ', 
               'To override this behavior, explicitly code these variables as numeric.')
@@ -95,7 +97,7 @@ prep_x <- function(x) {
 prep_evi <- function(params, evidence) {
   
   # To avoid data.table check issues
-  variable <- relation <- N <- n <- family <- NULL
+  variable <- relation <- N <- n <- family <- wt <- NULL
   
   # Prep
   setDT(evidence)
