@@ -53,6 +53,5 @@ of the 26th International Conference on Artificial Intelligence and
 Statistics}, pp. 5357-5375.
 }
 \seealso{
-\code{\link{adversarial_rf}}, \code{\link{forde}}, \code{\link{lik}},
-\code{\link{map}}
+\code{\link{adversarial_rf}}, \code{\link{forde}}, \code{\link{lik}}
 }

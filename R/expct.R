@@ -46,8 +46,7 @@
 #' 
 #' 
 #' @seealso
-#' \code{\link{adversarial_rf}}, \code{\link{forde}}, \code{\link{lik}}, 
-#' \code{\link{map}}
+#' \code{\link{adversarial_rf}}, \code{\link{forde}}, \code{\link{lik}}
 #' 
 #'
 #' @export
