@@ -41,12 +41,24 @@ prep_x <- function(x) {
   }
   idx_integer <- sapply(x, is.integer)
   if (any(idx_integer)) {
-    warning('Recoding integer data as ordered factors. To override this behavior, ',
-            'explicitly code these variables as numeric.')
-    x[, idx_integer] <- lapply(which(idx_integer), function(j) {
+    # Recoding integers with > 5 levels as numeric
+    to_numeric <- sapply(seq_len(ncol(x)), function(j) {
+      idx_integer[j] & length(unique(x[[j]])) > 5
+    })
+    if (any(to_numeric)) {
+      warning('Recoding integers with more than 5 unique values as numeric. ', 
+              'To override this behavior, explicitly code these variables as factors.')
+      x[, to_numeric] <- lapply(x[, to_numeric, drop = FALSE], as.numeric)
+    }
+    to_factor <- !to_numeric
+    if (any(to_factor)) {
+      warning('Recoding integers with fewer than 6 unique values as ordered factors. ', 
+              'To override this behavior, explicitly code these variables as numeric.')
+      x[, to_factor] <- lapply(which(to_factor), function(j) {
         lvls <- sort(unique(x[[j]]))
         factor(x[[j]], levels = lvls, ordered = TRUE)
-    })
+      })
+    }
   }
   # Rename annoying columns
   if ('y' %in% colnames(x)) {
@@ -133,7 +145,12 @@ prep_evi <- function(params, evidence) {
       #}
     }
   }
-  
+  if (isTRUE(post)) {
+    if (evidence[, sum(wt)] != 1) {
+      evidence[, wt := wt / sum(wt)]
+      warning('Posterior weights have been normalized to sum to unity.')
+    }
+  }
   ### ALSO: Reduce redundant events to most informative condition
   ###       and check for inconsistencies, e.g. >3 & <2
   
@@ -196,6 +213,7 @@ leaf_posterior <- function(params, evidence) {
   psi_eq <- psi_ineq <- NULL
   if (any(evidence$family == 'multinom')) { 
     evi <- evidence[family == 'multinom']
+    evi[, value := as.character(value)]
     grd <- rbindlist(lapply(evi[, variable], function(j) {
       expand.grid('f_idx' = params$forest$f_idx, 'variable' = j,
                   'val' = params$cat[variable == j, unique(val)],
