@@ -68,11 +68,10 @@ estimation (see \code{\link{forde}}) and data synthesis (see
 trees for improved performance (typically on the order of 100-1000 depending
 on sample size).
 
-Integer variables are treated as ordered factors by default. If the ARF is
-passed to \code{forde}, the estimated distribution for these variables will
-only have support on observed factor levels (i.e., the output will be a pmf,
-not a pdf). To override this behavior and assign nonzero density to
-intermediate values, explicitly recode the features as numeric.
+Integer variables are recoded with a warning. Default behavior is to convert
+those with six or more unique values to numeric, while those with up to five
+unique values are treated as ordered factors. To override this behavior,
+explicitly recode integer variables to the target type prior to training.
 
 Note: convergence is not guaranteed in finite samples. The \code{max_iters}
 argument sets an upper bound on the number of training rounds. Similar
