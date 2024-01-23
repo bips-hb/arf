@@ -4,23 +4,41 @@
 \alias{lik}
 \title{Likelihood Estimation}
 \usage{
-lik(arf, params, x, oob = FALSE, log = TRUE, batch = NULL, parallel = TRUE)
+lik(
+  params,
+  query,
+  evidence = NULL,
+  arf = NULL,
+  oob = FALSE,
+  log = TRUE,
+  batch = NULL,
+  parallel = TRUE
+)
 }
 \arguments{
-\item{arf}{Pre-trained \code{\link{adversarial_rf}}. Alternatively, any
-object of class \code{ranger}.}
+\item{params}{Circuit parameters learned via \code{\link{forde}}.}
 
-\item{params}{Parameters learned via \code{\link{forde}}.}
+\item{query}{Data frame of samples, optionally comprising just a subset of
+training features. Likelihoods will be computed for each sample. Missing
+features will be marginalized out. See Details.}
 
-\item{x}{Input data. Densities will be computed for each sample.}
+\item{evidence}{Optional set of conditioning events. This can take one of
+three forms: (1) a partial sample, i.e. a single row of data with some but
+not all columns; (2) a data frame of conditioning events, which allows for
+inequalities; or (3) a posterior distribution over leaves. See Details.}
+
+\item{arf}{Pre-trained \code{\link{adversarial_rf}} or other object of class
+\code{ranger}. This is not required but speeds up computation considerably
+for total evidence queries. (Ignored for partial evidence queries.)}
 
 \item{oob}{Only use out-of-bag leaves for likelihood estimation? If
-\code{TRUE}, \code{x} must be the same dataset used to train \code{arf}.}
+\code{TRUE}, \code{x} must be the same dataset used to train \code{arf}.
+Only applicable for total evidence queries.}
 
 \item{log}{Return likelihoods on log scale? Recommended to prevent underflow.}
 
 \item{batch}{Batch size. The default is to compute densities for all of
-\code{x} in one round, which is always the fastest option if memory allows.
+queries in one round, which is always the fastest option if memory allows.
 However, with large samples or many trees, it can be more memory efficient
 to split the data into batches. This has no impact on results.}
 
@@ -31,21 +49,45 @@ via \code{doParallel}.}
 A vector of likelihoods, optionally on the log scale.
 }
 \description{
-Compute the density of input data.
+Compute the likelihood of input data, optionally conditioned on some event(s).
 }
 \details{
-This function computes the density of input data according to a FORDE model
-using a pre-trained ARF. Each sample's likelihood is a weighted average of
-its likelihood in all leaves whose split criteria it satisfies. Intra-leaf
-densities are fully factorized, since ARFs satisfy the local independence
-criterion by construction. See Watson et al. (2022).
+This function computes the likelihood of input data, optionally conditioned
+on some event(s). Queries may be partial, i.e. covering some but not all
+features, in which case excluded variables will be marginalized out.
+
+There are three methods for (optionally) encoding conditioning events via the
+\code{evidence} argument. The first is to provide a partial sample, where
+some but not all columns from the training data are present. The second is to
+provide a data frame with three columns: \code{variable}, \code{relation},
+and \code{value}. This supports inequalities via \code{relation}.
+Alternatively, users may directly input a pre-calculated posterior
+distribution over leaves, with columns \code{f_idx} and \code{wt}. This may
+be preferable for complex constraints. See Examples.
 }
 \examples{
 # Estimate average log-likelihood
 arf <- adversarial_rf(iris)
 psi <- forde(arf, iris)
-ll <- lik(arf, psi, iris, log = TRUE)
+ll <- lik(psi, iris, arf = arf, log = TRUE)
 mean(ll)
+
+# Identical but slower
+ll <- lik(psi, iris, log = TRUE)
+mean(ll)
+
+# Partial evidence query
+lik(psi, query = iris[1, 1:3])
+
+# Condition on Species = "setosa"
+evi <- data.frame(Species = "setosa")
+lik(psi, query = iris[1, 1:3], evidence = evi)
+
+# Condition on Species = "setosa" and Petal.Width > 0.3
+evi <- data.frame(variable = c("Species", "Petal.Width"),
+                  relation = c("==", ">"), 
+                  value = c("setosa", 0.3))
+lik(psi, query = iris[1, 1:3], evidence = evi)
 
 
 }

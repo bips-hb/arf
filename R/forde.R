@@ -11,14 +11,16 @@
 #'   features. Current options include truncated normal (the default
 #'   \code{family = "truncnorm"}) and uniform (\code{family = "unif"}). See 
 #'   Details.
+#' @param finite_bounds Impose finite bounds on all continuous variables? 
 #' @param alpha Optional pseudocount for Laplace smoothing of categorical 
 #'   features. This avoids zero-mass points when test data fall outside the 
 #'   support of training data. Effectively parametrizes a flat Dirichlet prior
 #'   on multinomial likelihoods.
 #' @param epsilon Optional slack parameter on empirical bounds when 
-#'   \code{family = "unif"}. This avoids zero-density points when test data fall 
-#'   outside the support of training data. The gap between lower and upper 
-#'   bounds is expanded by a factor of \code{1 + epsilon}. 
+#'   \code{family = "unif"} or \code{finite_bounds = TRUE}. This avoids 
+#'   zero-density points when test data fall outside the support of training 
+#'   data. The gap between lower and upper bounds is expanded by a factor of 
+#'   \code{1 + epsilon}. 
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
 #'   via \code{doParallel}.
 #'   
@@ -28,8 +30,8 @@
 #' distribution parameters for data within each leaf. The former includes 
 #' coverage (proportion of data falling into the leaf) and split criteria. The 
 #' latter includes proportions for categorical features and mean/variance for
-#' continuous features. These values are stored in a \code{data.table}, which 
-#' can be used as input to various other functions.
+#' continuous features. The result is a probabilistic circuit, stored as a 
+#' \code{data.table}, which can be used for various downstream inference tasks.
 #' 
 #' Currently, \code{forde} only provides support for a limited number of 
 #' distributional families: truncated normal or uniform for continuous data,
@@ -86,68 +88,20 @@ forde <- function(
     x, 
     oob = FALSE,
     family = 'truncnorm', 
+    finite_bounds = FALSE,
     alpha = 0,
     epsilon = 0,
     parallel = TRUE) {
   
   # To avoid data.table check issues
-  tree <- n_oob <- cvg <- leaf <- variable <- count <- sd <- value <- y_new <- 
-    obs_new <- tree_new <- leaf_new <- psi_cnt <- psi_cat <- f_idx <- sigma <- 
-    new_min <- new_max <- prob <- val <- val_count <- k <- . <- NULL
+  tree <- n_oob <- cvg <- leaf <- variable <- count <- sd <- value <- psi_cnt <- 
+    psi_cat <- f_idx <- sigma <- new_min <- new_max <- mid <- sigma0 <- prob <- 
+    val <- val_count <- level <- all_na <- i <- k <- cnt <- . <- NULL
   
   # Prelimz
   if (isTRUE(oob) & !nrow(x) %in% c(arf$num.samples, arf$num.samples/2)) {
     stop('Forest must be trained on x when oob = TRUE.')
   }
-  if (!family %in% c('truncnorm', 'unif')) {
-    stop('family not recognized.')
-  }
-  
-  # Prep data
-  input_class <- class(x)
-  x <- as.data.frame(x)
-  n <- nrow(x)
-  d <- ncol(x)
-  colnames_x <- colnames(x)
-  if ('y' %in% colnames(x)) {
-    y_new <- col_rename(x, 'y')
-    colnames(x)[which(colnames(x) == 'y')] <- y_new
-  }
-  if ('obs' %in% colnames(x)) {
-    obs_new <- col_rename(x, 'obs')
-    colnames(x)[which(colnames(x) == 'obs')] <- obs_new
-  }
-  if ('tree' %in% colnames(x)) {
-    tree_new <- col_rename(x, 'tree')
-    colnames(x)[which(colnames(x) == 'tree')] <- tree_new
-  } 
-  if ('leaf' %in% colnames(x)) {
-    leaf_new <- col_rename(x, 'leaf')
-    colnames(x)[which(colnames(x) == 'leaf')] <- leaf_new
-  } 
-  classes <- sapply(x, class)
-  idx_char <- sapply(x, is.character)
-  if (any(idx_char)) {
-    x[, idx_char] <- as.data.frame(
-      lapply(x[, idx_char, drop = FALSE], as.factor)
-    )
-  }
-  idx_logical <- sapply(x, is.logical)
-  if (any(idx_logical)) {
-    x[, idx_logical] <- as.data.frame(
-      lapply(x[, idx_logical, drop = FALSE], as.factor)
-    )
-  }
-  idx_integer <- sapply(x, is.integer)
-  if (any(idx_integer)) {
-    warning('Recoding integer data as ordered factors. To override this behavior, ',
-            'explicitly code these variables as numeric.')
-    for (j in which(idx_integer)) {
-      lvls <- sort(unique(x[, j]))
-      x[, j] <- factor(x[, j], levels = lvls, ordered = TRUE)
-    }
-  }
-  factor_cols <- sapply(x, is.factor)
   if (!family %in% c('truncnorm', 'unif')) {
     stop('family not recognized.')
   }
@@ -158,20 +112,51 @@ forde <- function(
     stop('epsilon must be nonnegative.')
   }
   
+  # Prep data
+  input_class <- class(x)
+  x <- as.data.frame(x)
+  inf_flag <- sapply(seq_along(x), function(j) any(is.infinite(x[[j]])))
+  if (any(inf_flag)) {
+    stop('x contains infinite values.')
+  }
+  n <- nrow(x)
+  d <- ncol(x)
+  colnames_x <- colnames(x)
+  classes <- sapply(x, class)
+  x <- suppressWarnings(prep_x(x))
+  factor_cols <- sapply(x, is.factor)
+  lvls <- arf$forest$covariate.levels[factor_cols]
+  lvl_df <- rbindlist(lapply(seq_along(lvls), function(j) {
+    melt(as.data.table(lvls[j]), measure.vars = names(lvls)[j], 
+         value.name = 'val')[, level := .I]
+  }))
+  names(factor_cols) <- colnames_x
+  deci <- rep(NA_integer_, d) 
+  if (any(!factor_cols)) {
+    deci[!factor_cols] <- sapply(which(!factor_cols), function(j) {
+      if (any(grepl('\\.', x[[j]]))) {
+        tmp <- x[grepl('\\.', x[[j]]), j]
+        out <- max(nchar(sub('.*[.]', '', tmp)))
+      } else {
+        out <- 0L
+      }
+      return(out)
+    })
+  }
+  
   # Compute leaf bounds and coverage
   num_trees <- arf$num.trees
-  pred <- stats::predict(arf, x, type = 'terminalNodes')$predictions + 1L
   bnd_fn <- function(tree) {
     num_nodes <- length(arf$forest$split.varIDs[[tree]])
     lb <- matrix(-Inf, nrow = num_nodes, ncol = d)
     ub <- matrix(Inf, nrow = num_nodes, ncol = d)
-    if (family == 'unif') {
-      for (j in seq_len(d)) {
-        if (!isTRUE(factor_cols[j])) {
-          gap <- max(x[[j]]) - min(x[[j]])
-          lb[, j] <- min(x[[j]]) - epsilon/2 * gap
-          ub[, j] <- max(x[[j]]) + epsilon/2 * gap
-        }
+    if (family == 'unif' | isTRUE(finite_bounds) & any(!factor_cols)) {
+      for (j in which(!factor_cols)) {
+        min_j <- min(x[[j]], na.rm = TRUE)
+        max_j <- max(x[[j]], na.rm = TRUE)
+        gap <- max_j - min_j
+        lb[, j] <- min_j - epsilon / 2 * gap
+        ub[, j] <- max_j + epsilon / 2 * gap
       }
     }
     for (i in 1:num_nodes) {
@@ -189,8 +174,7 @@ forde <- function(
       }
     }
     leaves <- which(arf$forest$child.nodeIDs[[tree]][[1]] == 0L) 
-    colnames(lb) <- arf$forest$independent.variable.names
-    colnames(ub) <- arf$forest$independent.variable.names
+    colnames(lb) <- colnames(ub) <- colnames_x
     merge(melt(data.table(tree = tree, leaf = leaves, lb[leaves, ]), 
                id.vars = c('tree', 'leaf'), value.name = 'min'), 
           melt(data.table(tree = tree, leaf = leaves, ub[leaves, ]), 
@@ -198,33 +182,34 @@ forde <- function(
           by = c('tree', 'leaf', 'variable'), sort = FALSE)
   }
   if (isTRUE(parallel)) {
-    bnds <- foreach(tree = 1:num_trees, .combine = rbind) %dopar% bnd_fn(tree)
+    bnds <- foreach(tree = seq_len(num_trees), .combine = rbind) %dopar% bnd_fn(tree)
   } else {
-    bnds <- foreach(tree = 1:num_trees, .combine = rbind) %do% bnd_fn(tree)
+    bnds <- foreach(tree = seq_len(num_trees), .combine = rbind) %do% bnd_fn(tree)
   }
-  # Use only OOB data?
+  # Compute coverage
+  pred <- stats::predict(arf, x, type = 'terminalNodes')$predictions + 1L
+  keep <- data.table('tree' = rep(seq_len(num_trees), each = n), 
+                     'leaf' = as.vector(pred))
   if (isTRUE(oob)) {
-    inbag <- (do.call(cbind, arf$inbag.counts) > 0L)[1:(arf$num.samples/2), ]
-    pred[inbag] <- NA_integer_
-    bnds[, n_oob := sum(!is.na(pred[, tree])), by = tree]
-    bnds[, cvg := sum(pred[, tree] == leaf, na.rm = TRUE) / n_oob, by = .(tree, leaf)]
-    if (any(!factor_cols)) {
-      bnds[cvg == 1 / n_oob, cvg := 0]
-    }
+    keep[, oob := as.vector(sapply(seq_len(num_trees), function(b) {
+      arf$inbag.counts[[b]][seq_len(n)] == 0L
+    }))]
+    keep <- keep[oob == TRUE]
+    keep <- unique(keep[, cnt := .N, by = .(tree, leaf)])
+    keep[, n_oob := sum(oob), by = tree]
+    keep[, cvg := cnt / n_oob][, c('oob', 'cnt', 'n_oob') := NULL]
   } else {
-    bnds[, cvg := sum(pred[, tree] == leaf) / n, by = .(tree, leaf)]
-    if (any(!factor_cols)) {
-      bnds[cvg == 1 / n, cvg := 0]
-    }
+    keep <- unique(keep[, cnt := .N, by = .(tree, leaf)])
+    keep[, cvg := cnt / n][, cnt := NULL]
   }
-  # No parameters to learn for zero coverage leaves
-  bnds <- bnds[cvg > 0]
+  bnds <- merge(bnds, keep, by = c('tree', 'leaf'), sort = FALSE)
+  rm(keep)
   # Create forest index
   setkey(bnds, tree, leaf)
   bnds[, f_idx := .GRP, by = key(bnds)]
   
   # Calculate distribution parameters for each variable
-  fams <- ifelse(factor_cols, 'multinom', family)
+  setnames(x, colnames_x)
   # Continuous case
   if (any(!factor_cols)) {
     psi_cnt_fn <- function(tree) {
@@ -236,33 +221,48 @@ forde <- function(
       dt <- merge(dt, bnds[, .(tree, leaf, variable, min, max, f_idx)],
                   by = c('tree', 'leaf', 'variable'), sort = FALSE)
       if (family == 'truncnorm') {
-        dt[, c('mu', 'sigma') := .(mean(value), sd(value)), by = .(leaf, variable)]
-        if (dt[sigma == 0, .N] > 0L) {
-          dt[sigma == 0, new_min := ifelse(!is.finite(min), min(value), min), by = variable]
-          dt[sigma == 0, new_max := ifelse(!is.finite(max), max(value), max), by = variable]
-          dt[sigma == 0, value := stats::runif(.N, min = new_min, max = new_max)]
-          dt[sigma == 0, sigma := sd(value), by = .(leaf, variable)]
-          dt[, c('new_min', 'new_max') := NULL]
+        if (any(is.na(dt$value))) {
+          dt[, all_na := all(is.na(value)), by = .(leaf, variable)]
+          if (any(dt[, all_na == TRUE])) {
+            if (any(dt[all_na == TRUE, !is.finite(min)])) {
+              for (j in names(which(!factor_cols))) {
+                dt[all_na == TRUE & !is.finite(min) & variable == j, min := min(x[[j]], na.rm = TRUE)]
+              }
+            }
+            if (any(dt[all_na == TRUE, !is.finite(max)])) {
+              for (j in names(which(!factor_cols))) {
+                dt[all_na == TRUE & !is.finite(max) & variable == j, max := max(x[[j]], na.rm = TRUE)]
+              }
+            }
+            dt[all_na == TRUE, value := (max - min) / 2]
+          }
+          dt[, all_na := NULL]
+        }
+        dt[, c('mu', 'sigma') := .(mean(value, na.rm = TRUE), sd(value, na.rm = TRUE)), 
+           by = .(leaf, variable)]
+        dt[is.na(sigma), sigma := 0]
+        if (any(dt[, sigma == 0])) {
+          dt[, new_min := fifelse(!is.finite(min), min(value, na.rm = TRUE), min), by = variable]
+          dt[, new_max := fifelse(!is.finite(max), max(value, na.rm = TRUE), max), by = variable]
+          dt[, mid := (new_min + new_max) / 2]
+          dt[, sigma0 := (new_max - mid) / stats::qnorm(0.975)] 
+          # This prior places 95% of the density within the bounding box.
+          # In addition, we set the prior degrees of freedom at nu0 = 2. 
+          # Since the mode of a chisq is max(df-2, 0), this means that
+          # (1) with a single observation, the posterior reduces to the prior; and
+          # (2) with more invariant observations, the posterior tends toward zero.
+          dt[sigma == 0, sigma := sqrt(2 / .N * sigma0^2), by = .(variable, leaf)]
+          dt[, c('new_min', 'new_max', 'mid', 'sigma0') := NULL]
         }
       }
-      dt <- unique(dt[, c('tree', 'leaf', 'value') := NULL])
+      return(unique(dt[, c('tree', 'leaf', 'value') := NULL]))
     }
     if (isTRUE(parallel)) {
-      psi_cnt <- foreach(tree = 1:num_trees, .combine = rbind) %dopar% psi_cnt_fn(tree)
+      psi_cnt <- foreach(tree = seq_len(num_trees), .combine = rbind) %dopar% 
+        psi_cnt_fn(tree)
     } else {
-      psi_cnt <- foreach(tree = 1:num_trees, .combine = rbind) %do% psi_cnt_fn(tree)
-    }
-    if (!is.null(y_new)) {
-      psi_cnt[variable == y_new, variable := 'y']
-    }
-    if (!is.null(obs_new)) {
-      psi_cnt[variable == obs_new, variable := 'obs']
-    }
-    if (!is.null(tree_new)) {
-      psi_cnt[variable == tree_new, variable := 'tree']
-    }
-    if (!is.null(leaf_new)) {
-      psi_cnt[variable == leaf_new, variable := 'leaf']
+      psi_cnt <- foreach(tree = seq_len(num_trees), .combine = rbind) %do% 
+        psi_cnt_fn(tree)
     }
     setkey(psi_cnt, f_idx, variable)
     setcolorder(psi_cnt, c('f_idx', 'variable'))
@@ -276,6 +276,36 @@ forde <- function(
       }
       dt <- melt(dt, id.vars = 'leaf', variable.factor = FALSE,
                  value.factor = FALSE, value.name = 'val')[, tree := tree]
+      if (dt[, any(is.na(val))]) {
+        dt[, all_na := all(is.na(val)), by = .(leaf, variable)]
+        dt <- dt[!(is.na(val) & all_na == FALSE)]
+        if (any(dt[, all_na == TRUE])) {
+          all_na <- unique(dt[all_na == TRUE])
+          dt <- dt[all_na == FALSE]
+          dt[, all_na := NULL]
+          all_na <- merge(all_na, bnds[, .(tree, leaf, variable, min, max, f_idx)],
+                          by = c('tree', 'leaf', 'variable'), sort = FALSE)
+          all_na[!is.finite(min), min := 0.5]
+          for (j in names(which(factor_cols))) {
+            all_na[!is.finite(max) & variable == j, max := lvl_df[variable == j, max(level)]]
+          }
+          all_na[!grepl('\\.5', min), min := min + 0.5]
+          all_na[!grepl('\\.5', max), max := max + 0.5]
+          all_na[, min := min + 0.5][, max := max - 0.5]
+          all_na <- rbindlist(lapply(seq_len(nrow(all_na)), function(i) {
+            data.table(
+              leaf = all_na[i, leaf], variable = all_na[i, variable],
+              level = all_na[i, seq(min, max)]
+            )
+          }))
+          all_na <- merge(all_na, lvl_df, by = c('variable', 'level'))
+          all_na[, level := NULL][, tree := tree]
+          setcolorder(all_na, colnames(dt))
+          dt <- rbind(dt, all_na)
+        } else {
+          dt[, all_na := NULL]
+        }
+      }
       dt[, count := .N, by = .(leaf, variable)]
       dt <- merge(dt, bnds[, .(tree, leaf, variable, min, max, f_idx)], 
                   by = c('tree', 'leaf', 'variable'), sort = FALSE)
@@ -286,20 +316,14 @@ forde <- function(
         # Define the range of each variable in each leaf
         dt <- unique(dt[, val_count := .N, by = .(f_idx, variable, val)])
         dt[, k := length(unique(val)), by = variable]
-        dt[min == -Inf, min := 0.5][max == Inf, max := k + 0.5]
-        dt[!grepl('.5', min), min := min - 0.5][!grepl('.5', max), max := max + 0.5]
+        dt[!is.finite(min), min := 0.5][!is.finite(max), max := k + 0.5]
+        dt[!grepl('\\.5', min), min := min + 0.5][!grepl('\\.5', max), max := max + 0.5]
         dt[, k := max - min]
         # Enumerate each possible leaf-variable-value combo
         tmp <- dt[, seq(min[1] + 0.5, max[1] - 0.5), by = .(f_idx, variable)]
-        setnames(tmp, 'V1', 'levels')
-        tmp2 <- rbindlist(
-          lapply(which(factor_cols), function(j) {
-            data.table('variable' = colnames(x)[j],
-                       'val' = arf$forest$covariate.levels[[j]])[, levels := .I]
-          })
-        )
-        tmp <- merge(tmp, tmp2, by = c('variable', 'levels'), 
-                     sort = FALSE)[, levels := NULL]
+        setnames(tmp, 'V1', 'level')
+        tmp <- merge(tmp, lvl_df, by = c('variable', 'level'), 
+                     sort = FALSE)[, level := NULL]
         # Populate count, k
         tmp <- merge(tmp, unique(dt[, .(f_idx, variable, count, k)]),
                      by = c('f_idx', 'variable'), sort = FALSE)
@@ -314,31 +338,26 @@ forde <- function(
       dt[, c('count', 'min', 'max') := NULL]
     }
     if (isTRUE(parallel)) {
-      psi_cat <- foreach(tree = 1:num_trees, .combine = rbind) %dopar% psi_cat_fn(tree)
+      psi_cat <- foreach(tree = seq_len(num_trees), .combine = rbind) %dopar% 
+        psi_cat_fn(tree)
     } else {
-      psi_cat <- foreach(tree = 1:num_trees, .combine = rbind) %do% psi_cat_fn(tree)
+      psi_cat <- foreach(tree = seq_len(num_trees), .combine = rbind) %do% 
+        psi_cat_fn(tree)
     }
-    if (!is.null(y_new)) {
-      psi_cat[variable == y_new, variable := 'y']
-    }
-    if (!is.null(obs_new)) {
-      psi_cat[variable == obs_new, variable := 'obs']
-    }
-    if (!is.null(tree_new)) {
-      psi_cat[variable == tree_new, variable := 'tree']
-    }
-    if (!is.null(leaf_new)) {
-      psi_cat[variable == leaf_new, variable := 'leaf']
-    }
+    lvl_df[, level := NULL]
     setkey(psi_cat, f_idx, variable)
     setcolorder(psi_cat, c('f_idx', 'variable'))
   }
   
   # Add metadata, export
   psi <- list(
-    'cnt' = psi_cnt, 'cat' = psi_cat, 
+    'cnt' = psi_cnt, 
+    'cat' = psi_cat, 
     'forest' = unique(bnds[, .(f_idx, tree, leaf, cvg)]),
-    'meta' = data.table(variable = colnames_x, class = classes, family = fams), 
+    'meta' = data.table('variable' = colnames_x, 'class' = classes, 
+                        'family' = fifelse(factor_cols, 'multinom', family),
+                        'decimals' = deci), 
+    'levels' = lvl_df, 
     'input_class' = input_class
   )
   return(psi)

@@ -13,6 +13,7 @@
 #' @param max_iters Maximum iterations for the adversarial loop.
 #' @param early_stop Terminate loop if performance fails to improve from one 
 #'   round to the next? 
+#' @param prune Impose \code{min_node_size} by pruning? 
 #' @param verbose Print discriminator accuracy after each round?
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
 #'   via \code{doParallel}.
@@ -24,10 +25,10 @@
 #' iteratively, with alternating rounds of generation and discrimination. In 
 #' the first instance, synthetic data is generated via independent bootstraps of 
 #' each feature, and a RF classifier is trained to distinguish between real and 
-#' synthetic samples. In subsequent rounds, synthetic data is generated
-#' separately in each leaf, using splits from the previous forest. This creates 
-#' increasingly realistic data that satisfies local independence by construction. 
-#' The algorithm converges when a RF cannot reliably distinguish between the two 
+#' fake samples. In subsequent rounds, synthetic data is generated separately in 
+#' each leaf, using splits from the previous forest. This creates increasingly 
+#' realistic data that satisfies local independence by construction. The 
+#' algorithm converges when a RF cannot reliably distinguish between the two 
 #' classes, i.e. when OOB accuracy falls below 0.5 + \code{delta}. 
 #' 
 #' ARFs are useful for several unsupervised learning tasks, such as density
@@ -36,13 +37,12 @@
 #' trees for improved performance (typically on the order of 100-1000 depending 
 #' on sample size).
 #' 
-#' Integer variables are treated as ordered factors by default. If the ARF is
-#' passed to \code{forde}, the estimated distribution for these variables will
-#' only have support on observed factor levels (i.e., the output will be a pmf,
-#' not a pdf). To override this behavior and assign nonzero density to 
-#' intermediate values, explicitly recode the features as numeric. 
+#' Integer variables are recoded with a warning. Default behavior is to convert
+#' those with six or more unique values to numeric, while those with up to five
+#' unique values are treated as ordered factors. To override this behavior, 
+#' explicitly recode integer variables to the target type prior to training.
 #' 
-#' Note: convergence is not guaranteed in finite samples. The \code{max_iter} 
+#' Note: convergence is not guaranteed in finite samples. The \code{max_iters} 
 #' argument sets an upper bound on the number of training rounds. Similar 
 #' results may be attained by increasing \code{delta}. Even a single round can 
 #' often give good performance, but data with strong or complex dependencies may 
@@ -84,57 +84,23 @@ adversarial_rf <- function(
     delta = 0,
     max_iters = 10L,
     early_stop = TRUE,
+    prune = TRUE,
     verbose = TRUE,
     parallel = TRUE,
     ...) {
   
   # To avoid data.table check issues
-  i <- b <- cnt <- obs <- tree <- leaf <- . <- NULL
+  i <- b <- cnt <- obs <- tree <- leaf <- N <- . <- NULL
   
   # Prep data
-  x_real <- as.data.frame(x)
+  x_real <- prep_x(x)
   n <- nrow(x_real)
-  if ('y' %in% colnames(x_real)) {
-    colnames(x_real)[which(colnames(x_real) == 'y')] <- col_rename(x_real, 'y')
-  }
-  if ('obs' %in% colnames(x_real)) {
-    colnames(x_real)[which(colnames(x_real) == 'obs')] <- col_rename(x_real, 'obs')
-  }
-  if ('tree' %in% colnames(x_real)) {
-    colnames(x_real)[which(colnames(x_real) == 'tree')] <- col_rename(x_real, 'tree')
-  } 
-  if ('leaf' %in% colnames(x_real)) {
-    colnames(x_real)[which(colnames(x_real) == 'leaf')] <- col_rename(x_real, 'leaf')
-  } 
-  idx_char <- sapply(x_real, is.character)
-  if (any(idx_char)) {
-    x_real[, idx_char] <- as.data.frame(
-      lapply(x_real[, idx_char, drop = FALSE], as.factor)
-    )
-  }
-  idx_logical <- sapply(x_real, is.logical)
-  if (any(idx_logical)) {
-    x_real[, idx_logical] <- as.data.frame(
-      lapply(x_real[, idx_logical, drop = FALSE], as.factor)
-    )
-  }
-  idx_intgr <- sapply(x_real, is.integer)
-  if (any(idx_intgr)) {
-    warning('Recoding integer data as ordered factors. To override this behavior, ',
-            'explicitly code these variables as numeric.')
-    for (j in which(idx_intgr)) {
-      lvls <- sort(unique(x_real[, j]))
-      x_real[, j] <- factor(x_real[, j], levels = lvls, ordered = TRUE)
-    }
-  }
+  d <- ncol(x_real)
   factor_cols <- sapply(x_real, is.factor)
-  if (any(!factor_cols) & min_node_size == 1L) {
-    warning('Variance is undefined when a leaf contains just a single observation. ', 
-            'Consider increasing min_node_size.')
-  }
+  lvls <- lapply(x_real[factor_cols], levels)
   
   # Fit initial model: sample from marginals, concatenate data, train RF
-  x_synth <- as.data.frame(lapply(x_real, sample, n, replace = TRUE))
+  x_synth <- setDF(lapply(x_real, sample, n, replace = TRUE))
   dat <- rbind(data.frame(y = 1L, x_real),
                data.frame(y = 0L, x_synth))
   if (isTRUE(parallel)) {
@@ -155,29 +121,40 @@ adversarial_rf <- function(
                ', Accuracy: ', round(acc0 * 100, 2), '%\n'))
   }
   if (acc0 > 0.5 + delta & iters < max_iters) {
-    sample_by_class <- function(x, n) {
-      if (is.numeric(x)) {
-        as.numeric(sample(x, n, replace = TRUE))
-      } else {
-        sample(x, n, replace = TRUE)
-      }
-    }
     converged <- FALSE
     while (!isTRUE(converged)) { # Adversarial loop begins...
       # Create synthetic data by sampling from intra-leaf marginals
       nodeIDs <- stats::predict(rf0, x_real, type = 'terminalNodes')$predictions
-      tmp <- melt(as.data.table(nodeIDs), measure.vars = 1:num_trees,
-                  variable.name = 'tree', value.name = 'leaf')
-      tmp[, tree := as.numeric(gsub('V', '', tree))][, obs := rep(1:n, num_trees)]
-      x_real_dt <- as.data.table(x_real)[, obs := 1:n] 
-      x_real_dt <- merge(x_real_dt, tmp, by = 'obs', sort = FALSE)
-      tmp[, obs := NULL]
+      tmp <- data.table('tree' = rep(seq_len(num_trees), each = n), 
+                        'leaf' = as.vector(nodeIDs))
+      x_real_dt <- do.call(rbind, lapply(seq_len(num_trees), function(b) {
+        cbind(x_real, tmp[tree == b])
+      }))
+      x_real_dt[, factor_cols] <- lapply(x_real_dt[, factor_cols, drop = FALSE], as.numeric)
       tmp <- tmp[sample(.N, n, replace = TRUE)]
       tmp <- unique(tmp[, cnt := .N, by = .(tree, leaf)])
-      draw_from <- merge(tmp, x_real_dt, by = c('tree', 'leaf'), sort = FALSE)
-      x_synth <- draw_from[, lapply(.SD[, -c('cnt', 'obs')], sample_by_class, .SD[, cnt[1]]), 
-                           by = .(tree, leaf)][, c('tree', 'leaf') := NULL]
-      rm(nodeIDs, tmp, x_real_dt, draw_from)
+      draw_from <- merge(tmp, x_real_dt, by = c('tree', 'leaf'), 
+                         sort = FALSE)[, N := .N, by = .(tree, leaf)]
+      rm(nodeIDs, tmp, x_real_dt)
+      draw_params_within <- unique(draw_from, by = c('tree','leaf'))[, .(cnt, N)]
+      adj_absolut_col <- rep(c(0, draw_params_within[-.N, cumsum(N)]), 
+                             times = draw_params_within$cnt)
+      adj_absolut <- rep(adj_absolut_col, d) + rep(seq(0, d - 1) * nrow(draw_from), each = n)
+      idx_drawn_within <- ceiling(runif(n * d, 0, rep(draw_params_within$N, draw_params_within$cnt)))
+      idx_drawn <- idx_drawn_within + adj_absolut
+      draw_from_stacked <- unlist(draw_from[, -c('tree', 'leaf', 'cnt', 'N')], 
+                                  use.names = FALSE)
+      values_drawn_stacked <- data.table('col_id' = rep(seq_len(d), each = n), 
+                                         'values' = draw_from_stacked[idx_drawn])
+      x_synth <- as.data.table(split(values_drawn_stacked, by = 'col_id', keep.by = FALSE))
+      setnames(x_synth, names(x_real))
+      if (any(factor_cols)) {
+        x_synth[, names(which(factor_cols))] <- lapply(names(which(factor_cols)), function(j) {
+          lvls[[j]][x_synth[[j]]]
+        })
+      }
+      rm(draw_from, draw_params_within, adj_absolut_col, 
+         adj_absolut, idx_drawn_within, idx_drawn, draw_from_stacked)
       # Concatenate real and synthetic data
       dat <- rbind(data.frame(y = 1L, x_real),
                    data.frame(y = 0L, x_synth))
@@ -195,8 +172,8 @@ adversarial_rf <- function(
       acc0 <- 1 - rf1$prediction.error
       acc <- c(acc, acc0)
       iters <- iters + 1L
-      plateau <- ifelse(isTRUE(early_stop), 
-                        acc[iters] <= acc[iters + 1L], FALSE)
+      plateau <- fifelse(isTRUE(early_stop), 
+                         acc[iters] <= acc[iters + 1L], FALSE)
       if (acc0 <= 0.5 + delta | iters >= max_iters | plateau) {
         converged <- TRUE
       } else {
@@ -211,32 +188,34 @@ adversarial_rf <- function(
   }
   
   # Prune leaves to ensure min_node_size w.r.t. real data
-  pred <- stats::predict(rf0, x_real, type = 'terminalNodes')$predictions + 1L
-  prune <- function(tree) {
-    out <- rf0$forest$child.nodeIDs[[tree]]
-    leaves <- which(out[[1]] == 0L)
-    to_prune <- leaves[!(leaves %in% which(tabulate(pred[, tree]) >= min_node_size))]
-    while(length(to_prune) > 0) {
-      for (tp in to_prune) {
-        # Find parents
-        parent <- which((out[[1]] + 1L) == tp)
-        if (length(parent) > 0) {
-          # Left child
-          out[[1]][parent] <- out[[2]][parent]
-        } else {
-          # Right child
-          parent <- which((out[[2]] + 1L) == tp)
-          out[[2]][parent] <- out[[1]][parent]
+  if (isTRUE(prune)) {
+    pred <- stats::predict(rf0, x_real, type = 'terminalNodes')$predictions + 1L
+    prune <- function(tree) {
+      out <- rf0$forest$child.nodeIDs[[tree]]
+      leaves <- which(out[[1]] == 0L)
+      to_prune <- leaves[!(leaves %in% which(tabulate(pred[, tree]) >= min_node_size))]
+      while(length(to_prune) > 0) {
+        for (tp in to_prune) {
+          # Find parents
+          parent <- which((out[[1]] + 1L) == tp)
+          if (length(parent) > 0) {
+            # Left child
+            out[[1]][parent] <- out[[2]][parent]
+          } else {
+            # Right child
+            parent <- which((out[[2]] + 1L) == tp)
+            out[[2]][parent] <- out[[1]][parent]
+          }
         }
+        to_prune <- which((out[[1]] + 1L) %in% to_prune)
       }
-      to_prune <- which((out[[1]] + 1L) %in% to_prune)
+      return(out)
     }
-    return(out)
-  }
-  if (isTRUE(parallel)) {
-    rf0$forest$child.nodeIDs <- foreach(b = 1:num_trees) %dopar% prune(b)
-  } else {
-    rf0$forest$child.nodeIDs <- foreach(b = 1:num_trees) %do% prune(b)
+    if (isTRUE(parallel)) {
+      rf0$forest$child.nodeIDs <- foreach(b = seq_len(num_trees)) %dopar% prune(b)
+    } else {
+      rf0$forest$child.nodeIDs <- foreach(b = seq_len(num_trees)) %do% prune(b)
+    }
   }
   
   # Export

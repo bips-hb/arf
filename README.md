@@ -41,9 +41,16 @@ To generate 100 synthetic samples:
 forge(psi, 100)
 ```
 
+### Conditional expectations
+To estimate the mean of some variable(s), optionally conditioned on some event(s):
+```R
+evi <- data.frame(Species = "setosa")
+expct(psi, query = "Sepal.Length", evidence = evi)
+```
+
 For more detailed examples, see the package [vignette](https://bips-hb.github.io/arf/articles/vignette.html).
 
-## Other distributions
+## Python library
 A Python implementation of ARF, `arfpy`, is available on [PyPI](https://pypi.org/project/arfpy/). For the development version, see [here](https://github.com/bips-hb/arfpy).
 
 ## References
