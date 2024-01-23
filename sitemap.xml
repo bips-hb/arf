@@ -28,6 +28,9 @@
     <loc>https://bips-hb.github.io/arf/reference/col_rename.html</loc>
   </url>
   <url>
+    <loc>https://bips-hb.github.io/arf/reference/expct.html</loc>
+  </url>
+  <url>
     <loc>https://bips-hb.github.io/arf/reference/forde.html</loc>
   </url>
   <url>
@@ -37,6 +40,18 @@
     <loc>https://bips-hb.github.io/arf/reference/index.html</loc>
   </url>
   <url>
+    <loc>https://bips-hb.github.io/arf/reference/leaf_posterior.html</loc>
+  </url>
+  <url>
     <loc>https://bips-hb.github.io/arf/reference/lik.html</loc>
+  </url>
+  <url>
+    <loc>https://bips-hb.github.io/arf/reference/post_x.html</loc>
+  </url>
+  <url>
+    <loc>https://bips-hb.github.io/arf/reference/prep_evi.html</loc>
+  </url>
+  <url>
+    <loc>https://bips-hb.github.io/arf/reference/prep_x.html</loc>
   </url>
 </urlset>
