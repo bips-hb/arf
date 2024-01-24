@@ -275,7 +275,6 @@ leaf_posterior <- function(params, evidence) {
 #' @param params Circuit parameters learned via \code{\link{forde}}.
 #' 
 #' @import data.table
-#' @importFrom tibble as_tibble
 #'
 
 post_x <- function(x, params) {
@@ -321,7 +320,7 @@ post_x <- function(x, params) {
   # Export
   if ('data.table' %in% params$input_class) {
     setDT(x)
-  } else if ('tbl_df' %in% params$input_class) {
+  } else if ('tbl_df' %in% params$input_class & requireNamespace("tibble", quietly = TRUE)) {
     x <- tibble::as_tibble(x)
   } else if ('matrix' %in% params$input_class) {
     x <- as.matrix(x)
