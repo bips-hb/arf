@@ -12,3 +12,5 @@ arf*.tgz
 *.DS_Store
 attic/
 branch/
+/doc/
+/Meta/
