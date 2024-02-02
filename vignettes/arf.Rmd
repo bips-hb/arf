@@ -1,8 +1,8 @@
 ---
-title: "Package Vignette"
+title: "Adversarial Random Forests"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Density Estimation}
+  %\VignetteIndexEntry{Adversarial Random Forests}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
