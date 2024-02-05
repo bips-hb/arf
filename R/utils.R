@@ -113,15 +113,16 @@ prep_evi <- function(params, evidence) {
       err <- setdiff(colnames(evidence), params$meta$variable)
       stop('Unrecognized feature(s) among colnames: ', err)
     }
+    evidence[, row_idx := .I]
     evidence <- suppressWarnings(
-      melt(evidence, measure.vars = colnames(evidence), variable.factor = FALSE)
+      melt(evidence, id.vars = "row_idx", variable.factor = FALSE)
     )
     evidence[, relation := '==']
     conj <- TRUE
   }
   if (isTRUE(conj)) {
     evi <- merge(params$meta, evidence, by = 'variable', sort = FALSE)
-    evi[, n := .N, by = variable]
+    evi[, n := .N, by = .(variable, row_idx)]
     if (any(evi[n > 1L, relation == '=='])) {
       culprit <- evi[n > 1L & relation == '==', variable]
       stop(paste('Inconsistent conditioning events for the following variable(s):', 
@@ -156,7 +157,6 @@ prep_evi <- function(params, evidence) {
   ### ALSO: Reduce redundant events to most informative condition
   ###       and check for inconsistencies, e.g. >3 & <2
   
-  
   return(evidence)
 }
 
@@ -186,8 +186,8 @@ leaf_posterior <- function(params, evidence) {
   # Continuous features
   if (any(evidence$family != 'multinom')) { 
     evi <- evidence[family != 'multinom']
-    evi[, n := .N, by = variable]
-    psi <- merge(evi, params$cnt, by = 'variable')
+    evi[, n := .N, by = .(variable, row_idx)]
+    psi <- merge(evi, params$cnt, by = 'variable', allow.cartesian = TRUE)
     if (any(evi$relation == '==')) {
       psi[relation == '==', lik := 
             truncnorm::dtruncnorm(value, a = min, b = max, mean = mu, sd = sigma)]
@@ -208,7 +208,7 @@ leaf_posterior <- function(params, evidence) {
       psi[n == 1 & relation %in% c('>', '>='), lik := 1 - lik]
     }
     psi[value == min, lik := 0]
-    psi_cnt <- unique(psi[, .(f_idx, variable, lik)])
+    psi_cnt <- unique(psi[, .(f_idx, row_idx, variable, lik)])
   }
   
   # Categorical features
@@ -216,9 +216,13 @@ leaf_posterior <- function(params, evidence) {
   if (any(evidence$family == 'multinom')) { 
     evi <- evidence[family == 'multinom']
     evi[, value := as.character(value)]
-    grd <- rbindlist(lapply(evi[, variable], function(j) {
+    
+
+    
+    grd <- rbindlist(lapply(evi[, unique(variable)], function(j) {
       expand.grid('f_idx' = params$forest$f_idx, 'variable' = j,
                   'val' = params$cat[variable == j, unique(val)],
+                  'row_idx' = evi[, unique(row_idx)],
                   stringsAsFactors = FALSE)
     }))
     psi <- merge(params$cat, grd, by = c('f_idx', 'variable', 'val'),
@@ -226,10 +230,10 @@ leaf_posterior <- function(params, evidence) {
     psi[is.na(prob), prob := 0]
     setnames(psi, 'prob', 'lik')
     if (any(evi[, relation == '=='])) {
-      evi_tmp <- evi[relation == '==', .(variable, value)]
+      evi_tmp <- evi[relation == '==', .(variable, value, row_idx)]
       setnames(evi_tmp, 'value', 'val')
-      psi_eq <- merge(psi, evi_tmp, by = c('variable', 'val'), sort = FALSE)
-      psi_eq <- psi_eq[, .(f_idx, variable, lik)]
+      psi_eq <- merge(psi, evi_tmp, by = c('variable', 'val', 'row_idx'), sort = FALSE)
+      psi_eq <- psi_eq[, .(f_idx, row_idx, variable, lik)]
     }
     if (any(evi[, relation == '!='])) {
       evi_tmp <- evi[relation == '!=', .(variable, value)]
@@ -252,18 +256,19 @@ leaf_posterior <- function(params, evidence) {
       exp(mean(log(c(cvg[1], lik))))
     }
   }
-  , by = f_idx]
+  , by = .(f_idx, row_idx)]
   
   # Normalize, export
-  out <- unique(psi[wt > 0, .(f_idx, wt)])
+  out <- unique(psi[wt > 0, .(f_idx, row_idx, wt)])
   if (nrow(out) == 0) {
     # If all leaves have zero weight, choose one randomly
     warning("All leaves have zero likelihood. This is probably because evidence contains an (almost) impossible combination. For categorical data, consider setting alpha>0 in forde().")
     out <- unique(psi[, .(f_idx)])
     out[, wt := 1]
   }
-  out[, wt := (wt / max(wt, na.rm = T))^(nrow(evidence) + 1)][wt > 0, wt := wt / sum(wt)]
-  return(out[])
+  out[, n := .N, by = .(row_idx)]
+  out[, wt := (wt / max(wt, na.rm = T))^(n + 1), by = row_idx][wt > 0, wt := wt / sum(wt), by = row_idx]
+  return(out[, .(f_idx, row_idx, wt)])
 }
 
 

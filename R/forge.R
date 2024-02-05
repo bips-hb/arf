@@ -110,9 +110,8 @@ forge <- function(
     draws <- omega[, .(f_idx)]
   } else {
     # Draw random leaves with probability proportional to weight
-    draws <- data.table(
-      'f_idx' = omega[, sample(f_idx, size = n_synth, replace = TRUE, prob = wt)]
-    )
+    draws <- omega[, sample(f_idx, size = n_synth, replace = TRUE, prob = wt), by = row_idx]
+    setnames(draws, 'V1', 'f_idx')
   }
   omega <- merge(draws, omega, sort = FALSE)[, idx := .I]
   
@@ -141,7 +140,7 @@ forge <- function(
     } else if (fam == 'unif') {
       psi[, dat := stats::runif(.N, min = min, max = max)]
     }
-    synth_cnt <- dcast(psi, idx ~ variable, value.var = 'dat')[, idx := NULL]
+    synth_cnt <- dcast(psi, idx + row_idx ~ variable, value.var = 'dat')[, idx := NULL]
   }
   
   # Simulate categorical data
@@ -158,20 +157,22 @@ forge <- function(
       }
     }
     psi[prob < 1, dat := sample(val, 1, prob = prob), by = .(variable, idx)]
-    psi <- unique(psi[, .(idx, variable, dat)])
-    synth_cat <- dcast(psi, idx ~ variable, value.var = 'dat')[, idx := NULL]
+    psi <- unique(psi[, .(idx, row_idx, variable, dat)])
+    synth_cat <- dcast(psi, idx + row_idx ~ variable, value.var = 'dat')[, idx := NULL][, row_idx := NULL]
   }
   
   # Combine, optionally impose constraint(s)
   x_synth <- cbind(synth_cnt, synth_cat)
   if (length(to_sim) != params$meta[, .N]) {
     tmp <- evidence[relation == '==']
-    add_on <- setDT(lapply(tmp[, .I], function(k) rep(tmp[k, value], n_synth)))
-    setnames(add_on, tmp[, variable])
-    x_synth <- cbind(x_synth, add_on)
+    add_on <- dcast(tmp, row_idx ~ variable, value.var = 'value')
+    x_synth <- merge(x_synth, add_on, by = "row_idx")
   }
   
   # Clean up, export
+  if (n_synth == 1 | x_synth[, max(row_idx)] == 1) {
+    x_synth[, row_idx := NULL]
+  }
   x_synth <- post_x(x_synth, params)
   return(x_synth)
 }
