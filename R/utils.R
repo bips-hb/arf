@@ -115,7 +115,7 @@ prep_evi <- function(params, evidence) {
     }
     evidence[, row_idx := .I]
     evidence <- suppressWarnings(
-      melt(evidence, id.vars = "row_idx", variable.factor = FALSE)
+      melt(evidence, id.vars = "row_idx", variable.factor = FALSE, na.rm = TRUE)
     )
     evidence[, relation := '==']
     conj <- TRUE
