@@ -113,7 +113,7 @@ forge <- function(
     draws <- omega[, sample(f_idx, size = n_synth, replace = TRUE, prob = wt), by = row_idx]
     setnames(draws, 'V1', 'f_idx')
   }
-  omega <- merge(draws, omega, sort = FALSE)[, idx := .I]
+  omega <- merge(draws, omega, by = c("row_idx", "f_idx"), sort = FALSE)[, idx := .I]
   
   # Simulate continuous data
   synth_cnt <- synth_cat <- NULL

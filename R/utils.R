@@ -266,8 +266,9 @@ leaf_posterior <- function(params, evidence) {
     out <- unique(psi[, .(f_idx)])
     out[, wt := 1]
   }
-  out[, n := .N, by = .(row_idx)]
-  out[, wt := (wt / max(wt, na.rm = T))^(n + 1), by = row_idx][wt > 0, wt := wt / sum(wt), by = row_idx]
+  evi_n <- evidence[, .N, by = .(row_idx)]
+  out <- merge(out, evi_n, by = "row_idx")
+  out[, wt := (wt / max(wt, na.rm = T))^(N + 1), by = row_idx][wt > 0, wt := wt / sum(wt), by = row_idx]
   return(out[, .(f_idx, row_idx, wt)])
 }
 
