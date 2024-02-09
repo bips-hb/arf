@@ -99,6 +99,7 @@ forge <- function(
     omega <- params$forest[, .(f_idx, cvg)]
     omega[, wt := cvg / num_trees]
     omega[, cvg := NULL]
+    omega[, row_idx := 1]
   } else if (isTRUE(conj)) {
     omega <- leaf_posterior(params, evidence)
   } else {
