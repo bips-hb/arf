@@ -83,15 +83,17 @@ forge <- function(
   
   # Prep evidence
   conj <- FALSE
-  to_sim <- params$meta$variable
   if (!is.null(evidence)) {
     evidence <- prep_evi(params, evidence)
     if (!all(c('f_idx', 'wt') %in% colnames(evidence))) {
       conj <- TRUE
-      to_sim <- setdiff(params$meta$variable, evidence[relation == '==', variable])
+      to_sim <- evidence[relation == '==', setdiff(params$meta$variable, unique(variable)), by = row_idx]
+      setnames(to_sim, 'V1', 'variable')
     }
+  } else {
+    to_sim <- data.table(row_idx = 1, variable = params$meta$variable)
   }
-  factor_cols <- params$meta[variable %in% to_sim, family == 'multinom']
+  factor_cols <- params$meta[variable %in% to_sim$variable, family == 'multinom']
   
   # Prepare the event space
   if (is.null(evidence)) {
@@ -99,6 +101,7 @@ forge <- function(
     omega <- params$forest[, .(f_idx, cvg)]
     omega[, wt := cvg / num_trees]
     omega[, cvg := NULL]
+    omega[, row_idx := 1]
   } else if (isTRUE(conj)) {
     omega <- leaf_posterior(params, evidence)
   } else {
@@ -110,18 +113,20 @@ forge <- function(
     draws <- omega[, .(f_idx)]
   } else {
     # Draw random leaves with probability proportional to weight
-    draws <- data.table(
-      'f_idx' = omega[, sample(f_idx, size = n_synth, replace = TRUE, prob = wt)]
-    )
+    draws <- omega[, sample(f_idx, size = n_synth, replace = TRUE, prob = wt), by = row_idx]
+    setnames(draws, 'V1', 'f_idx')
   }
-  omega <- merge(draws, omega, sort = FALSE)[, idx := .I]
+  omega <- merge(draws, omega, by = c("row_idx", "f_idx"), sort = FALSE)[, idx := .I]
   
   # Simulate continuous data
   synth_cnt <- synth_cat <- NULL
   if (any(!factor_cols)) {
     fam <- params$meta[family != 'multinom', unique(family)]
-    psi <- merge(omega, params$cnt[variable %in% to_sim], by = 'f_idx', 
+    merge(omega, params$cnt, by = 'f_idx', 
+          sort = FALSE, allow.cartesian = TRUE)
+    psi <- merge(omega, params$cnt, by = 'f_idx', 
                  sort = FALSE, allow.cartesian = TRUE)
+    psi <- merge(psi, to_sim, by = c("row_idx", "variable"))
     if (isTRUE(conj)) {
       if (any(evidence$relation %in% c('<', '<=', '>', '>='))) {
         for (k in evidence[, which(grepl('<', relation))]) {
@@ -141,13 +146,14 @@ forge <- function(
     } else if (fam == 'unif') {
       psi[, dat := stats::runif(.N, min = min, max = max)]
     }
-    synth_cnt <- dcast(psi, idx ~ variable, value.var = 'dat')[, idx := NULL]
+    synth_cnt <- dcast(psi, idx + row_idx ~ variable, value.var = 'dat')[, idx := NULL]
   }
   
   # Simulate categorical data
   if (any(factor_cols)) {
-    psi <- merge(omega, params$cat[variable %in% to_sim], by = 'f_idx',
+    psi <- merge(omega, params$cat, by = 'f_idx',
                  sort = FALSE, allow.cartesian = TRUE)
+    psi <- merge(psi, to_sim, by = c("row_idx", "variable"))
     psi[prob == 1, dat := val] 
     if (isTRUE(conj)) {
       if (any(evidence[, relation == '!='])) {
@@ -158,20 +164,45 @@ forge <- function(
       }
     }
     psi[prob < 1, dat := sample(val, 1, prob = prob), by = .(variable, idx)]
-    psi <- unique(psi[, .(idx, variable, dat)])
-    synth_cat <- dcast(psi, idx ~ variable, value.var = 'dat')[, idx := NULL]
+    psi <- unique(psi[, .(idx, row_idx, variable, dat)])
+    synth_cat <- dcast(psi, idx + row_idx ~ variable, value.var = 'dat')[, idx := NULL][, row_idx := NULL]
   }
   
   # Combine, optionally impose constraint(s)
   x_synth <- cbind(synth_cnt, synth_cat)
-  if (length(to_sim) != params$meta[, .N]) {
-    tmp <- evidence[relation == '==']
-    add_on <- setDT(lapply(tmp[, .I], function(k) rep(tmp[k, value], n_synth)))
-    setnames(add_on, tmp[, variable])
-    x_synth <- cbind(x_synth, add_on)
+  if (nrow(to_sim)/to_sim[, max(row_idx)] != params$meta[, .N]) {
+    add_on_cnt <- add_on_cat <- NULL
+    if (any(!params$meta[, family == 'multinom'])) {
+      tmp_cnt <- merge(evidence[relation == '=='], params$meta[family != "multinom", ], by = "variable")[, .(row_idx, variable, value)]
+      if (nrow(tmp_cnt) > 0) {
+        tmp_cnt[, value := as.numeric(value)]
+        add_on_cnt <- dcast(tmp_cnt, row_idx ~ variable, value.var = 'value')
+      }
+    }
+    if (any(params$meta[, family == 'multinom'])) {
+      tmp_cat <- merge(evidence[relation == '=='], params$meta[family == "multinom", ], by = "variable")[, .(row_idx, variable, value)]
+      if (nrow(tmp_cat) > 0) {
+        add_on_cat <- dcast(tmp_cat, row_idx ~ variable, value.var = 'value')
+      }
+    }
+    if (!is.null(add_on_cnt) & !is.null(add_on_cat)) {
+      add_on <- merge(add_on_cnt, add_on_cat, by = "row_idx")
+    } else if (!is.null(add_on_cnt)) {
+      add_on <- add_on_cnt
+    } else if (!is.null(add_on_cat)) {
+      add_on <- add_on_cat
+    }
+    if (any(!(colnames(x_synth) %in% colnames(add_on)))) {
+      x_synth <- cbind(x_synth, add_on)
+    } else {
+      x_synth <- dplyr::rows_patch(add_on, x_synth, by = "row_idx")
+    }
   }
   
   # Clean up, export
+  if (n_synth == 1 | x_synth[, max(row_idx)] == 1) {
+    x_synth[, row_idx := NULL]
+  }
   x_synth <- post_x(x_synth, params)
   return(x_synth)
 }
