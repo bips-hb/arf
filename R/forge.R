@@ -74,101 +74,124 @@
 
 forge <- function(
     params, 
-    n_synth, 
-    evidence = NULL) {
+    n_synth,
+    sample_NAs = F,
+    condition = NULL,
+    condition_row_mode = c("separate", "or"),
+    stepsize = 200,
+    parallel = TRUE) {
+  
+  condition_row_mode <- match.arg(condition_row_mode)
   
   # To avoid data.table check issues
   tree <- cvg <- leaf <- idx <- family <- mu <- sigma <- prob <- dat <- 
     variable <- relation <- wt <- j <- f_idx <- val <- . <- NULL
   
-  # Prep evidence
-  conj <- FALSE
-  to_sim <- params$meta$variable
-  if (!is.null(evidence)) {
-    evidence <- prep_evi(params, evidence)
-    if (!all(c('f_idx', 'wt') %in% colnames(evidence))) {
-      conj <- TRUE
-      to_sim <- setdiff(params$meta$variable, evidence[relation == '==', variable])
-    }
-  }
-  factor_cols <- params$meta[variable %in% to_sim, family == 'multinom']
+  factor_cols <- params$meta[, family == 'multinom']
   
   # Prepare the event space
-  if (is.null(evidence)) {
-    num_trees <- params$forest[, max(tree)]
-    omega <- params$forest[, .(f_idx, cvg)]
-    omega[, wt := cvg / num_trees]
-    omega[, cvg := NULL]
-  } else if (isTRUE(conj)) {
-    omega <- leaf_posterior(params, evidence)
+  if (!is.null(condition)) {
+    cparams <- cforde(params, condition, condition_row_mode, stepsize, parallel)
   } else {
-    omega <- evidence
+    cparams <- NULL
   }
+  if(!is.null(cparams)) {
+    omega <- cparams$forest[, .(c_idx, f_idx, f_idx_uncond, wt = cvg)]
+  } else {
+    num_trees <- params$forest[, max(tree)]
+    omega <- params$forest[, .(f_idx, f_idx_uncond = f_idx, cvg)]
+    omega[, `:=` (c_idx = 1, wt = cvg / num_trees)]
+    omega[, cvg := NULL]
+  } 
   omega <- omega[wt > 0]
   
-  # Draw random leaves with probability proportional to weight
-  draws <- data.table(
-    'f_idx' = omega[, sample(f_idx, size = n_synth, replace = TRUE, prob = wt)]
-  )
-  omega <- merge(draws, omega, sort = FALSE)[, idx := .I]
+  if (nrow(omega) == 1) {
+    omega <- omega[rep(1, n_synth),][, idx := .I]
+  } else {
+    if(condition_row_mode == "or") {
+      draws <- omega[, .(f_idx = sample(f_idx, size = n_synth, replace = TRUE, prob = wt))]
+      omega <- merge(draws, omega, by = c("f_idx"), sort = FALSE)[, idx := .I]
+    } else {
+      draws <- omega[, .(f_idx = sample(f_idx, size = n_synth, replace = TRUE, prob = wt)), by = c_idx]
+      omega <- merge(draws, omega, by = c("c_idx", "f_idx"), sort = FALSE)[, idx := .I]
+    }
+    setcolorder(omega, "idx")
+  }
   
   # Simulate continuous data
   synth_cnt <- synth_cat <- NULL
   if (any(!factor_cols)) {
     fam <- params$meta[family != 'multinom', unique(family)]
-    psi <- merge(omega, params$cnt[variable %in% to_sim], by = 'f_idx', 
-                 sort = FALSE, allow.cartesian = TRUE)
-    if (isTRUE(conj)) {
-      if (any(evidence$relation %in% c('<', '<=', '>', '>='))) {
-        for (k in evidence[, which(grepl('<', relation))]) {
-          j <- evidence$variable[k]
-          value <- as.numeric(evidence$value[k])
-          psi[variable == j & max > value, max := value]
-        }
-        for (k in evidence[, which(grepl('>', relation))]) {
-          j <- evidence$variable[k]
-          value <- as.numeric(evidence$value[k])
-          psi[variable == j & min < value, min := value]
-        }
-      }
+    if(!is.null(cparams)) {
+      psi_cond <- merge(omega, cparams$cnt[,-c("cvg_factor", "f_idx_uncond")], by = c('c_idx', 'f_idx'), 
+                                              sort = FALSE, allow.cartesian = TRUE)
+    } else {
+      psi_cond <- data.table()
     }
+    psi <- unique(rbind(psi_cond,
+                 merge(omega, params$cnt, by.x = 'f_idx_uncond', by.y = 'f_idx',
+                       sort = FALSE, allow.cartesian = TRUE)[,val := NA_real_]
+                 ), by = c("idx", "variable")
+    )
     if (fam == 'truncnorm') {
-      psi[, dat := truncnorm::rtruncnorm(.N, a = min, b = max, mean = mu, sd = sigma)]
+      psi[is.na(val), val := truncnorm::rtruncnorm(.N, a = min, b = max, mean = mu, sd = sigma)]
     } else if (fam == 'unif') {
-      psi[, dat := stats::runif(.N, min = min, max = max)]
+      psi[is.na(val), val := stats::runif(.N, min = min, max = max)]
     }
-    synth_cnt <- dcast(psi, idx ~ variable, value.var = 'dat')[, idx := NULL]
+    NA_share_cnt <- psi[,.(idx, variable, NA_share)]
+    synth_cnt <- dcast(psi, idx ~ variable, value.var = 'val')[, idx := NULL]
   }
   
   # Simulate categorical data
   if (any(factor_cols)) {
-    psi <- merge(omega, params$cat[variable %in% to_sim], by = 'f_idx',
-                 sort = FALSE, allow.cartesian = TRUE)
-    psi[prob == 1, dat := val] 
-    if (isTRUE(conj)) {
-      if (any(evidence[, relation == '!='])) {
-        tmp <- evidence[relation == '!=', .(variable, value)]
-        psi <- merge(psi, tmp, by = 'variable', sort = FALSE)
-        psi <- psi[val != value]
-        psi[, value := NULL]
-      }
+    if(!is.null(cparams)) {
+      psi_cond <- merge(omega, cparams$cat[,-c("cvg_factor", "f_idx_uncond")], by = c('c_idx', 'f_idx'), 
+                        sort = FALSE, allow.cartesian = TRUE)
+    } else {
+      psi_cond <- data.table()
     }
-    psi[prob < 1, dat := sample(val, 1, prob = prob), by = .(variable, idx)]
-    psi <- unique(psi[, .(idx, variable, dat)])
-    synth_cat <- dcast(psi, idx ~ variable, value.var = 'dat')[, idx := NULL]
+    psi <- unique(rbind(psi_cond,
+                        merge(omega, params$cat, by.x = 'f_idx_uncond', by.y = 'f_idx',
+                              sort = FALSE, allow.cartesian = TRUE)
+    ), by = c("idx", "variable")
+    )
+    psi[prob < 1, val := sample(val, 1, prob = prob), by = .(variable, idx)]
+    
+    psi <- unique(psi[, .(idx, variable, val, NA_share)])
+    NA_share_cat <- psi[,.(idx, variable, NA_share)]
+    synth_cat <- dcast(psi, idx ~ variable, value.var = 'val')[, idx := NULL]
   }
   
   # Combine, optionally impose constraint(s)
   x_synth <- cbind(synth_cnt, synth_cat)
-  if (length(to_sim) != params$meta[, .N]) {
-    tmp <- evidence[relation == '==']
-    add_on <- setDT(lapply(tmp[, .I], function(k) rep(tmp[k, value], n_synth)))
-    setnames(add_on, tmp[, variable])
-    x_synth <- cbind(x_synth, add_on)
-  }
   
   # Clean up, export
   x_synth <- post_x(x_synth, params)
+  
+  if(sample_NAs) {
+    setDT(x_synth)
+    NA_share <- rbind(NA_share_cnt, NA_share_cat)
+    setorder(NA_share[,variable := factor(variable, levels = meta[,variable])], variable, idx)
+    NA_share[,dat := rbern(.N, prob = NA_share)]
+    x_synth[dcast(NA_share,formula =  idx ~ variable, value.var = "dat")[,-"idx"] == 1] <- NA
+    
+    x_synth <- post_x(x_synth, params)
+  }
+  
+  if(condition_row_mode == "separate" & any(omega[,is.na(f_idx)])){
+    setDT(x_synth)
+    indices_na <- cparams$forest[is.na(f_idx), c_idx]
+    indices_sampled <- cparams$forest[!is.na(f_idx), unique(c_idx)]
+    rows_na <- cond[indices_na,]
+    rows_na <- rows_na[,(names(x_synth)[!factor_cols]) := lapply(.SD,as.numeric),.SDcols=!factor_cols]
+    rows_na[, idx:= indices_na]
+    rows_na <- rbindlist(replicate(n_synth, rows_na, simplify = F))
+    x_synth[, idx:= rep(indices_sampled, each = n_synth)]
+    x_synth <- rbind(x_synth, rows_na)
+    setorder(x_synth, idx)[, idx:= NULL]
+    x_synth <- post_x(x_synth, params)
+  }
+  
   return(x_synth)
 }
 

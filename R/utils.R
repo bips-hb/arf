@@ -41,12 +41,26 @@ prep_x <- function(x) {
   }
   idx_integer <- sapply(x, is.integer)
   if (any(idx_integer)) {
-    warning('Recoding integer data as ordered factors. To override this behavior, ',
-            'explicitly code these variables as numeric.')
-    x[, idx_integer] <- lapply(which(idx_integer), function(j) {
+    # Recoding integers with > 5 levels as numeric
+    to_numeric <- sapply(seq_len(ncol(x)), function(j) {
+      idx_integer[j] & length(unique(x[[j]])) > 5
+    })
+    if (any(to_numeric)) {
+      warning('Recoding integers with more than 5 unique values as numeric. ', 
+              'To override this behavior, explicitly code these variables as factors.')
+      x[, to_numeric] <- lapply(x[, to_numeric, drop = FALSE], as.numeric)
+    }
+    to_factor <- sapply(seq_len(ncol(x)), function(j) {
+      idx_integer[j] & length(unique(x[[j]])) < 6
+    })
+    if (any(to_factor)) {
+      warning('Recoding integers with fewer than 6 unique values as ordered factors. ', 
+              'To override this behavior, explicitly code these variables as numeric.')
+      x[, to_factor] <- lapply(which(to_factor), function(j) {
         lvls <- sort(unique(x[[j]]))
         factor(x[[j]], levels = lvls, ordered = TRUE)
-    })
+      })
+    }
   }
   # Rename annoying columns
   if ('y' %in% colnames(x)) {
@@ -83,7 +97,7 @@ prep_x <- function(x) {
 prep_evi <- function(params, evidence) {
   
   # To avoid data.table check issues
-  variable <- relation <- N <- n <- family <- NULL
+  variable <- relation <- N <- n <- family <- wt <- NULL
   
   # Prep
   setDT(evidence)
@@ -133,7 +147,12 @@ prep_evi <- function(params, evidence) {
       #}
     }
   }
-  
+  if (isTRUE(post)) {
+    if (evidence[, sum(wt)] != 1) {
+      evidence[, wt := wt / sum(wt)]
+      warning('Posterior weights have been normalized to sum to unity.')
+    }
+  }
   ### ALSO: Reduce redundant events to most informative condition
   ###       and check for inconsistencies, e.g. >3 & <2
   
@@ -196,6 +215,7 @@ leaf_posterior <- function(params, evidence) {
   psi_eq <- psi_ineq <- NULL
   if (any(evidence$family == 'multinom')) { 
     evi <- evidence[family == 'multinom']
+    evi[, value := as.character(value)]
     grd <- rbindlist(lapply(evi[, variable], function(j) {
       expand.grid('f_idx' = params$forest$f_idx, 'variable' = j,
                   'val' = params$cat[variable == j, unique(val)],
@@ -225,12 +245,25 @@ leaf_posterior <- function(params, evidence) {
   
   # Weight is proportional to coverage times product of likelihoods
   psi <- merge(psi, params$forest[, .(f_idx, cvg)], by = 'f_idx', sort = FALSE)
-  psi[, wt := cvg * prod(lik), by = f_idx] 
+  psi[, wt:= {
+    if (any(lik == 0)) {
+      0
+    } else {
+      exp(mean(log(c(cvg[1], lik))))
+    }
+  }
+  , by = f_idx]
   
   # Normalize, export
   out <- unique(psi[wt > 0, .(f_idx, wt)])
-  out[, wt := wt / sum(wt)]
-  return(out)
+  if (nrow(out) == 0) {
+    # If all leaves have zero weight, choose one randomly
+    warning("All leaves have zero likelihood. This is probably because evidence contains an (almost) impossible combination. For categorical data, consider setting alpha>0 in forde().")
+    out <- unique(psi[, .(f_idx)])
+    out[, wt := 1]
+  }
+  out[, wt := (wt / max(wt, na.rm = T))^(nrow(evidence) + 1)][wt > 0, wt := wt / sum(wt)]
+  return(out[])
 }
 
 
@@ -242,13 +275,12 @@ leaf_posterior <- function(params, evidence) {
 #' @param params Circuit parameters learned via \code{\link{forde}}.
 #' 
 #' @import data.table
-#' @importFrom tibble as_tibble
 #'
 
 post_x <- function(x, params) {
   
   # To avoid data.table check issues
-  variable <- NULL
+  variable <- val <- NULL
   
   # Order, classify features
   meta_tmp <- params$meta[variable %in% colnames(x)]
@@ -263,17 +295,17 @@ post_x <- function(x, params) {
   # Recode
   if (sum(idx_numeric) > 0L) {
     x[, idx_numeric] <- lapply(idx_numeric, function(j) {
-        round(as.numeric(x[[j]]), meta_tmp$precision[j])
+        round(as.numeric(x[[j]]), meta_tmp$decimals[j])
     })
   }
   if (sum(idx_factor) > 0L) {
     x[, idx_factor] <- lapply(idx_factor, function(j) {
-        factor(x[[j]], levels = params$levels[[colnames(x)[j]]])
+      factor(x[[j]], levels = params$levels[variable == colnames(x)[j], val])
     })
   }
   if (sum(idx_ordered) > 0L) {
     x[, idx_ordered] <- lapply(idx_ordered, function(j) {
-        factor(x[[j]], levels = params$levels[[colnames(x)[j]]], ordered = TRUE)
+        factor(x[[j]], levels = params$levels[variable == colnames(x)[j], val], ordered = TRUE)
     })
   }
   if (sum(idx_logical) > 0L) {
@@ -287,8 +319,8 @@ post_x <- function(x, params) {
   
   # Export
   if ('data.table' %in% params$input_class) {
-    setDT(x)
-  } else if ('tbl_df' %in% params$input_class) {
+    setDT(x)[]
+  } else if ('tbl_df' %in% params$input_class & requireNamespace("tibble", quietly = TRUE)) {
     x <- tibble::as_tibble(x)
   } else if ('matrix' %in% params$input_class) {
     x <- as.matrix(x)

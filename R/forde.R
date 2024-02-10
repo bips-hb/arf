@@ -82,7 +82,6 @@
 #' @importFrom foreach foreach %do% %dopar%
 #' 
 
-
 forde <- function(
     arf, 
     x, 
@@ -96,7 +95,7 @@ forde <- function(
   # To avoid data.table check issues
   tree <- n_oob <- cvg <- leaf <- variable <- count <- sd <- value <- psi_cnt <- 
     psi_cat <- f_idx <- sigma <- new_min <- new_max <- mid <- sigma0 <- prob <- 
-    val <- val_count <- k <- cnt <- . <- NULL
+    val <- val_count <- level <- all_na <- i <- k <- cnt <- . <- NULL
   
   # Prelimz
   if (isTRUE(oob) & !nrow(x) %in% c(arf$num.samples, arf$num.samples/2)) {
@@ -123,11 +122,17 @@ forde <- function(
   d <- ncol(x)
   colnames_x <- colnames(x)
   classes <- sapply(x, class)
-  factor_cols <- sapply(x, is.factor)  
-  lvls <- lapply(x[factor_cols], levels)
-  prec <- rep(NA_integer_, d) 
+  x <- suppressWarnings(prep_x(x))
+  factor_cols <- sapply(x, is.factor)
+  lvls <- arf$forest$covariate.levels[factor_cols]
+  lvl_df <- rbindlist(lapply(seq_along(lvls), function(j) {
+    melt(as.data.table(lvls[j]), measure.vars = names(lvls)[j], 
+         value.name = 'val')[, level := .I]
+  }))
+  names(factor_cols) <- colnames_x
+  deci <- rep(NA_integer_, d) 
   if (any(!factor_cols)) {
-    prec[!factor_cols] <- sapply(which(!factor_cols), function(j) {
+    deci[!factor_cols] <- sapply(which(!factor_cols), function(j) {
       if (any(grepl('\\.', x[[j]]))) {
         tmp <- x[grepl('\\.', x[[j]]), j]
         out <- max(nchar(sub('.*[.]', '', tmp)))
@@ -137,9 +142,6 @@ forde <- function(
       return(out)
     })
   }
-  x <- suppressWarnings(prep_x(x))
-  factor_cols <- sapply(x, is.factor)
-  names(factor_cols) <- colnames_x
   
   # Compute leaf bounds and coverage
   num_trees <- arf$num.trees
@@ -149,9 +151,11 @@ forde <- function(
     ub <- matrix(Inf, nrow = num_nodes, ncol = d)
     if (family == 'unif' | isTRUE(finite_bounds) & any(!factor_cols)) {
       for (j in which(!factor_cols)) {
-        gap <- max(x[[j]]) - min(x[[j]])
-        lb[, j] <- min(x[[j]]) - epsilon / 2 * gap
-        ub[, j] <- max(x[[j]]) + epsilon / 2 * gap
+        min_j <- min(x[[j]], na.rm = TRUE)
+        max_j <- max(x[[j]], na.rm = TRUE)
+        gap <- max_j - min_j
+        lb[, j] <- min_j - epsilon / 2 * gap
+        ub[, j] <- max_j #+ epsilon / 2 * gap
       }
     }
     for (i in 1:num_nodes) {
@@ -216,11 +220,15 @@ forde <- function(
       dt <- merge(dt, bnds[, .(tree, leaf, variable, min, max, f_idx)],
                   by = c('tree', 'leaf', 'variable'), sort = FALSE)
       if (family == 'truncnorm') {
-        dt[, c('mu', 'sigma') := .(mean(value), sd(value)), by = .(leaf, variable)]
+        dt[, c('mu', 'sigma','NA_share') := .(mean(value, na.rm = T), sd(value, na.rm = T) ,sum(is.na(value))/.N),
+           by = .(leaf, variable)]
+        dt[NA_share == 1, c("min", "max") := .(fifelse(!is.finite(min),min(x[,variable], na.rm = T),min),
+                                               fifelse(!is.finite(max),max(x[,variable], na.rm = T), max))]
+        dt[NA_share == 1, mu := (max - min) / 2]
         dt[is.na(sigma), sigma := 0]
-        if (dt[sigma == 0, .N] > 0L) {
-          dt[, new_min := fifelse(!is.finite(min), min(value), min), by = variable]
-          dt[, new_max := fifelse(!is.finite(max), max(value), max), by = variable]
+        if (any(dt[, sigma == 0])) {
+          dt[, new_min := fifelse(!is.finite(min), min(value, na.rm = TRUE), min), by = variable]
+          dt[, new_max := fifelse(!is.finite(max), max(value, na.rm = TRUE), max), by = variable]
           dt[, mid := (new_min + new_max) / 2]
           dt[, sigma0 := (new_max - mid) / stats::qnorm(0.975)] 
           # This prior places 95% of the density within the bounding box.
@@ -231,6 +239,8 @@ forde <- function(
           dt[sigma == 0, sigma := sqrt(2 / .N * sigma0^2), by = .(variable, leaf)]
           dt[, c('new_min', 'new_max', 'mid', 'sigma0') := NULL]
         }
+      } else if (family == 'unif') {
+        dt[, NA_share := sum(is.na(value))/.N, by = .(leaf, variable)]
       }
       return(unique(dt[, c('tree', 'leaf', 'value') := NULL]))
     }
@@ -243,7 +253,11 @@ forde <- function(
     }
     setkey(psi_cnt, f_idx, variable)
     setcolorder(psi_cnt, c('f_idx', 'variable'))
-  } 
+  } else {
+    psic_cnt <- data.table(f_idx = integer(), variable = character(), min = numeric(), max = numeric(), 
+                           mu = numeric(), sigma = numeric(), NA_share = numeric())
+  }
+
   # Categorical case
   if (any(factor_cols)) {
     psi_cat_fn <- function(tree) {
@@ -253,6 +267,32 @@ forde <- function(
       }
       dt <- melt(dt, id.vars = 'leaf', variable.factor = FALSE,
                  value.factor = FALSE, value.name = 'val')[, tree := tree]
+      dt[, NA_share := sum(is.na(val))/.N, by = .(leaf, variable)]
+      dt <- dt[!(is.na(val) & NA_share != 1)]
+      if (dt[, any(NA_share == 1)]) {
+        all_na <- unique(dt[NA_share == 1])
+        dt <- dt[NA_share != 1]
+        all_na <- merge(all_na, bnds[, .(tree, leaf, variable, min, max, f_idx)],
+                        by = c('tree', 'leaf', 'variable'), sort = FALSE)
+        all_na[!is.finite(min), min := 0.5]
+        for (j in names(which(factor_cols))) {
+          all_na[!is.finite(max) & variable == j, max := lvl_df[variable == j, max(level)]]
+        }
+        all_na[!grepl('\\.5', min), min := min + 0.5]
+        all_na[!grepl('\\.5', max), max := max + 0.5]
+        all_na[, min := min + 0.5][, max := max - 0.5]
+        all_na <- rbindlist(lapply(seq_len(nrow(all_na)), function(i) {
+          data.table(
+            leaf = all_na[i, leaf], variable = all_na[i, variable],
+            level = all_na[i, seq(min, max)],
+            NA_share = all_na[i, NA_share]
+          )
+        }))
+        all_na <- merge(all_na, lvl_df, by = c('variable', 'level'))
+        all_na[, level := NULL][, tree := tree]
+        setcolorder(all_na, colnames(dt))
+        dt <- rbind(dt, all_na)
+      }
       dt[, count := .N, by = .(leaf, variable)]
       dt <- merge(dt, bnds[, .(tree, leaf, variable, min, max, f_idx)], 
                   by = c('tree', 'leaf', 'variable'), sort = FALSE)
@@ -263,20 +303,14 @@ forde <- function(
         # Define the range of each variable in each leaf
         dt <- unique(dt[, val_count := .N, by = .(f_idx, variable, val)])
         dt[, k := length(unique(val)), by = variable]
-        dt[min == -Inf, min := 0.5][max == Inf, max := k + 0.5]
+        dt[!is.finite(min), min := 0.5][!is.finite(max), max := k + 0.5]
         dt[!grepl('\\.5', min), min := min + 0.5][!grepl('\\.5', max), max := max + 0.5]
         dt[, k := max - min]
         # Enumerate each possible leaf-variable-value combo
         tmp <- dt[, seq(min[1] + 0.5, max[1] - 0.5), by = .(f_idx, variable)]
-        setnames(tmp, 'V1', 'levels')
-        tmp2 <- rbindlist(
-          lapply(which(factor_cols), function(j) {
-            data.table('variable' = colnames(x)[j],
-                       'val' = arf$forest$covariate.levels[[j]])[, levels := .I]
-          })
-        )
-        tmp <- merge(tmp, tmp2, by = c('variable', 'levels'), 
-                     sort = FALSE)[, levels := NULL]
+        setnames(tmp, 'V1', 'level')
+        tmp <- merge(tmp, lvl_df, by = c('variable', 'level'), 
+                     sort = FALSE)[, level := NULL]
         # Populate count, k
         tmp <- merge(tmp, unique(dt[, .(f_idx, variable, count, k)]),
                      by = c('f_idx', 'variable'), sort = FALSE)
@@ -289,6 +323,8 @@ forde <- function(
         dt[, c('val_count', 'k') := NULL]
       }
       dt[, c('count', 'min', 'max') := NULL]
+      setcolorder(dt, c("f_idx", "variable", "val", "prob", "NA_share"))
+      dt
     }
     if (isTRUE(parallel)) {
       psi_cat <- foreach(tree = seq_len(num_trees), .combine = rbind) %dopar% 
@@ -297,8 +333,12 @@ forde <- function(
       psi_cat <- foreach(tree = seq_len(num_trees), .combine = rbind) %do% 
         psi_cat_fn(tree)
     }
+    lvl_df[, level := NULL]
     setkey(psi_cat, f_idx, variable)
     setcolorder(psi_cat, c('f_idx', 'variable'))
+  } else {
+    psi_cat <- data.table(f_idx = integer(), variable = character(), val = character(), prob = numeric(),
+                          NA_share = numeric())
   }
   
   # Add metadata, export
@@ -308,11 +348,9 @@ forde <- function(
     'forest' = unique(bnds[, .(f_idx, tree, leaf, cvg)]),
     'meta' = data.table('variable' = colnames_x, 'class' = classes, 
                         'family' = fifelse(factor_cols, 'multinom', family),
-                        'precision' = prec), 
-    'levels' = lvls, 
+                        'decimals' = deci), 
+    'levels' = lvl_df, 
     'input_class' = input_class
   )
   return(psi)
 }
-
-
