@@ -72,6 +72,8 @@
 #' @importFrom truncnorm rtruncnorm 
 #' 
 
+library(Rlab)
+
 forge <- function(
     params, 
     n_synth,
@@ -171,7 +173,7 @@ forge <- function(
   if(sample_NAs) {
     setDT(x_synth)
     NA_share <- rbind(NA_share_cnt, NA_share_cat)
-    setorder(NA_share[,variable := factor(variable, levels = meta[,variable])], variable, idx)
+    setorder(NA_share[,variable := factor(variable, levels = params$meta[,variable])], variable, idx)
     NA_share[,dat := rbern(.N, prob = NA_share)]
     x_synth[dcast(NA_share,formula =  idx ~ variable, value.var = "dat")[,-"idx"] == 1] <- NA
     

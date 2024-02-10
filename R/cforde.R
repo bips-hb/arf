@@ -5,9 +5,9 @@ library("foreach")
 library("stringr")
 library("truncnorm")
 
-source("unoverlap_hyperrectangles.R") # routine for unoverlapping hyperrectangles
-source("forge.R") # slightly modified FORGE function that can handle outputs from both FORDE and cFORDE
-source("forde.R") # handles missing values
+source("unoverlap_hyperrectangles.R")
+source("forge.R")
+source("forde.R")
 source("utils.R")
 source("adversarial_rf.R")
 
@@ -267,17 +267,17 @@ cond2volumes <- function(condition, params_uncond, row_mode) {
     cond[,(cat_cols) := lapply(.SD,as.character),.SDcols = cat_cols]  
   }
   
-  cols_check_range <- cond[,sapply(.SD, function(x) sum((str_sub(x,,1) == "(") | is.na(x))), .SDcols = cnt_cols]
-  cols_check_or <- cond[,sapply(.SD, function(x) sum(str_detect(x, "\\|")))]
+  cols_check_range <- cond[,sapply(.SD, \(x) sum((str_sub(x,,1) == "(") | is.na(x))), .SDcols = cnt_cols]
+  cols_check_or <- cond[,sapply(.SD, \(x) sum(str_detect(x, "\\|")))]
   if (row_mode == "or") {
     if (any(cols_check_range > 0 & cols_check_range < nrow(cond))){
       stop("Condition vector contains columns with both range and scalar entries. No valid conditional density can be calculated.")
     }
     if (length(cnt_cols) > 0 & n_row_cond > 1) {
-      cond[,(cnt_cols) := lapply(.SD,function(col) replace(col, which(is.na(col)), "(-Inf,Inf)")),.SDcols = cnt_cols]
+      cond[,(cnt_cols) := lapply(.SD,\(col) replace(col, which(is.na(col)), "(-Inf,Inf)")),.SDcols = cnt_cols]
     }
     if (length(cat_cols) > 0 & n_row_cond > 1) {
-      cond[,(cat_cols) := mapply(function(colname,col) {
+      cond[,(cat_cols) := mapply(\(colname,col) {
         lvls_str <- paste(levels(as.factor(cat[cat$variable == colname]$val)),collapse="|")
         list(replace(col,which(is.na(col)),lvls_str))
       },colname = colnames(.SD),
