@@ -17,6 +17,12 @@ cforde <- function(params_uncond, cond, row_mode = c("separate", "or"), stepsize
   
   row_mode <- match.arg(row_mode)
   
+  doParRegistered_init <- getDoParRegistered()
+  if(!parallel & doParRegistered_init) {
+    workers <- getDoParWorkers()
+    registerDoSEQ()
+  }
+  
   meta <- params_uncond$meta
   family <- meta[family != "multinom", unique(family)]
   forest <- params_uncond$forest
@@ -58,19 +64,12 @@ cforde <- function(params_uncond, cond, row_mode = c("separate", "or"), stepsize
     cat_relevant <- cat_conds[cat_relevant, on = .(variable, val),nomatch = NULL]
     setkey(cat_relevant,c_idx)
     
-    if (parallel) {
-      relevant_leaves_changed_cat <- foreach(step = 1:step_no, .combine = "rbind") %dopar% {
-        index_start <- vols_conditioned[(step - 1)*stepsize + 1]
-        index_end <- vols_conditioned[min(step * stepsize, nvols_conditioned)]
-        cat_relevant[.(index_start:index_end), Reduce(intersect,V1),by = c_idx][,.(c_idx, f_idx = V1)]
-      }
-    } else {
-      relevant_leaves_changed_cat <- foreach(step = 1:step_no, .combine = "rbind") %do% {
-        index_start <- vols_conditioned[(step - 1)*stepsize + 1]
-        index_end <- vols_conditioned[min(step * stepsize, nvols_conditioned)]
-        cat_relevant[.(index_start:index_end), Reduce(intersect,V1),by = c_idx][,.(c_idx, f_idx = V1)]
-      }
+    relevant_leaves_changed_cat <- foreach(step = 1:step_no, .combine = "rbind") %dopar% {
+      index_start <- vols_conditioned[(step - 1)*stepsize + 1]
+      index_end <- vols_conditioned[min(step * stepsize, nvols_conditioned)]
+      cat_relevant[.(index_start:index_end), Reduce(intersect,V1),by = c_idx][,.(c_idx, f_idx = V1)]
     }
+      
     setorder(relevant_leaves_changed_cat)
     volumes_unchanged_cat <- (1:nvols)[!(1:nvols %in% cat_conds[,c_idx])]
     relevant_leaves_unchanged_cat <- data.table(c_idx = rep(volumes_unchanged_cat, each = nrow(forest) ), f_idx = rep(forest[,f_idx],length(volumes_unchanged_cat)))
@@ -97,52 +96,27 @@ cforde <- function(params_uncond, cond, row_mode = c("separate", "or"), stepsize
     setkey(cnt_relevant,c_idx)
     step_no <- ceiling(nvols_conditioned/stepsize)
     
-    if(parallel) {
-      relevant_leaves_changed_cnt <- foreach(step = 1:step_no, .combine = "rbind") %dopar% {
-        index_start <- vols_conditioned[(step - 1)*stepsize + 1]
-        index_end <- vols_conditioned[min(step * stepsize, nvols_conditioned)]
-        cnt_relevant[.(index_start:index_end), .(
-          c_idx,
-          variable,
-          f_idx = Map(\(f_idx, min, max, i.min, i.max) {
-            if (class(f_idx) != "logical") {
-              rel_cat_min <- i.min[f_idx]
-              rel_cat_max <- i.max[f_idx]
-              rel_min <- f_idx[which(max > rel_cat_min)]
-              rel_max <- f_idx[which(min <= rel_cat_max)]
-            } else {
-              rel_cat_min <- i.min
-              rel_cat_max <- i.max
-              rel_min <- which(max > rel_cat_min)
-              rel_max <- which(min <= rel_cat_max)
-            }
-            intersect(rel_min,rel_max) 
-            }, f_idx = f_idx, min = min, max = max, i.min = i.min, i.max = i.max))
-        ][, Reduce(intersect,f_idx),by = c_idx][,.(c_idx, f_idx = V1)]
-      }
-    } else {
-      relevant_leaves_changed_cnt <- foreach(step = 1:step_no, .combine = "rbind") %do% {
-        index_start <- vols_conditioned[(step - 1)*stepsize + 1]
-        index_end <- vols_conditioned[min(step * stepsize, nvols_conditioned)]
-        cnt_relevant[.(index_start:index_end), .(
-          c_idx,
-          variable,
-          f_idx = Map(\(f_idx, min, max, i.min, i.max) {
-            if (class(f_idx) != "logical") {
-              rel_cat_min <- i.min[f_idx]
-              rel_cat_max <- i.max[f_idx]
-              rel_min <- f_idx[which(max > rel_cat_min)]
-              rel_max <- f_idx[which(min <= rel_cat_max)]
-            } else {
-              rel_cat_min <- i.min
-              rel_cat_max <- i.max
-              rel_min <- which(max > rel_cat_min)
-              rel_max <- which(min <= rel_cat_max)
-            }
-            intersect(rel_min,rel_max) 
+    relevant_leaves_changed_cnt <- foreach(step = 1:step_no, .combine = "rbind") %dopar% {
+      index_start <- vols_conditioned[(step - 1)*stepsize + 1]
+      index_end <- vols_conditioned[min(step * stepsize, nvols_conditioned)]
+      cnt_relevant[.(index_start:index_end), .(
+        c_idx,
+        variable,
+        f_idx = Map(\(f_idx, min, max, i.min, i.max) {
+          if (class(f_idx) != "logical") {
+            rel_cat_min <- i.min[f_idx]
+            rel_cat_max <- i.max[f_idx]
+            rel_min <- f_idx[which(max > rel_cat_min)]
+            rel_max <- f_idx[which(min <= rel_cat_max)]
+          } else {
+            rel_cat_min <- i.min
+            rel_cat_max <- i.max
+            rel_min <- which(max > rel_cat_min)
+            rel_max <- which(min <= rel_cat_max)
+          }
+          intersect(rel_min,rel_max) 
           }, f_idx = f_idx, min = min, max = max, i.min = i.min, i.max = i.max))
-        ][, Reduce(intersect,f_idx),by = c_idx][,.(c_idx, f_idx = V1)]
-      }
+      ][, Reduce(intersect,f_idx),by = c_idx][,.(c_idx, f_idx = V1)]
     }
 
     volumes_unchanged_cnt <- (1:nvols)[!(1:nvols %in% cnt_conds[,c_idx])]
@@ -248,6 +222,11 @@ cforde <- function(params_uncond, cond, row_mode = c("separate", "or"), stepsize
   }
   
   setorder(setcolorder(forest_new,c("f_idx","c_idx","f_idx_uncond","tree","leaf","cvg_arf","cvg")), c_idx, f_idx, f_idx_uncond, tree, leaf)
+  
+  if(!parallel & doParRegistered_init) {
+    registerDoParallel(workers)
+  }
+  
   list(condition = cond, volumes = volumes, cnt = cnt_new, cat = cat_new, forest = forest_new)
 }
 

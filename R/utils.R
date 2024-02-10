@@ -327,5 +327,3 @@ post_x <- function(x, params) {
   }
   return(x)
 }
-
-
