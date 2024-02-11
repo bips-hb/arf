@@ -4,13 +4,7 @@
 \alias{cforde}
 \title{Compute conditional circuit parameters}
 \usage{
-cforde(
-  params,
-  condition,
-  row_mode = c("separate", "or"),
-  stepsize = 200,
-  parallel = T
-)
+cforde(params, condition, row_mode = c("separate", "or"), stepsize = 200)
 }
 \arguments{
 \item{params}{Circuit parameters learned via \code{\link{forde}}.}

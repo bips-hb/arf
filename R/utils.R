@@ -341,15 +341,9 @@ post_x <- function(x, params) {
 #' @importFrom truncnorm dtruncnorm ptruncnorm 
 #' 
 
-cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize = 200, parallel = T) {
+cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize = 200) {
   
   row_mode <- match.arg(row_mode)
-  
-  doParRegistered_init <- getDoParRegistered()
-  if(!parallel & doParRegistered_init) {
-    workers <- getDoParWorkers()
-    registerDoSEQ()
-  }
   
   meta <- params$meta
   family <- meta[family != "multinom", unique(family)]
@@ -369,13 +363,13 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
   # store resulting number of disjoint hyperrectangles
   
   if(row_mode == "or") {
-    nvols <- nvols_conditioned <- condition_long[,max(c_idx)]
+    nconds <- nconds_conditioned <- condition_long[,max(c_idx)]
   } else {
-    nvols <- nrow(condition)
-    nvols_conditioned <- condition_long[,uniqueN(c_idx)]
+    nconds <- nrow(condition)
+    nconds_conditioned <- condition_long[,uniqueN(c_idx)]
   }
   
-  vols_conditioned <- condition_long[,unique(c_idx)]
+  conds_conditioned <- condition_long[,unique(c_idx)]
   
   # store conditions for cat and cnt separately
   cat_conds <- condition_long[variable %in% cat_cols,c("c_idx","variable","val")][,variable := factor(variable)]
@@ -387,18 +381,18 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
     cat_relevant <- cat[,.(.(f_idx)), by=.(variable,val)]
     setkey(cat_relevant, variable, val)
     setkey(cat_conds, variable, val)
-    step_no <- ceiling(nvols_conditioned/stepsize)
+    step_no <- ceiling(nconds_conditioned/stepsize)
     cat_relevant <- cat_conds[cat_relevant, on = .(variable, val),nomatch = NULL]
     setkey(cat_relevant,c_idx)
     
-    relevant_leaves_changed_cat <- foreach(step = 1:step_no, .combine = "rbind") %dopar% {
-      index_start <- vols_conditioned[(step - 1)*stepsize + 1]
-      index_end <- vols_conditioned[min(step * stepsize, nvols_conditioned)]
+    relevant_leaves_changed_cat <- foreach(step = 1:step_no, .combine = "rbind") %do% {
+      index_start <- conds_conditioned[(step - 1)*stepsize + 1]
+      index_end <- conds_conditioned[min(step * stepsize, nconds_conditioned)]
       cat_relevant[.(index_start:index_end), Reduce(intersect,V1),by = c_idx][,.(c_idx, f_idx = V1)]
     }
     
     setorder(relevant_leaves_changed_cat)
-    conditions_unchanged_cat <- (1:nvols)[!(1:nvols %in% cat_conds[,c_idx])]
+    conditions_unchanged_cat <- (1:nconds)[!(1:nconds %in% cat_conds[,c_idx])]
     relevant_leaves_unchanged_cat <- data.table(c_idx = rep(conditions_unchanged_cat, each = nrow(forest) ), f_idx = rep(forest[,f_idx],length(conditions_unchanged_cat)))
     relevant_leaves_cat <- rbind(relevant_leaves_changed_cat, relevant_leaves_unchanged_cat)
     relevant_leaves_cat_list <- relevant_leaves_cat[,.(f_idx = .(f_idx)),by=c_idx]
@@ -421,11 +415,11 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
     }
     
     setkey(cnt_relevant,c_idx)
-    step_no <- ceiling(nvols_conditioned/stepsize)
+    step_no <- ceiling(nconds_conditioned/stepsize)
     
-    relevant_leaves_changed_cnt <- foreach(step = 1:step_no, .combine = "rbind") %dopar% {
-      index_start <- vols_conditioned[(step - 1)*stepsize + 1]
-      index_end <- vols_conditioned[min(step * stepsize, nvols_conditioned)]
+    relevant_leaves_changed_cnt <- foreach(step = 1:step_no, .combine = "rbind") %do% {
+      index_start <- conds_conditioned[(step - 1)*stepsize + 1]
+      index_end <- conds_conditioned[min(step * stepsize, nconds_conditioned)]
       cnt_relevant[.(index_start:index_end), .(
         c_idx,
         variable,
@@ -446,7 +440,7 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
       ][, Reduce(intersect,f_idx),by = c_idx][,.(c_idx, f_idx = V1)]
     }
     
-    conditions_unchanged_cnt <- (1:nvols)[!(1:nvols %in% cnt_conds[,c_idx])]
+    conditions_unchanged_cnt <- (1:nconds)[!(1:nconds %in% cnt_conds[,c_idx])]
     relevant_leaves_unchanged_cnt <- data.table(c_idx = rep(conditions_unchanged_cnt, each = nrow(forest) ), f_idx = rep(forest[,f_idx],length(conditions_unchanged_cnt)))
     relevant_leaves_cnt <- rbind(relevant_leaves_changed_cnt, relevant_leaves_unchanged_cnt)
     
@@ -477,13 +471,13 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
     cnt_new <- data.table(f_idx = integer(), cvg_factor = numeric(), c_idx = integer())
   }
   
-  if(relevant_leaves[,uniqueN(c_idx)] < nvols_conditioned) {
+  if(relevant_leaves[,uniqueN(c_idx)] < nconds_conditioned) {
     if(relevant_leaves[,uniqueN(c_idx)] == 0 & row_mode == "or") {
       stop("For all entered evidence rows, no matching leaves could be found. This is probably because evidence lies outside of the distribution calculated by FORDE. For continuous data, consider setting epsilon>0 or finite_bounds=FALSE in forde().")
     } else {
       warning("For some entered evidence rows, no matching leaves could be found. This is probably because evidence lies outside of the distribution calculated by FORDE. For continuous data, consider setting epsilon>0 or finite_bounds=FALSE in forde().")
-      vols_impossible <- vols_conditioned[!(vols_conditioned %in% relevant_leaves[,unique(c_idx)])]
-      relevant_leaves <- setorder(rbind(relevant_leaves, data.table(c_idx = vols_impossible, f_idx = NA_integer_, f_idx_uncond = NA_integer_)))
+      conds_impossible <- conds_conditioned[!(conds_conditioned %in% relevant_leaves[,unique(c_idx)])]
+      relevant_leaves <- setorder(rbind(relevant_leaves, data.table(c_idx = conds_impossible, f_idx = NA_integer_, f_idx_uncond = NA_integer_)))
     }
   }
   
@@ -540,19 +534,15 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
   } else {
     forest_new[is.na(cvg), cvg := 1]
   }
-  if(row_mode == "separate" & (nvols != nvols_conditioned)) {
-    vols_unconditioned <- (1:nvols)[!(1:nvols) %in% vols_conditioned]
+  if(row_mode == "separate" & (nconds != nconds_conditioned)) {
+    conds_unconditioned <- (1:nconds)[!(1:nconds) %in% conds_conditioned]
     forest_new_unconditioned <- copy(forest)
-    forest_new_unconditioned <- rbindlist(replicate(length(vols_unconditioned), forest, simplify = F))
-    forest_new_unconditioned[, `:=` (c_idx = rep(vols_unconditioned,each = nrow(forest)), f_idx_uncond = f_idx, cvg_arf = cvg)]
+    forest_new_unconditioned <- rbindlist(replicate(length(conds_unconditioned), forest, simplify = F))
+    forest_new_unconditioned[, `:=` (c_idx = rep(conds_unconditioned,each = nrow(forest)), f_idx_uncond = f_idx, cvg_arf = cvg)]
     forest_new <- rbind(forest_new, forest_new_unconditioned)
   }
   
   setorder(setcolorder(forest_new,c("f_idx","c_idx","f_idx_uncond","tree","leaf","cvg_arf","cvg")), c_idx, f_idx, f_idx_uncond, tree, leaf)
-  
-  if(!parallel & doParRegistered_init) {
-    registerDoParallel(workers)
-  }
   
   list(condition_input = condition, condition_prepped = condition_long, cnt = cnt_new, cat = cat_new, forest = forest_new)
 }
