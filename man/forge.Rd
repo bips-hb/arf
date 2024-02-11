@@ -4,18 +4,30 @@
 \alias{forge}
 \title{Forests for Generative Modeling}
 \usage{
-forge(params, n_synth, evidence = NULL)
+forge(
+  params,
+  n_synth,
+  condition = NULL,
+  condition_row_mode = c("separate", "or"),
+  sample_NAs = F,
+  stepsize = 200,
+  parallel = TRUE
+)
 }
 \arguments{
 \item{params}{Circuit parameters learned via \code{\link{forde}}.}
 
 \item{n_synth}{Number of synthetic samples to generate.}
 
-\item{evidence}{Optional set of conditioning events. This can take one of
-three forms: (1) a partial sample, i.e. a single row of data with
-some but not all columns; (2) a data frame of conditioning events,
-which allows for inequalities; or (3) a posterior distribution over leaves.
-See Details.}
+\item{condition}{}
+
+\item{condition_row_mode}{}
+
+\item{sample_NAs}{}
+
+\item{stepsize}{}
+
+\item{parallel}{}
 }
 \value{
 A dataset of \code{n_synth} synthetic samples.

@@ -3,13 +3,13 @@
 #' Uses pre-trained FORDE model to simulate synthetic data.
 #' 
 #' @param params Circuit parameters learned via \code{\link{forde}}. 
+#' @param condition 
+#' @param condition_row_mode 
+#' @param sample_NAs 
+#' @param stepsize 
+#' @param parallel 
 #' @param n_synth Number of synthetic samples to generate.
-#' @param evidence Optional set of conditioning events. This can take one of 
-#'   three forms: (1) a partial sample, i.e. a single row of data with
-#'   some but not all columns; (2) a data frame of conditioning events, 
-#'   which allows for inequalities; or (3) a posterior distribution over leaves.
-#'   See Details.
-#'   
+#'
 #' @details  
 #' \code{forge} simulates a synthetic dataset of \code{n_synth} samples. First,
 #' leaves are sampled in proportion to either their coverage (if 
@@ -68,18 +68,19 @@
 #' 
 #' @export
 #' @import data.table
-#' @importFrom foreach foreach %do% %dopar%
+#' @importFrom doParallel registerDoParallel
+#' @importFrom foreach foreach getDoParRegistered getDoParWorkers registerDoSEQ %dopar%
 #' @importFrom truncnorm rtruncnorm 
+#' @importFrom Rlab rbern
+#' @import stringr
 #' 
-
-library(Rlab)
 
 forge <- function(
     params, 
     n_synth,
-    sample_NAs = F,
     condition = NULL,
     condition_row_mode = c("separate", "or"),
+    sample_NAs = F,
     stepsize = 200,
     parallel = TRUE) {
   
@@ -184,7 +185,7 @@ forge <- function(
     setDT(x_synth)
     indices_na <- cparams$forest[is.na(f_idx), c_idx]
     indices_sampled <- cparams$forest[!is.na(f_idx), unique(c_idx)]
-    rows_na <- cond[indices_na,]
+    rows_na <- condition[indices_na,]
     rows_na <- rows_na[,(names(x_synth)[!factor_cols]) := lapply(.SD,as.numeric),.SDcols=!factor_cols]
     rows_na[, idx:= indices_na]
     rows_na <- rbindlist(replicate(n_synth, rows_na, simplify = F))

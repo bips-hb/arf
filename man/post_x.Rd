@@ -12,5 +12,5 @@ post_x(x, params)
 \item{params}{Circuit parameters learned via \code{\link{forde}}.}
 }
 \description{
-This function prepares output data for map and forge.
+This function prepares output data for forge.
 }

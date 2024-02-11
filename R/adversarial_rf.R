@@ -61,8 +61,7 @@
 #' A random forest object of class \code{ranger}.
 #' 
 #' 
-#' @referen
-#' ces 
+#' @references 
 #' Watson, D., Blesch, K., Kapar, J., & Wright, M. (2023). Adversarial random 
 #' forests for density estimation and generative modeling. In \emph{Proceedings 
 #' of the 26th International Conference on Artificial Intelligence and 
