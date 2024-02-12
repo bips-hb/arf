@@ -175,9 +175,9 @@ forde <- function(
     }
     leaves <- which(arf$forest$child.nodeIDs[[tree]][[1]] == 0L) 
     colnames(lb) <- colnames(ub) <- colnames_x
-    merge(melt(data.table(tree = tree, leaf = leaves, lb[leaves, ]), 
+    merge(melt(data.table(tree = tree, leaf = leaves, lb[leaves, , drop = FALSE]), 
                id.vars = c('tree', 'leaf'), value.name = 'min'), 
-          melt(data.table(tree = tree, leaf = leaves, ub[leaves, ]), 
+          melt(data.table(tree = tree, leaf = leaves, ub[leaves, , drop = FALSE]), 
                id.vars = c('tree', 'leaf'), value.name = 'max'), 
           by = c('tree', 'leaf', 'variable'), sort = FALSE)
   }
