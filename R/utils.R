@@ -336,8 +336,7 @@ post_x <- function(x, params) {
 #' @param condition Data frame of conditioning event(s).
 #' 
 #' @import data.table
-#' @importFrom doParallel registerDoParallel
-#' @importFrom foreach foreach getDoParRegistered getDoParWorkers registerDoSEQ %dopar%
+#' @importFrom foreach foreach %dopar%
 #' @importFrom truncnorm dtruncnorm ptruncnorm 
 #' 
 

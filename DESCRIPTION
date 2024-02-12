@@ -33,6 +33,7 @@ Imports:
     data.table,
     ranger,
     foreach,
+    stringr,
     truncnorm,
     tibble
 Encoding: UTF-8

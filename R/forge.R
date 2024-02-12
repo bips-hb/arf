@@ -68,8 +68,7 @@
 #' 
 #' @export
 #' @import data.table
-#' @importFrom doParallel registerDoParallel
-#' @importFrom foreach foreach getDoParRegistered getDoParWorkers registerDoSEQ %dopar%
+#' @importFrom foreach foreach %dopar%
 #' @importFrom truncnorm rtruncnorm 
 #' 
 
@@ -91,7 +90,7 @@ forge <- function(
   factor_cols <- params$meta[, family == 'multinom']
   
   if(!is.null(condition)) {
-    if(parallel) {
+    if(parallel & condition_row_mode == "separate") {
       stepsize_foreach <- stepsize
       step_no <- ceiling(nrow(condition)/stepsize_foreach)
     } else {
