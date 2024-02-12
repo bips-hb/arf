@@ -108,7 +108,7 @@ forge <- function(
     # Prepare the event space
     if (!is.null(condition)) {
       index_start <- (step-1)*stepsize_foreach + 1
-      index_end <- min(step*stepsize_foreach, stepsize_foreach*step_no)
+      index_end <- min(step*stepsize_foreach, nrow(condition))
       condition_part <- condition[index_start:index_end,]
       cparams <- cforde(params, condition_part, condition_row_mode, stepsize)
     } else {
