@@ -11,7 +11,7 @@ adversarial_rf(
   delta = 0,
   max_iters = 10L,
   early_stop = TRUE,
-  generator = "bootstrap",
+  prune = TRUE,
   verbose = TRUE,
   parallel = TRUE,
   ...
@@ -35,10 +35,7 @@ likelihood estimation. See Details.}
 \item{early_stop}{Terminate loop if performance fails to improve from one
 round to the next?}
 
-\item{generator}{Synthetic data generator. The default is to use intra-leaf
-marginals (\code{generator = "bootstrap"}). Alternatively, compile the
-forest into a probabilistic circuit and synthesize data from the model
-(\code{generator = "forge"}). See Details.}
+\item{prune}{Impose \code{min_node_size} by pruning?}
 
 \item{verbose}{Print discriminator accuracy after each round?}
 
@@ -60,12 +57,10 @@ iteratively, with alternating rounds of generation and discrimination. In
 the first instance, synthetic data is generated via independent bootstraps of
 each feature, and a RF classifier is trained to distinguish between real and
 fake samples. In subsequent rounds, synthetic data is generated separately in
-each leaf, using splits from the previous forest. This can be done either by
-bootstrapping (\code{generator = "bootstrap"}) or fitting a circuit model
-(\code{generator = "forge"}). In either case, synthetic data satisfies local
-independence by construction. The algorithm converges when a RF cannot
-reliably distinguish between the two classes, i.e. when OOB accuracy falls
-below 0.5 + \code{delta}.
+each leaf, using splits from the previous forest. This creates increasingly
+realistic data that satisfies local independence by construction. The
+algorithm converges when a RF cannot reliably distinguish between the two
+classes, i.e. when OOB accuracy falls below 0.5 + \code{delta}.
 
 ARFs are useful for several unsupervised learning tasks, such as density
 estimation (see \code{\link{forde}}) and data synthesis (see
@@ -73,11 +68,10 @@ estimation (see \code{\link{forde}}) and data synthesis (see
 trees for improved performance (typically on the order of 100-1000 depending
 on sample size).
 
-Integer variables are treated as ordered factors by default. If the ARF is
-passed to \code{forde}, the estimated distribution for these variables will
-only have support on observed factor levels (i.e., the output will be a pmf,
-not a pdf). To override this behavior and assign nonzero density to
-intermediate values, explicitly recode the features as numeric.
+Integer variables are recoded with a warning. Default behavior is to convert
+those with six or more unique values to numeric, while those with up to five
+unique values are treated as ordered factors. To override this behavior,
+explicitly recode integer variables to the target type prior to training.
 
 Note: convergence is not guaranteed in finite samples. The \code{max_iters}
 argument sets an upper bound on the number of training rounds. Similar
