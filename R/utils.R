@@ -467,7 +467,7 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
     cnt_new <- setcolorder(merge(relevant_leaves, cnt_new, by.x = c("c_idx", "f_idx_uncond"), by.y = c("c_idx", "f_idx"), sort = F),c("f_idx","c_idx","variable","min","max","val","cvg_factor"))[]
   } else {
     relevant_leaves <- relevant_leaves_cat[,.(c_idx, f_idx = .I, f_idx_uncond =f_idx)]
-    cnt_new <- data.table(f_idx = integer(), cvg_factor = numeric(), c_idx = integer())
+    cnt_new <- cbind(cnt[F,], data.table(f_idx_uncond = integer(), cvg_factor = numeric(), c_idx = integer(), val = numeric()))
   }
   
   if(relevant_leaves[,uniqueN(c_idx)] < nconds_conditioned) {
