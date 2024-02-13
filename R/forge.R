@@ -90,6 +90,7 @@ forge <- function(
   factor_cols <- params$meta[, family == 'multinom']
   
   if(!is.null(condition)) {
+    condition <- as.data.table(condition)
     if(parallel & condition_row_mode == "separate") {
       stepsize_foreach <- stepsize
       step_no <- ceiling(nrow(condition)/stepsize_foreach)
@@ -127,10 +128,16 @@ forge <- function(
       omega <- omega[rep(1, n_synth),][, idx := .I]
     } else {
       if(condition_row_mode == "or") {
-        draws <- omega[, .(f_idx = sample(f_idx, size = n_synth, replace = TRUE, prob = wt))]
-        omega <- merge(draws, omega, by = c("f_idx"), sort = FALSE)[, idx := .I]
+        draws <- setorder(rbind(
+          omega[wt < 1, .(f_idx = sample(f_idx, size = n_synth, replace = TRUE, prob = wt))],
+          omega[wt == 1, .(f_idx, c_idx)]
+        ))
+        omega <- merge(draws, omega, by = "f_idx", sort = FALSE)[, idx := .I]
       } else {
-        draws <- omega[, .(f_idx = sample(f_idx, size = n_synth, replace = TRUE, prob = wt)), by = c_idx]
+        draws <- setorder(rbind(
+          omega[wt < 1, .(f_idx = sample(f_idx, size = n_synth, replace = TRUE, prob = wt)), by = c_idx],
+          omega[wt == 1, .(f_idx, c_idx)]
+        ))
         omega <- merge(draws, omega, by = c("c_idx", "f_idx"), sort = FALSE)[, idx := .I]
       }
       setcolorder(omega, "idx")
@@ -201,7 +208,9 @@ forge <- function(
       indices_na <- cparams$forest[is.na(f_idx), c_idx]
       indices_sampled <- cparams$forest[!is.na(f_idx), unique(c_idx)]
       rows_na <- condition_part[indices_na,]
-      rows_na <- rows_na[,(names(x_synth)[!factor_cols]) := lapply(.SD,as.numeric),.SDcols=!factor_cols]
+      if(!all(factor_cols)){
+        rows_na <- rows_na[,(names(x_synth)[!factor_cols]) := lapply(.SD,as.numeric),.SDcols=!factor_cols]
+      }
       rows_na[, idx:= indices_na]
       rows_na <- rbindlist(replicate(n_synth, rows_na, simplify = F))
       x_synth[, idx:= rep(indices_sampled, each = n_synth)]
