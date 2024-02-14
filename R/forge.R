@@ -3,11 +3,12 @@
 #' Uses pre-trained FORDE model to simulate synthetic data.
 #' 
 #' @param params Circuit parameters learned via \code{\link{forde}}. 
-#' @param condition 
-#' @param condition_row_mode 
-#' @param sample_NAs 
-#' @param stepsize 
-#' @param parallel 
+#' @param condition Optional set of conditioning events.
+#' @param condition_row_mode Interpretation of rows in multi-row conditions.
+#' @param sample_NAs Sample NAs respecting the probability for missing values in the original data.
+#' @param stepsize Stepsize defining number of condition rows handled in one for each step.
+#' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
+#'   via \code{doParallel}.
 #' @param n_synth Number of synthetic samples to generate.
 #'
 #' @details  
@@ -49,11 +50,18 @@
 #' evi <- data.frame(Species = "setosa")
 #' x_synth <- forge(psi, n_synth = 100, evidence = evi)
 #' 
-#' # Condition in Species = "setosa" and Sepal.Length > 6
+#' # Condition on Species = "setosa" and Sepal.Length > 6
 #' evi <- data.frame(variable = c("Species", "Sepal.Length"),
 #'                   relation = c("==", ">"), 
 #'                   value = c("setosa", 6))
 #' x_synth <- forge(psi, n_synth = 100, evidence = evi)
+#' 
+#' # Condition on first two data rows with some missing values
+#' condition <- iris[1:2,]
+#' condition[1,1] <- NA_real_
+#' condition[1,5] <- NA_character_
+#' condition[2,2] <- NA_real_
+#' x_synth <- forge(psi, n_synth = 1, condition = condition)
 #' 
 #' # Or just input some distribution on leaves
 #' # (Weights that do not sum to unity are automatically scaled)
@@ -70,6 +78,7 @@
 #' @import data.table
 #' @importFrom foreach foreach %dopar%
 #' @importFrom truncnorm rtruncnorm 
+#' @importFrom stats rbinom
 #' 
 
 forge <- function(
@@ -85,7 +94,8 @@ forge <- function(
   
   # To avoid data.table check issues
   tree <- cvg <- leaf <- idx <- family <- mu <- sigma <- prob <- dat <- 
-    variable <- relation <- wt <- j <- f_idx <- val <- . <- NULL
+    variable <- relation <- wt <- j <- f_idx <- val <- . <- step_ <- c_idx <-
+    f_idx_uncond <- N <- NULL
   
   factor_cols <- params$meta[, family == 'multinom']
   
@@ -102,12 +112,12 @@ forge <- function(
     step_no <- 1
   }
   
-  x_synth_ <- foreach(step = 1:step_no, .combine = "rbind") %dopar% {
+  x_synth_ <- foreach(step_ = 1:step_no, .combine = "rbind") %dopar% {
     
     # Prepare the event space
     if (!is.null(condition)) {
-      index_start <- (step-1)*stepsize_foreach + 1
-      index_end <- min(step*stepsize_foreach, nrow(condition))
+      index_start <- (step_-1)*stepsize_foreach + 1
+      index_end <- min(step_*stepsize_foreach, nrow(condition))
       condition_part <- condition[index_start:index_end,]
       cparams <- cforde(params, condition_part, condition_row_mode, 200)
     } else {
@@ -127,17 +137,14 @@ forge <- function(
       omega <- omega[rep(1, n_synth),][, idx := .I]
     } else {
       if(condition_row_mode == "or") {
-        draws <- setorder(rbind(
-          omega[wt < 1, .(f_idx = sample(f_idx, size = n_synth, replace = TRUE, prob = wt))],
-          omega[wt == 1, .(f_idx, c_idx)]
-        ))
         omega <- merge(draws, omega, by = "f_idx", sort = FALSE)[, idx := .I]
       } else {
+        omega[, N := .N, by = c_idx]
         draws <- setorder(rbind(
-          omega[wt < 1, .(f_idx = sample(f_idx, size = n_synth, replace = TRUE, prob = wt)), by = c_idx],
-          omega[wt == 1, .(f_idx, c_idx)]
+          omega[N != 1, .(f_idx = sample(f_idx, size = n_synth, replace = TRUE, prob = wt)), by = c_idx],
+          omega[N == 1, .(f_idx, c_idx)]
         ))
-        omega <- merge(draws, omega, by = c("c_idx", "f_idx"), sort = FALSE)[, idx := .I]
+        omega <- merge(draws, omega[,-"N"], by = c("c_idx", "f_idx"), sort = FALSE)[, idx := .I]
       }
       setcolorder(omega, "idx")
     }

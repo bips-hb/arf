@@ -19,15 +19,16 @@ forge(
 
 \item{n_synth}{Number of synthetic samples to generate.}
 
-\item{condition}{}
+\item{condition}{Optional set of conditioning events.}
 
-\item{condition_row_mode}{}
+\item{condition_row_mode}{Interpretation of rows in multi-row conditions.}
 
-\item{sample_NAs}{}
+\item{sample_NAs}{Sample NAs respecting the probability for missing values in the original data.}
 
-\item{stepsize}{}
+\item{stepsize}{Stepsize defining number of condition rows handled in one for each step.}
 
-\item{parallel}{}
+\item{parallel}{Compute in parallel? Must register backend beforehand, e.g.
+via \code{doParallel}.}
 }
 \value{
 A dataset of \code{n_synth} synthetic samples.
@@ -62,11 +63,18 @@ x_synth <- forge(psi, n_synth = 100)
 evi <- data.frame(Species = "setosa")
 x_synth <- forge(psi, n_synth = 100, evidence = evi)
 
-# Condition in Species = "setosa" and Sepal.Length > 6
+# Condition on Species = "setosa" and Sepal.Length > 6
 evi <- data.frame(variable = c("Species", "Sepal.Length"),
                   relation = c("==", ">"), 
                   value = c("setosa", 6))
 x_synth <- forge(psi, n_synth = 100, evidence = evi)
+
+# Condition on first two data rows with some missing values
+condition <- iris[1:2,]
+condition[1,1] <- NA_real_
+condition[1,5] <- NA_character_
+condition[2,2] <- NA_real_
+x_synth <- forge(psi, n_synth = 1, condition = condition)
 
 # Or just input some distribution on leaves
 # (Weights that do not sum to unity are automatically scaled)

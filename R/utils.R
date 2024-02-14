@@ -333,16 +333,23 @@ post_x <- function(x, params) {
 #' 
 #' @param params Circuit parameters learned via \code{\link{forde}}.
 #' @param condition Data frame of conditioning event(s).
-#' @param condition Data frame of conditioning event(s).
+#' @param row_mode Interpretation of rows in multi-row conditions.
+#' @param stepsize Stepsize defining number of condition rows handled in one for each step.
 #' 
 #' @import data.table
 #' @importFrom foreach foreach %dopar%
 #' @importFrom truncnorm dtruncnorm ptruncnorm 
+#' @importFrom stats dunif punif
 #' 
 
 cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize = 200) {
   
   row_mode <- match.arg(row_mode)
+  
+  # To avoid data.table check issues
+  . <- c_idx <- cvg <- cvg_arf <- cvg_factor <- f_idx <- f_idx_uncond <- i.max <-
+    i.min <- leaf <- max.x <- max.y <- min.x <- min.y <- mu <- prob <- sigma <-
+    step_ <-	tree <-	V1 <- val <- variable <- NULL
   
   meta <- params$meta
   family <- meta[family != "multinom", unique(family)]
@@ -384,9 +391,9 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
     cat_relevant <- cat_conds[cat_relevant, on = .(variable, val),nomatch = NULL]
     setkey(cat_relevant,c_idx)
     
-    relevant_leaves_changed_cat <- foreach(step = 1:step_no, .combine = "rbind") %do% {
-      index_start <- conds_conditioned[(step - 1)*stepsize + 1]
-      index_end <- conds_conditioned[min(step * stepsize, nconds_conditioned)]
+    relevant_leaves_changed_cat <- foreach(step_ = 1:step_no, .combine = "rbind") %do% {
+      index_start <- conds_conditioned[(step_ - 1)*stepsize + 1]
+      index_end <- conds_conditioned[min(step_ * stepsize, nconds_conditioned)]
       cat_relevant[.(index_start:index_end), Reduce(intersect,V1),by = c_idx][,.(c_idx, f_idx = V1)]
     }
     
@@ -416,14 +423,14 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
     setkey(cnt_relevant,c_idx)
     step_no <- ceiling(nconds_conditioned/stepsize)
     
-    relevant_leaves_changed_cnt <- foreach(step = 1:step_no, .combine = "rbind") %do% {
-      index_start <- conds_conditioned[(step - 1)*stepsize + 1]
-      index_end <- conds_conditioned[min(step * stepsize, nconds_conditioned)]
+    relevant_leaves_changed_cnt <- foreach(step_ = 1:step_no, .combine = "rbind") %do% {
+      index_start <- conds_conditioned[(step_ - 1)*stepsize + 1]
+      index_end <- conds_conditioned[min(step_ * stepsize, nconds_conditioned)]
       cnt_relevant[.(index_start:index_end), .(
         c_idx,
         variable,
         f_idx = Map(\(f_idx, min, max, i.min, i.max) {
-          if (class(f_idx) != "logical") {
+          if (!inherits(f_idx, "logical")) {
             rel_cat_min <- i.min[f_idx]
             rel_cat_max <- i.max[f_idx]
             rel_min <- f_idx[which(max > rel_cat_min)]
@@ -460,7 +467,7 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
     }
     cnt_new[,c("min.x","max.x","min.y","max.y") := NULL]
     if (nrow(cat_conds) > 0) {
-      relevant_leaves <- merge(relevant_leaves_cnt, relevant_leaves_cat, by = c("c_idx", "f_idx"))[,.(c_idx, f_idx = .I, f_idx_uncond =f_idx)]
+        relevant_leaves <- merge(relevant_leaves_cnt, relevant_leaves_cat, by = c("c_idx", "f_idx"))[,.(c_idx, f_idx = .I, f_idx_uncond =f_idx)]
     } else {
       relevant_leaves <- relevant_leaves_cnt[,.(c_idx, f_idx = .I, f_idx_uncond =f_idx)]
     }
@@ -522,8 +529,7 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
       }
     }
   }
-  
-  forest_new_noleaf <- merge(unique(forest_new[,.(c_idx,f_idx)], by = "c_idx"),unique(cvg_new[,.(c_idx)]), by = "c_idx", all.x = T)[is.na(f_idx)]
+  forest_new_noleaf <- data.table(c_idx = setdiff(unique(forest_new[,c_idx]), unique(cvg_new[,c_idx])))[,f_idx := NA_integer_]
   forest_new <- merge(forest_new, cvg_new, by = c("c_idx","f_idx"))
   forest_new <- rbind(forest_new, forest_new_noleaf,fill = T)
   if (row_mode == "or") {
@@ -555,12 +561,17 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
 #' 
 #' @param params Circuit parameters learned via \code{\link{forde}}. 
 #' @param condition Optional set of conditioning events.
+#' @param row_mode Interpretation of rows in multi-row conditions.
 #' 
 #' @import data.table
 #' @import stringr
 #' 
 
 prep_cond <- function(condition, params, row_mode) {
+  
+  # To avoid data.table check issues
+  c_idx <- family <- val <- variable <- NULL
+  
   n_row_cond <- nrow(condition)
   meta <- params$meta
   cat <- params$cat
@@ -634,6 +645,11 @@ prep_cond <- function(condition, params, row_mode) {
 #'
 
 unoverlap_hyperrectangles <- function(hyperrectangles, cat_cols) {
+  
+  # To avoid data.table check issues
+  . <- val <- variable <- val_fac <- bound <- c_idx <- n_partials_var <- N <-
+    n_subhyperrectangles <- n_subhyperrectangles_unoverlapped <- subvolume_id <-
+    NULL
   
   scalar_cols <- hyperrectangles[!is.na(val) & !(variable %in% cat_cols),unique(as.character(variable))]
   hyperrectangles[variable %in% c(scalar_cols, cat_cols), val_fac := as.numeric(as.factor(val))]

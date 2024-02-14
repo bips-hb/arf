@@ -10,6 +10,10 @@ cforde(params, condition, row_mode = c("separate", "or"), stepsize = 200)
 \item{params}{Circuit parameters learned via \code{\link{forde}}.}
 
 \item{condition}{Data frame of conditioning event(s).}
+
+\item{row_mode}{Interpretation of rows in multi-row conditions.}
+
+\item{stepsize}{Stepsize defining number of condition rows handled in one for each step.}
 }
 \description{
 Compute conditional circuit parameters

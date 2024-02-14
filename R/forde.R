@@ -95,7 +95,8 @@ forde <- function(
   # To avoid data.table check issues
   tree <- n_oob <- cvg <- leaf <- variable <- count <- sd <- value <- psi_cnt <- 
     psi_cat <- f_idx <- sigma <- new_min <- new_max <- mid <- sigma0 <- prob <- 
-    val <- val_count <- level <- all_na <- i <- k <- cnt <- . <- NULL
+    val <- val_count <- level <- all_na <- i <- k <- cnt <- . <- NA_share <-
+    mu <- NULL
   
   # Prelimz
   if (isTRUE(oob) & !nrow(x) %in% c(arf$num.samples, arf$num.samples/2)) {
@@ -254,7 +255,7 @@ forde <- function(
     setkey(psi_cnt, f_idx, variable)
     setcolorder(psi_cnt, c('f_idx', 'variable'))
   } else {
-    psic_cnt <- data.table(f_idx = integer(), variable = character(), min = numeric(), max = numeric(), 
+    psi_cnt <- data.table(f_idx = integer(), variable = character(), min = numeric(), max = numeric(), 
                            mu = numeric(), sigma = numeric(), NA_share = numeric())
   }
 

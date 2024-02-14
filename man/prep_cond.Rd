@@ -10,6 +10,8 @@ prep_cond(condition, params, row_mode)
 \item{condition}{Optional set of conditioning events.}
 
 \item{params}{Circuit parameters learned via \code{\link{forde}}.}
+
+\item{row_mode}{Interpretation of rows in multi-row conditions.}
 }
 \description{
 This function prepares conditions for computing conditional circuit paramaters via cforde
