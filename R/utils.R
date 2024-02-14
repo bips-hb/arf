@@ -505,7 +505,7 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
     
     if(row_mode == "or") {
       if(cvg_new[,all(cvg == - Inf)]) {
-        warning("All leaves have zero likelihood. This is probably because evidence contains an (almost) impossible combination. For categorical data, consider setting alpha>0 in forde().")
+        warning("All leaves have zero likelihood. This is probably because evidence contains an (almost) impossible combination.")
         cvg_new[, cvg := 1/.N]
       } else {
         cvg_new[, cvg := exp(cvg - max(cvg))]
@@ -513,7 +513,8 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
       }
     } else {
       if(any(cvg_new[,all(cvg == -Inf), by = c_idx][,V1])) {
-        warning("All leaves have zero likelihood for some entered evidence rows. This is probably because evidence contains an (almost) impossible combination. For categorical data, consider setting alpha>0 in forde().")
+        cvg_new[,all(cvg == -Inf), by = c_idx][V1 ==T]
+        warning("All leaves have zero likelihood for some entered evidence rows. This is probably because evidence contains an (almost) impossible combination.")
         cvg_new[, cvg := 1/.N, by = c_idx]
       } else {
         cvg_new[, cvg := exp(cvg - max(cvg)), by = c_idx]
@@ -522,8 +523,9 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
     }
   }
   
-  forest_new <- merge(forest_new, cvg_new[,.(f_idx, cvg)], all.x = T, by = "f_idx")
-  
+  forest_new_noleaf <- merge(unique(forest_new[,.(c_idx,f_idx)], by = "c_idx"),unique(cvg_new[,.(c_idx)]), by = "c_idx", all.x = T)[is.na(f_idx)]
+  forest_new <- merge(forest_new, cvg_new, by = c("c_idx","f_idx"))
+  forest_new <- rbind(forest_new, forest_new_noleaf,fill = T)
   if (row_mode == "or") {
     if(forest_new[,all(is.na(f_idx))]) {
       forest_new[is.na(f_idx), cvg := 1/.N]
@@ -531,7 +533,7 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
       forest_new[is.na(f_idx), cvg := 0]
     }
   } else {
-    forest_new[is.na(cvg), cvg := 1]
+    forest_new[is.na(f_idx), cvg := 1]
   }
   if(row_mode == "separate" & (nconds != nconds_conditioned)) {
     conds_unconditioned <- (1:nconds)[!(1:nconds) %in% conds_conditioned]
@@ -600,9 +602,10 @@ prep_cond <- function(condition, params, row_mode) {
   
   cond[,c_idx := .I]
   
-  condition_long <- rbind(melt(cond[,.SD,.SDcols = c("c_idx",cat_cols)], id.vars = "c_idx", value.name = "val",),
-                           melt(cond[,.SD,.SDcols = c("c_idx",cnt_cols)], id.vars = "c_idx", value.name = "val",), fill = T
-  )[!is.na(val),]
+  suppressWarnings(
+    condition_long <- melt(cond,id.vars = "c_idx", value.name = "val")[!is.na(val),]
+  )
+  
   if(row_mode == "or") {
     condition_long[,c_idx:= .GRP, by = c_idx]
   }

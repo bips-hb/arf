@@ -302,7 +302,7 @@ forde <- function(
       } else {
         # Define the range of each variable in each leaf
         dt <- unique(dt[, val_count := .N, by = .(f_idx, variable, val)])
-        dt[, k := length(unique(val)), by = variable]
+        dt <- merge(dt, lvl_df[, .(k = .N), by = variable], by = "variable")
         dt[!is.finite(min), min := 0.5][!is.finite(max), max := k + 0.5]
         dt[!grepl('\\.5', min), min := min + 0.5][!grepl('\\.5', max), max := max + 0.5]
         dt[, k := max - min]
@@ -318,6 +318,7 @@ forde <- function(
         dt <- merge(tmp, dt, by = c('f_idx', 'variable', 'val', 'count', 'k'), 
                     all.x = TRUE, sort = FALSE)
         dt[is.na(val_count), val_count := 0]
+        dt[, NA_share := mean(NA_share, na.rm = T), by = .(f_idx, variable)]
         # Compute posterior probabilities
         dt[, prob := (val_count + alpha) / (count + alpha * k), by = .(f_idx, variable, val)]
         dt[, c('val_count', 'k') := NULL]
