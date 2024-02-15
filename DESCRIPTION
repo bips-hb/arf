@@ -1,6 +1,6 @@
 Package: arf
 Title: Adversarial Random Forests
-Version: 0.2.0
+Version: 0.2.2
 Date: 2024-01-24
 Authors@R: 
     c(person(given = "Marvin N.",
