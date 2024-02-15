@@ -575,8 +575,8 @@ prep_cond <- function(condition, params, row_mode) {
   n_row_cond <- nrow(condition)
   meta <- params$meta
   cat <- params$cat
-  cnt_cols <-meta[family != "multinom", variable]
-  cat_cols <-meta[family == "multinom", variable]
+  cnt_cols <- intersect(meta[family != "multinom", variable], colnames(condition))
+  cat_cols <- intersect(meta[family == "multinom", variable], colnames(condition))
   
   cond <- copy(condition)
   cond <- setDT(cond)
