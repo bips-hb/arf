@@ -30,18 +30,19 @@ library(ggplot2)
 set.seed(123, "L'Ecuyer-CMRG")
 
 # Train ARF
-arf <- adversarial_rf(iris)
+arf_iris <- adversarial_rf(iris)
 ```
 
 The printouts can be turned off by setting `verbose = FALSE`. Accuracy is still stored within the `arf` object, so you can evaluate convergence after the fact. The warning appears just once per session. It can be suppressed by setting `parallel = FALSE` or registering a parallel backend (more on this below).
 
 ```{r arf2, fig.height=5, fig.width=5}
 # Train ARF with no printouts
-arf <- adversarial_rf(iris, verbose = FALSE)
+arf_iris <- adversarial_rf(iris, verbose = FALSE)
 
 # Plot accuracy against iterations (model converges when accuracy <= 0.5)
-tmp <- data.frame('acc' = arf$acc, 'iter' = seq_len(length(arf$acc)))
-ggplot(tmp, aes(iter, acc)) + 
+tmp <- data.frame('Accuracy' = arf_iris$acc, 
+                  'Iteration' = seq_len(length(arf_iris$acc)))
+ggplot(tmp, aes(Iteration, Accuracy)) + 
   geom_point() + 
   geom_path() +
   geom_hline(yintercept = 0.5, linetype = 'dashed', color = 'red') 
@@ -49,7 +50,7 @@ ggplot(tmp, aes(iter, acc)) +
 
 We find a quick drop in accuracy following the resampling procedure, as desired. If the ARF has converged, then resulting splits should form fully factorized leaves, i.e. subregions of the feature space where variables are locally independent. 
 
-ARF convergence is almost surely guaranteed as $n \rightarrow \infty$ (see [Watson et al., 2022](https://arxiv.org/abs/2205.09435), Thm. 1). However, this has no implications for finite sample performance. In practice, we often find that adversarial training completes in just one or two rounds, but this may not hold for some datasets. To avoid infinite loops, users can increase the slack parameter `delta` or set the `max_iters` argument (default = 10). In addition to these failsafes, `adversarial_rf` uses early stopping by default `(early_stop = TRUE)`, which terminates training if factorization does not improve from one round to the next. This is recommended, since discriminator accuracy rarely falls much lower once it has increased. 
+ARF convergence is asymptotically guaranteed as $n \rightarrow \infty$ (see [Watson et al., 2023](https://proceedings.mlr.press/v206/watson23a.html), Thm. 1). However, this has no implications for finite sample performance. In practice, we often find that adversarial training completes in just one or two rounds, but this may not hold for some datasets. To avoid infinite loops, users can increase the slack parameter `delta` or set the `max_iters` argument (default = 10). In addition to these failsafes, `adversarial_rf` uses early stopping by default `(early_stop = TRUE)`, which terminates training if factorization does not improve from one round to the next. This is recommended, since discriminator accuracy rarely falls much lower once it has increased. 
 
 For density estimation tasks, we recommend increasing the default number of trees. We generally use 100 in our experiments, though this may be suboptimal for some datasets. Likelihood estimates are not very sensitive to this parameter above a certain threshold, but larger models incur extra costs in time and memory. We can speed up computations by registering a parallel backend, in which case ARF training is distributed across cores using the `ranger` package. Much like with `ranger`, the default behavior of `adversarial_rf` is to compute in parallel if possible. How exactly this is done varies across operating systems. The following code works on Unix machines.
 
@@ -72,7 +73,7 @@ In either case, we can now execute in parallel.
 
 ```{r arf3}
 # Rerun ARF, now in parallel and with more trees
-arf <- adversarial_rf(iris, num_trees = 100)
+arf_iris <- adversarial_rf(iris, num_trees = 100)
 ```
 
 The result is an object of class `ranger`, which we can input to downstream functions. 
@@ -83,76 +84,85 @@ The next step is to learn the leaf and distribution parameters using forests for
 
 ```{r forde}
 # Compute leaf and distribution parameters
-params <- forde(arf, iris)
+params_iris <- forde(arf_iris, iris)
 ```
 
 Default behavior is to use a truncated normal distribution for continuous data (with boundaries given by the tree's split parameters) and a multinomial distribution for categorical data. We find that this produces stable results in a wide range of settings. You can also use a uniform distribution for continuous features by setting `family = 'unif'`, thereby instantiating a piecewise constant density estimator. 
 
 ```{r forde_unif}
 # Recompute with uniform density
-params_unif <- forde(arf, iris, family = 'unif')
+params_unif <- forde(arf_iris, iris, family = 'unif')
 ```
 
 This method tends to perform poorly in practice, and we do not recommend it. The option is implemented primarily for benchmarking purposes. Alternative families, e.g. truncated Poisson or beta distributions, may be useful for certain problems. Future releases will expand the range of options for the `family` argument.
 
-The `alpha` and `epsilon` arguments allow for optional regularization of multinomial and uniform distributions, respectively (defaults for both are set to $0.1$). These help prevent zero likelihood samples when test data fall outside the support of training data. The former is a pseudocount parameter that applies Laplace smoothing within leaves, preventing unobserved values from being assigned zero probability unless splits explicitly rule them out. In other words, we impose a flat Dirichlet prior $\text{Dir}(\alpha)$ and report posterior probabilities rather than maximum likelihood estimates. The latter is a slack parameter on empirical bounds that expands the estimated extrema for continuous features by a factor of $1 + \epsilon$.
+The `alpha` and `epsilon` arguments allow for optional regularization of multinomial and uniform distributions, respectively. These help prevent zero likelihood samples when test data fall outside the support of training data. The former is a pseudocount parameter that applies [Laplace smoothing](https://en.wikipedia.org/wiki/Additive_smoothing) within leaves, preventing unobserved values from being assigned zero probability unless splits explicitly rule them out. In other words, we impose a flat Dirichlet prior and report posterior probabilities rather than maximum likelihood estimates. The latter is a slack parameter on empirical bounds that expands the estimated extrema for continuous features by a factor of $1 + \epsilon$.
 
-Compare the results of our original probability estimates for the `Species` variable with those obtained when we set $\alpha = 0$.
+Compare the results of our original probability estimates for the `Species` variable with those obtained by adding a pseudocount of $\alpha = 0.1$.
 
 ```{r dirichlet}
-# Recompute without additive smoothing
-params_mle <- forde(arf, iris, alpha = 0)
+# Recompute with additive smoothing
+params_alpha <- forde(arf_iris, iris, alpha = 0.1)
 
 # Compare results
-head(params$cat)
-head(params_mle$cat)
+head(params_iris$cat)
+head(params_alpha$cat)
 ```
 
 Under Laplace smoothing, extreme probabilities only occur when the splits explicitly demand it. Otherwise, all values shrink toward a uniform prior. Note that these two data tables may not have exactly the same rows, as we omit zero probability events to conserve memory. However, we can verify that probabilities sum to unity for each leaf-variable combination.
 
 ```{r unity}
 # Sum probabilities
-summary(params$cat[, sum(prob), by = .(f_idx, variable)]$V1)
-summary(params_mle$cat[, sum(prob), by = .(f_idx, variable)]$V1)
+summary(params_iris$cat[, sum(prob), by = .(f_idx, variable)]$V1)
+summary(params_alpha$cat[, sum(prob), by = .(f_idx, variable)]$V1)
 ```
 
-The `forde` function outputs a list of length 5, with entries for (1) continuous features; (2) categorical features; (3) leaf parameters; (4) variable metadata; and (5) data input class. 
+The `forde` function outputs a list of length 6, with entries for (1) continuous features; (2) categorical features; (3) leaf parameters; (4) variable metadata; (5) factor levels; and (6) data input class. 
 
 ```{r forde2}
-params
+params_iris
 ```
 
 These parameters can be used for a variety of downstream tasks, such as likelihood estimation and data synthesis.
 
 # Likelihood Estimation
 
-To calculate log-likelihoods, we pass `arf` and `params` on to the `lik` function, along with the data whose likelihood we wish to evaluate.
+To calculate log-likelihoods, we pass `params` on to the `lik` function, along with the data whose likelihood we wish to evaluate. For *total evidence* queries (i.e., those spanning all variables and no conditioning events), it is faster to also include `arf` in the function call.
 
 ```{r lik}
 # Compute likelihood under truncated normal and uniform distributions
-ll <- lik(params, iris, arf = arf)
-ll_unif <- lik(params_unif, iris, arf = arf)
+ll <- lik(params_iris, iris, arf = arf_iris)
+ll_unif <- lik(params_unif, iris, arf = arf_iris)
 
 # Compare average negative log-likelihood (lower is better)
 -mean(ll)
 -mean(ll_unif)
 ```
 
-Note that the piecewise constant estimator does considerably worse in this experiment.
+Note that the piecewise constant estimator does considerably worse in this experiment. 
 
-We can compute likelihoods on the probability scale by setting `log = FALSE`, but this may result in numerical underflow. There is also a `batch` argument, which has no impact on results but can be more memory efficient for large datasets. For instance, we could rerun the code above in batches of size 50:
+The `lik` function can also be used to compute the likelihood of some *partial state*, i.e. a setting in which some but not all variable values are specified. Let's take a look at that iris dataset:
+```{r iris}
+head(iris)
+```
+Say we want to calculate sample likelihoods using only continuous data. That is, we provide values for the first four variables but exclude the fifth. In this case, the model will have to marginalize over `Species`:
+```{r iris2, fig.height=5, fig.width=5}
+# Compute likelihoods after marginalizing over Species
+iris_without_species <- iris[, -5]
+ll_cnt <- lik(params_iris, iris_without_species)
 
-```{r lik2}
-# Compute likelihood in batches of 50
-ll_50 <- lik(params, iris, arf = arf, batch = 50)
-
-# Identical results?
-identical(ll, ll_50)
+# Compare results
+tmp <- data.frame(Total = ll, Partial = ll_cnt)
+ggplot(tmp, aes(Total, Partial)) + 
+  geom_point() + 
+  geom_abline(slope = 1, intercept = 0, color = 'red')
 ```
 
-In this example, we have used the same data throughout. This may lead to overfitting. With sufficient data, it is preferable to use a training set for `adversarial_rf`, a validation set for `forde`, and a test set for `lik`. Alternatively, we can set the `oob` argument to `TRUE` for either of the latter two functions, in which case computations are performed only on out-of-bag (OOB) data. These are samples that are randomly excluded from a given tree due to the bootstrapping subroutine of the RF classifier. Note that this only works when the dataset `x` passed to `forde` or `lik` is the same one used to train the `arf`. Recall that a sample's probability of being excluded from a single tree is $e^{-1} \approx 0.368$. When using `oob = TRUE`, be sure to include enough trees so that every observation is likely to be OOB at least a few times. 
+We find that likelihoods are almost identical, with slightly higher likelihood on average for partial samples. This is expected, since they have less variation to model. 
 
-# Data synthesis
+In this example, we have used the same data throughout. This may lead to overfitting. With sufficient data, it is preferable to use a training set for `adversarial_rf`, a validation set for `forde`, and a test set for `lik`. Alternatively, we can set the `oob` argument to `TRUE` for either of the latter two functions, in which case computations are performed only on out-of-bag (OOB) data. These are samples that are randomly excluded from a given tree due to the bootstrapping subroutine of the RF classifier. Note that this only works when the dataset `x` passed to `forde` or `lik` is the same one used to train the `arf`. Recall that a sample's probability of being excluded from a single tree is $\exp(-1) \approx 0.368$. When using `oob = TRUE`, be sure to include enough trees so that every observation is likely to be OOB at least a few times. 
+
+# Data Synthesis
 
 For this experiment, we use the `smiley` simulation from the `mlbench` package, which allows for easy visual assessment. We draw a training set of $n = 1000$ and simulate $1000$ synthetic datapoints. Resulting data are plotted side by side.
 
@@ -164,13 +174,13 @@ x <- data.frame(x$x, x$classes)
 colnames(x) <- c('X', 'Y', 'Class')
 
 # Fit ARF
-arf <- adversarial_rf(x, mtry = 2)
+arf_smiley <- adversarial_rf(x, mtry = 2)
 
 # Estimate parameters
-params <- forde(arf, x)
+params_smiley <- forde(arf_smiley, x)
 
 # Simulate data
-synth <- forge(params, n_synth = 1000)
+synth <- forge(params_smiley, n_synth = 1000)
 
 # Compare structure
 str(x)
@@ -189,70 +199,78 @@ ggplot(df, aes(X, Y, color = Class, shape = Class)) +
 
 The general shape is clearly recognizable, even if some stray samples are evident and borders are not always crisp. This can be improved with more training data.
 
-Note that the default behavior of `adversarial_rf` is to treat integers as ordered factors, with a warning. This makes sense for, say, count data with limited support (e.g., number of petals on a flower). However, this is probably not the desired behavior for other integer variables. Consider the `diamonds` dataset, where `price` is classed as an integer.
+# Conditioning
 
-```{r price, fig.height=5, fig.width=5}
-# Check data
-head(diamonds)
+ARFs can also be used to compute likelihoods and synthesize data under conditioning events that specify values or ranges for input features. For instance, say we want to evaluate the likelihood of samples from the `iris` dataset under the condition that `Species = 'setosa'`. There are several ways to encode evidence, but the simplest is to pass a partial observation.
+```{r conditional, fig.height=5, fig.width=5}
+# Compute conditional likelihoods
+evi <- data.frame(Species = 'setosa')
+ll_conditional <- lik(params_iris, query = iris_without_species, evidence = evi)
 
-# View the distribution
-hist(diamonds$price)
-
-# How many unique prices?
-length(unique(diamonds$price))
+# Compare NLL across species (shifting to positive range for visualization)
+tmp <- iris
+tmp$NLL <- -ll_conditional + max(ll_conditional) + 1
+ggplot(tmp, aes(Species, NLL, fill = Species)) + 
+  geom_boxplot() + 
+  scale_y_log10() + 
+  ylab('Negative Log-Likelihood') + 
+  theme(legend.position = 'none')
 ```
 
-This variable should clearly not be treated as a factor with 11602 levels. To make sure we fit a continuous density for price, we re-class the feature as numeric.
+As expected, measurements for non-setosa samples appear much less likely under this conditioning event. 
 
-```{r price2, fig.height=5, fig.width=5}
-# Re-class 
-diamonds$price <- as.numeric(diamonds$price)
+The partial observation method of passing evidence requires users to specify unique feature values for each conditioning variable. A more flexible alternative is to construct a data frame of conditioning events, potentially including inequalities. For example, we may want to calculate the likelihood of samples given that `Species = 'setosa'` and `Petal.Width > 0.3`. 
 
-# Take a random subsample of size 2000
-s_idx <- sample(1:nrow(diamonds), 2000)
+```{r cond2}
+# Data frame of conditioning events
+evi <- data.frame(variable = c('Species', 'Petal.Width'),
+                  relation = c('==', '>'), 
+                  value = c('setosa', 0.3))
+evi
+```
+Each row is treated as an extra condition, so we can define intervals by putting multiple constraints on a single variable.
+```{r cond3}
+evi <- data.frame(variable = c('Species', 'Petal.Width', 'Petal.Width'),
+                  relation = c('==', '>', '<='), 
+                  value = c('setosa', 0.3, 0.5))
+evi
+```
+Resulting likelihoods will be computed on the condition that all queries are drawn from setosa flowers with petal width on the interval $(0.3, 0.5]$. 
 
-# Train ARF
-arf <- adversarial_rf(diamonds[s_idx, ])
-
-# Estimate parameters
-params <- forde(arf, diamonds[s_idx, ])
-
-# Check distributional families
-params$meta
-
-# Forge data, check histogram
-synth <- forge(params, n_synth = 1000)
-hist(synth$price)
+A final method for passing evidence is to directly compute a posterior distribution on leaves. This could be useful for particularly complex conditioning events for which there is currently no inbuilt interface, such as polynomial constraints or arbitrary propositions in disjunctive normal form. In this case, we just require a data frame with columns for `f_idx` and `wt`. If the latter does not sum to unity, the distribution will be normalized with a warning.
+```{r cond4}
+# Drawing random weights
+evi <- data.frame(f_idx = params_iris$forest$f_idx,
+                  wt = rexp(nrow(params_iris$forest)))
+evi$wt <- evi$wt / sum(evi$wt)
+head(evi)
 ```
 
-Using `family = 'truncnorm'`, the distribution for `price` will now be modeled with a truncated Gaussian mixture. Though the general outline of the histogram looks about right, we may find some implausible values, e.g. negative prices. This can be overcome by manually setting a hard lower bound. In fact, negative numbers are impossible for all continuous features in this dataset. 
+Each of these methods can be used for conditional sampling as well. 
 
-```{r lb, fig.height=5, fig.width=5}
-# Set a lower bound of zero for continuous features
-params$cnt[min == -Inf, min := 0]
+```{r smiley2, fig.height=5, fig.width=8}
+# Simulate class-conditional data for smiley example
+evi <- data.frame(Class = 4)
+synth2 <- forge(params_smiley, n_synth = 250, evidence = evi)
 
-# Re-forge, check histogram
-synth <- forge(params, n_synth = 1000)
-hist(synth$price)
+# Put it all together
+synth2$Data <- 'Synthetic'
+df <- rbind(x, synth2)
+
+# Plot results
+ggplot(df, aes(X, Y, color = Class, shape = Class)) + 
+  geom_point() + 
+  facet_wrap(~ Data)
 ```
 
-Alternatively, we could retrain under log transformation.
+By conditioning on `Class = 4`, we restrict our sampling to the smile itself, rather than eyes or nose.
 
-```{r lprice, fig.height=5, fig.width=5}
-# Transform price variable
-tmp <- as.data.table(diamonds[s_idx, ])
-tmp[, price := log(price)]
+Computing conditional expectations is similarly straightforward.
 
-# Retrain ARF
-arf <- adversarial_rf(tmp)
-
-# Estimate parameters
-params <- forde(arf, tmp)
-
-# Forge, check histogram
-synth <- forge(params, n_synth = 1000)
-hist(exp(synth$price))
+```{r cond6}
+expct(params_smiley, evidence = evi)
 ```
 
-This may be unnecessary with sufficiently large sample sizes. For instance, negative prices are exceedingly rare when training on the complete diamonds dataset ($n = 53940$). However, if natural constraints are known *a priori*, they can easily be incorporated into `params`. 
+These are the average $X, Y$ coordinates for the smile above.
+
 
