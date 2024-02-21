@@ -187,7 +187,7 @@ leaf_posterior <- function(params, evidence) {
   if (any(evidence$family != 'multinom')) { 
     evi <- evidence[family != 'multinom']
     evi[, n := .N, by = variable]
-    psi <- merge(evi, params$cnt, by = 'variable')
+    psi <- merge(evi, params$cnt, by = 'variable', allow.cartesian = TRUE)
     if (any(evi$relation == '==')) {
       psi[relation == '==', lik := 
             truncnorm::dtruncnorm(value, a = min, b = max, mean = mu, sd = sigma)]
