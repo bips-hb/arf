@@ -411,8 +411,8 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
     cnt_conds_compact <- copy(cnt_conds)
     cnt_conds_compact[!is.na(val), `:=`(min = val, max = val)][,val := NULL]
     
-    cnt_relevant <- cnt[,.(min = .(min), max = .(max)),by = .(variable)]
-    cnt_relevant <- cnt_conds_compact[cnt_relevant,on = .(variable)]
+    cnt_relevant <- cnt[,.(min = .(min), max = .(max)),by = variable]
+    cnt_relevant <- cnt_conds_compact[cnt_relevant,on = .(variable), nomatch = NULL]
     
     if (nrow(cat_conds) != 0) {
       cnt_relevant <- cnt_relevant[relevant_leaves_cat_list, on = .(c_idx)]
@@ -499,14 +499,11 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
   
   if(nrow(cvg_new) > 0) {
     cvg_new <- merge(cvg_new, forest_new[,.(f_idx, cvg_arf)], sort = F)
-    cvg_new[, `:=` (cvg = {
-      if (any(cvg_factor == 0)) {
-        -Inf
-      } else {
-        sum(log(c(cvg_arf[1], cvg_factor)))
-      }
-    })
-    , by = f_idx]
+   if (cvg_new[,max(f_idx) == .N]) {
+     cvg_new[, cvg := log(cvg_arf) + log(cvg_factor)]
+   } else {
+     cvg_new[, cvg := sum(log(c(cvg_arf[1], cvg_factor))), by = f_idx]
+   }
     
     cvg_new <- unique(cvg_new[, .(f_idx, c_idx, cvg)])
     

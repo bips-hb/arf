@@ -119,7 +119,7 @@ forge <- function(
       index_start <- (step_-1)*stepsize_foreach + 1
       index_end <- min(step_*stepsize_foreach, nrow(condition))
       condition_part <- condition[index_start:index_end,]
-      cparams <- cforde(params, condition_part, condition_row_mode, 200)
+      cparams <- cforde(params, condition_part, condition_row_mode, stepsize)
     } else {
       cparams <- NULL
     }
