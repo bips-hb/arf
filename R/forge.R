@@ -79,7 +79,7 @@
 #' @importFrom foreach foreach %dopar%
 #' @importFrom truncnorm rtruncnorm 
 #' @importFrom stats rbinom
-#' 
+#'
 
 forge <- function(
     params, 
@@ -120,6 +120,9 @@ forge <- function(
       index_end <- min(step_*stepsize_foreach, nrow(condition))
       condition_part <- condition[index_start:index_end,]
       cparams <- cforde(params, condition_part, condition_row_mode, stepsize)
+      if(is.null(cparams)) {
+        n_synth <- n_synth * nrow(condition_part)
+      }
     } else {
       cparams <- NULL
     }
