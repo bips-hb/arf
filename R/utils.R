@@ -540,6 +540,7 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
   }
   if(row_mode == "separate" & (nconds != nconds_conditioned)) {
     conds_unconditioned <- (1:nconds)[!(1:nconds) %in% conds_conditioned]
+    forest_new <- forest_new[!(c_idx %in% conds_unconditioned),] 
     forest_new_unconditioned <- copy(forest)
     forest_new_unconditioned <- rbindlist(replicate(length(conds_unconditioned), forest, simplify = F))
     forest_new_unconditioned[, `:=` (c_idx = rep(conds_unconditioned,each = nrow(forest)), f_idx_uncond = f_idx, cvg_arf = cvg)]
