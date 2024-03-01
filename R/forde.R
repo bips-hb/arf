@@ -156,7 +156,7 @@ forde <- function(
         max_j <- max(x[[j]], na.rm = TRUE)
         gap <- max_j - min_j
         lb[, j] <- min_j - epsilon / 2 * gap
-        ub[, j] <- max_j #+ epsilon / 2 * gap
+        ub[, j] <- max_j + epsilon / 2 * gap
       }
     }
     for (i in 1:num_nodes) {
