@@ -7,6 +7,7 @@
 #' @param condition_row_mode Interpretation of rows in multi-row conditions.
 #' @param sample_NAs Sample NAs respecting the probability for missing values in the original data.
 #' @param stepsize Stepsize defining number of condition rows handled in one for each step.
+#'   Defaults to nrow(condition)/num_registered_workers for parallel == TRUE.
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
 #'   via \code{doParallel}.
 #' @param n_synth Number of synthetic samples to generate.
@@ -76,7 +77,7 @@
 #' 
 #' @export
 #' @import data.table
-#' @importFrom foreach foreach %dopar%
+#' @importFrom foreach foreach %dopar% getDoPar getDoParWorkers
 #' @importFrom truncnorm rtruncnorm 
 #' @importFrom stats rbinom
 #'
@@ -87,10 +88,16 @@ forge <- function(
     condition = NULL,
     condition_row_mode = c("separate", "or"),
     sample_NAs = F,
-    stepsize = 200,
+    stepsize = 0,
     parallel = TRUE) {
   
   condition_row_mode <- match.arg(condition_row_mode)
+  
+  doParRegistered <- getDoParRegistered()
+  num_workers <- getDoParWorkers()
+  if(!parallel & doParRegistered & (num_workers > 1)) {
+    registerDoSEQ()
+  }
   
   # To avoid data.table check issues
   tree <- cvg <- leaf <- idx <- family <- mu <- sigma <- prob <- dat <- 
@@ -102,10 +109,19 @@ forge <- function(
   if(!is.null(condition)) {
     condition <- as.data.table(condition)
     if(parallel & condition_row_mode == "separate") {
-      stepsize_foreach <- stepsize
-      step_no <- ceiling(nrow(condition)/stepsize_foreach)
+      if(stepsize == 0) {
+        stepsize <- ceiling(nrow(condition)/getDoParWorkers())
+      }
+      stepsize_cforde <- 0
+      parallel_cforde = F
+      step_no <- ceiling(nrow(condition)/stepsize)
     } else {
-      stepsize_foreach <- nrow(condition)
+      if(stepsize == 0) {
+        stepsize = nrow(condition)
+      }
+      stepsize_cforde <- stepsize
+      parallel_cforde <- parallel
+      stepsize <- nrow(condition)
       step_no <- 1
     }
   } else {
@@ -116,10 +132,10 @@ forge <- function(
     
     # Prepare the event space
     if (!is.null(condition)) {
-      index_start <- (step_-1)*stepsize_foreach + 1
-      index_end <- min(step_*stepsize_foreach, nrow(condition))
+      index_start <- (step_-1)*stepsize + 1
+      index_end <- min(step_*stepsize, nrow(condition))
       condition_part <- condition[index_start:index_end,]
-      cparams <- cforde(params, condition_part, condition_row_mode, stepsize)
+      cparams <- cforde(params, condition_part, condition_row_mode, stepsize_cforde, parallel_cforde)
       if(is.null(cparams)) {
         n_synth <- n_synth * nrow(condition_part)
       }
@@ -198,6 +214,9 @@ forge <- function(
     
     # Combine, optionally impose constraint(s)
     x_synth <- cbind(synth_cnt, synth_cat)
+    if(length(x_synth) == 0) {
+      x_synth <- condition_part[F,]
+    }
     
     # Clean up, export
     x_synth <- post_x(x_synth, params)
@@ -228,6 +247,10 @@ forge <- function(
       x_synth <- post_x(x_synth, params)
     }
     x_synth
+  }
+  
+  if(!parallel & doParRegistered & (num_workers > 1)) {
+    registerDoParallel(num_workers)
   }
   
   return(x_synth_)
