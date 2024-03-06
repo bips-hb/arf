@@ -4,18 +4,31 @@
 \alias{forge}
 \title{Forests for Generative Modeling}
 \usage{
-forge(params, n_synth, evidence = NULL)
+forge(
+  params,
+  n_synth,
+  condition = NULL,
+  condition_row_mode = c("separate", "or"),
+  sample_NAs = F,
+  stepsize = 200,
+  parallel = TRUE
+)
 }
 \arguments{
 \item{params}{Circuit parameters learned via \code{\link{forde}}.}
 
 \item{n_synth}{Number of synthetic samples to generate.}
 
-\item{evidence}{Optional set of conditioning events. This can take one of
-three forms: (1) a partial sample, i.e. a single row of data with
-some but not all columns; (2) a data frame of conditioning events,
-which allows for inequalities; or (3) a posterior distribution over leaves.
-See Details.}
+\item{condition}{Optional set of conditioning events.}
+
+\item{condition_row_mode}{Interpretation of rows in multi-row conditions.}
+
+\item{sample_NAs}{Sample NAs respecting the probability for missing values in the original data.}
+
+\item{stepsize}{Stepsize defining number of condition rows handled in one for each step.}
+
+\item{parallel}{Compute in parallel? Must register backend beforehand, e.g.
+via \code{doParallel}.}
 }
 \value{
 A dataset of \code{n_synth} synthetic samples.
@@ -50,11 +63,18 @@ x_synth <- forge(psi, n_synth = 100)
 evi <- data.frame(Species = "setosa")
 x_synth <- forge(psi, n_synth = 100, evidence = evi)
 
-# Condition in Species = "setosa" and Sepal.Length > 6
+# Condition on Species = "setosa" and Sepal.Length > 6
 evi <- data.frame(variable = c("Species", "Sepal.Length"),
                   relation = c("==", ">"), 
                   value = c("setosa", 6))
 x_synth <- forge(psi, n_synth = 100, evidence = evi)
+
+# Condition on first two data rows with some missing values
+condition <- iris[1:2,]
+condition[1,1] <- NA_real_
+condition[1,5] <- NA_character_
+condition[2,2] <- NA_real_
+x_synth <- forge(psi, n_synth = 1, condition = condition)
 
 # Or just input some distribution on leaves
 # (Weights that do not sum to unity are automatically scaled)
