@@ -77,7 +77,7 @@
 #' 
 #' @export
 #' @import data.table
-#' @importFrom foreach foreach %dopar% getDoPar getDoParWorkers
+#' @importFrom foreach foreach %dopar% getDoParRegistered getDoParWorkers
 #' @importFrom truncnorm rtruncnorm 
 #' @importFrom stats rbinom
 #'

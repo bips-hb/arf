@@ -337,7 +337,7 @@ post_x <- function(x, params) {
 #' @param stepsize Stepsize defining number of condition rows handled in one for each step.
 #' 
 #' @import data.table
-#' @importFrom foreach foreach %dopar%
+#' @importFrom foreach foreach %dopar% getDoParRegistered getDoParWorkers
 #' @importFrom truncnorm dtruncnorm ptruncnorm 
 #' @importFrom stats dunif punif
 #' 
@@ -475,7 +475,7 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
       }
       cnt_new[,c("min.x","max.x","min.y","max.y") := NULL]
       if (nrow(cat_conds) > 0) {
-          relevant_leaves <- merge(relevant_leaves_cnt, relevant_leaves_cat, by = c("c_idx", "f_idx"))[,.(c_idx, f_idx)]
+          relevant_leaves <- merge(relevant_leaves_cnt, relevant_leaves_cat, by = c("c_idx", "f_idx"))[,.(c_idx, f_idx)] #necessary?
       } else {
         relevant_leaves <- relevant_leaves_cnt[,.(c_idx, f_idx)]
       }
@@ -494,6 +494,7 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
   }
 
   relevant_leaves <- updates_relevant_leaves$relevant_leaves[,`:=` (f_idx = .I, f_idx_uncond = f_idx)][]
+  
   cnt_new <- setcolorder(merge(relevant_leaves, updates_relevant_leaves$cnt_new, by.x = c("c_idx", "f_idx_uncond"), by.y = c("c_idx", "f_idx"), sort = F), c("f_idx","c_idx","variable","min","max","val","cvg_factor"))[]
   cat_new <- setcolorder(merge(relevant_leaves, updates_relevant_leaves$cat_new, by = c("c_idx", "f_idx"), sort = F), c("f_idx","c_idx","variable","val","prob","cvg_factor"))[]
     
@@ -507,20 +508,16 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
     }
   }
   
-  forest_new <- merge(relevant_leaves,forest, by.x = "f_idx_uncond", by.y = "f_idx", all.x = T, sort = F)
+  forest_new <- merge(relevant_leaves, forest, by.x = "f_idx_uncond", by.y = "f_idx", all.x = T, sort = F)
   setnames(forest_new,"cvg","cvg_arf")
   
   cvg_new <- rbind(cat_new[,.(f_idx, c_idx, cvg_factor)], cnt_new[, .(f_idx, c_idx, cvg_factor)])
-  
+
   if(nrow(cvg_new) > 0) {
-    cvg_new <- merge(cvg_new, forest_new[,.(f_idx, cvg_arf)], sort = F)
-   if (cvg_new[,max(f_idx) == .N]) {
-     cvg_new[, cvg := log(cvg_arf) + log(cvg_factor)]
-   } else {
-     cvg_new[, cvg := sum(log(c(cvg_arf[1], cvg_factor))), by = f_idx]
-   }
-    
-    cvg_new <- unique(cvg_new[, .(f_idx, c_idx, cvg)])
+    cvg_new[,cvg_factor := log(cvg_factor)]
+    cvg_new <- cvg_new[, .(cvg_factor = sum(cvg_factor)), keyby = f_idx]
+    cvg_new <- cbind(cvg_new, forest_new[, .(c_idx,cvg_arf = log(cvg_arf))])
+    cvg_new[,`:=` (cvg = cvg_factor + cvg_arf, cvg_factor = NULL, cvg_arf = NULL)]
     
     if(row_mode == "or") {
       if(cvg_new[,all(cvg == - Inf)]) {
@@ -531,17 +528,23 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
         cvg_new <- cvg_new[cvg > 0,][,cvg := cvg / sum(cvg)]
       }
     } else {
-      if(any(cvg_new[, leaf_zero_lik := all(cvg == -Inf), by = c_idx][, leaf_zero_lik])) {
+      cvg_new[, leaf_zero_lik := all(cvg == -Inf), by = c_idx]
+      if(any(cvg_new[, leaf_zero_lik])) {
         warning("All leaves have zero likelihood for some entered evidence rows. This is probably because evidence contains an (almost) impossible combination.")
-        cvg_new[leaf_zero_lik == T, cvg := 1/.N, by = c_idx][, leaf_zero_lik := NULL]
+        cvg_new[leaf_zero_lik == T, cvg := 1/.N, by = c_idx]
       } else {
-        cvg_new[, cvg := exp(cvg - max(cvg)), by = c_idx]
-        cvg_new <- cvg_new[cvg > 0,][,cvg := cvg / sum(cvg), by = c_idx]
+        cvg_new[, scale := max(cvg), by = c_idx]
+        cvg_new[, cvg := exp(cvg - scale)]
+        cvg_new[, scale := sum(cvg), by = c_idx]
+        cvg_new[, cvg := cvg / scale]
       }
+      cvg_new[, `:=` (leaf_zero_lik = NULL, scale = NULL)]
     }
   }
+  
   forest_new_noleaf <- data.table(c_idx = setdiff(unique(forest_new[,c_idx]), unique(cvg_new[,c_idx])))[,f_idx := NA_integer_]
-  forest_new <- merge(forest_new, cvg_new, by = c("c_idx","f_idx"))
+  forest_new <- cbind(forest_new, cvg_new[,.(cvg)])
+  forest_new <- forest_new[cvg > 0,]
   forest_new <- rbind(forest_new, forest_new_noleaf,fill = T)
   if (row_mode == "or") {
     if(forest_new[,all(is.na(f_idx))]) {
