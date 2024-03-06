@@ -455,10 +455,11 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
         ][, Reduce(intersect,f_idx),by = c_idx][,.(c_idx, f_idx = V1)]
       
       conditions_unchanged_cnt <- setdiff(condition_long_step[, c_idx], cnt_conds[, c_idx])
-      relevant_leaves_unchanged_cnt <- data.table(c_idx = rep(conditions_unchanged_cnt, each = nrow(forest)), f_idx = rep(forest[,f_idx],length(conditions_unchanged_cnt)))
-      relevant_leaves_cnt <- rbind(relevant_leaves_changed_cnt, relevant_leaves_unchanged_cnt)
+      relevant_leaves_unchanged_cnt <- relevant_leaves_cat[c_idx %in% conditions_unchanged_cnt]
+      relevant_leaves <- rbind(relevant_leaves_changed_cnt, relevant_leaves_unchanged_cnt)
+      setorder(relevant_leaves)
       
-      cnt_new <- merge(merge(relevant_leaves_cnt, cnt_conds, by = "c_idx", allow.cartesian = T, sort = F), cnt, by = c("f_idx", "variable"), all.x = T, allow.cartesian = T, sort = F)
+      cnt_new <- merge(merge(relevant_leaves_changed_cnt, cnt_conds, by = "c_idx", allow.cartesian = T, sort = F), cnt, by = c("f_idx", "variable"), all.x = T, allow.cartesian = T, sort = F)
       cnt_new[!is.na(val),`:=` (min = min.y,
                                 max = max.y)]
       cnt_new[is.na(val),`:=` (min = pmax(min.x, min.y, na.rm = T),
@@ -474,16 +475,11 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
         cnt_new[is.na(val) & is.na(cvg_factor), cvg_factor := punif(max, min=min.y, max=max.y) - punif(min, min=min.y, max.y)]  
       }
       cnt_new[,c("min.x","max.x","min.y","max.y") := NULL]
-      if (nrow(cat_conds) > 0) {
-          relevant_leaves <- merge(relevant_leaves_cnt, relevant_leaves_cat, by = c("c_idx", "f_idx"))[,.(c_idx, f_idx)] #necessary?
-      } else {
-        relevant_leaves <- relevant_leaves_cnt[,.(c_idx, f_idx)]
-      }
     } else {
-      relevant_leaves <- relevant_leaves_cat[,.(c_idx, f_idx)]
+      relevant_leaves <- relevant_leaves_cat
       cnt_new <- cbind(cnt[F,], data.table(cvg_factor = numeric(), c_idx = integer(), val = numeric()))
     }
-    cat_new <- merge(merge(relevant_leaves, cat_conds, by = "c_idx", allow.cartesian = T), cat, by = c("f_idx","variable", "val")) 
+    cat_new <- merge(merge(relevant_leaves, cat_conds, by = "c_idx", allow.cartesian = T, sort = F), cat, by = c("f_idx","variable", "val"), sort = F) 
     cat_new[,`:=` (cvg_factor = prob, prob = 1)]
     
     list(cnt_new = cnt_new, cat_new = cat_new, relevant_leaves = relevant_leaves)
@@ -496,8 +492,8 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
   relevant_leaves <- updates_relevant_leaves$relevant_leaves[,`:=` (f_idx = .I, f_idx_uncond = f_idx)][]
   
   cnt_new <- setcolorder(merge(relevant_leaves, updates_relevant_leaves$cnt_new, by.x = c("c_idx", "f_idx_uncond"), by.y = c("c_idx", "f_idx"), sort = F), c("f_idx","c_idx","variable","min","max","val","cvg_factor"))[]
-  cat_new <- setcolorder(merge(relevant_leaves, updates_relevant_leaves$cat_new, by = c("c_idx", "f_idx"), sort = F), c("f_idx","c_idx","variable","val","prob","cvg_factor"))[]
-    
+  cat_new <- setcolorder(merge(relevant_leaves, updates_relevant_leaves$cat_new, by.x = c("c_idx", "f_idx_uncond"), by.y = c("c_idx", "f_idx"), sort = F), c("f_idx","c_idx","variable","val","prob","cvg_factor"))[]
+
   if(relevant_leaves[,uniqueN(c_idx)] < nconds_conditioned) {
     if(relevant_leaves[,uniqueN(c_idx)] == 0 & row_mode == "or") {
       stop("For all entered evidence rows, no matching leaves could be found. This is probably because evidence lies outside of the distribution calculated by FORDE. For continuous data, consider setting epsilon>0 or finite_bounds=FALSE in forde(). For categorical data, consider setting alpha>0 in forde()")
@@ -512,6 +508,7 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
   setnames(forest_new,"cvg","cvg_arf")
   
   cvg_new <- rbind(cat_new[,.(f_idx, c_idx, cvg_factor)], cnt_new[, .(f_idx, c_idx, cvg_factor)])
+  unique(cvg_new[,.(c_idx, f_idx)])
 
   if(nrow(cvg_new) > 0) {
     cvg_new[,cvg_factor := log(cvg_factor)]
