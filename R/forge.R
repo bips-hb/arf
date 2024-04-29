@@ -3,11 +3,11 @@
 #' Uses pre-trained FORDE model to simulate synthetic data.
 #' 
 #' @param params Circuit parameters learned via \code{\link{forde}}. 
-#' @param condition Optional set of conditioning events.
-#' @param condition_row_mode Interpretation of rows in multi-row conditions.
+#' @param evidence Optional set of conditioning events.
+#' @param evidence_row_mode Interpretation of rows in multi-row evidence.
 #' @param sample_NAs Sample NAs respecting the probability for missing values in the original data.
-#' @param stepsize Stepsize defining number of condition rows handled in one for each step.
-#'   Defaults to nrow(condition)/num_registered_workers for parallel == TRUE.
+#' @param stepsize Stepsize defining number of evidence rows handled in one for each step.
+#'   Defaults to nrow(evidence)/num_registered_workers for parallel == TRUE.
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
 #'   via \code{doParallel}.
 #' @param n_synth Number of synthetic samples to generate.
@@ -58,11 +58,11 @@
 #' x_synth <- forge(psi, n_synth = 100, evidence = evi)
 #' 
 #' # Condition on first two data rows with some missing values
-#' condition <- iris[1:2,]
-#' condition[1,1] <- NA_real_
-#' condition[1,5] <- NA_character_
-#' condition[2,2] <- NA_real_
-#' x_synth <- forge(psi, n_synth = 1, condition = condition)
+#' evidence <- iris[1:2,]
+#' evidence[1,1] <- NA_real_
+#' evidence[1,5] <- NA_character_
+#' evidence[2,2] <- NA_real_
+#' x_synth <- forge(psi, n_synth = 1, evidence = evidence)
 #' 
 #' # Or just input some distribution on leaves
 #' # (Weights that do not sum to unity are automatically scaled)
@@ -85,13 +85,13 @@
 forge <- function(
     params, 
     n_synth,
-    condition = NULL,
-    condition_row_mode = c("separate", "or"),
+    evidence = NULL,
+    evidence_row_mode = c("separate", "or"),
     sample_NAs = F,
     stepsize = 0,
     parallel = TRUE) {
   
-  condition_row_mode <- match.arg(condition_row_mode)
+  evidence_row_mode <- match.arg(evidence_row_mode)
   
   doParRegistered <- getDoParRegistered()
   num_workers <- getDoParWorkers()
@@ -106,22 +106,22 @@ forge <- function(
   
   factor_cols <- params$meta[, family == 'multinom']
   
-  if(!is.null(condition)) {
-    condition <- as.data.table(condition)
-    if(parallel & condition_row_mode == "separate") {
+  if(!is.null(evidence)) {
+    evidence <- as.data.table(evidence)
+    if(parallel & evidence_row_mode == "separate") {
       if(stepsize == 0) {
-        stepsize <- ceiling(nrow(condition)/getDoParWorkers())
+        stepsize <- ceiling(nrow(evidence)/getDoParWorkers())
       }
       stepsize_cforde <- 0
       parallel_cforde = F
-      step_no <- ceiling(nrow(condition)/stepsize)
+      step_no <- ceiling(nrow(evidence)/stepsize)
     } else {
       if(stepsize == 0) {
-        stepsize = nrow(condition)
+        stepsize = nrow(evidence)
       }
       stepsize_cforde <- stepsize
       parallel_cforde <- parallel
-      stepsize <- nrow(condition)
+      stepsize <- nrow(evidence)
       step_no <- 1
     }
   } else {
@@ -131,13 +131,13 @@ forge <- function(
   x_synth_ <- foreach(step_ = 1:step_no, .combine = "rbind") %dopar% {
     
     # Prepare the event space
-    if (!is.null(condition)) {
+    if (!is.null(evidence)) {
       index_start <- (step_-1)*stepsize + 1
-      index_end <- min(step_*stepsize, nrow(condition))
-      condition_part <- condition[index_start:index_end,]
-      cparams <- cforde(params, condition_part, condition_row_mode, stepsize_cforde, parallel_cforde)
+      index_end <- min(step_*stepsize, nrow(evidence))
+      evidence_part <- evidence[index_start:index_end,]
+      cparams <- cforde(params, evidence_part, evidence_row_mode, stepsize_cforde, parallel_cforde)
       if(is.null(cparams)) {
-        n_synth <- n_synth * nrow(condition_part)
+        n_synth <- n_synth * nrow(evidence_part)
       }
     } else {
       cparams <- NULL
@@ -155,7 +155,7 @@ forge <- function(
     if (nrow(omega) == 1) {
       omega <- omega[rep(1, n_synth),][, idx := .I]
     } else {
-      if(condition_row_mode == "or") {
+      if(evidence_row_mode == "or") {
         draws <- omega[, .(f_idx = sample(f_idx, size = n_synth, replace = TRUE, prob = wt))]
         omega <- merge(draws, omega, by = "f_idx", sort = FALSE)[, idx := .I]
       } else {
@@ -216,7 +216,7 @@ forge <- function(
     # Combine, optionally impose constraint(s)
     x_synth <- cbind(synth_cnt, synth_cat)
     if(length(x_synth) == 0) {
-      x_synth <- condition_part[F,]
+      x_synth <- evidence_part[F,]
     }
     
     # Clean up, export
@@ -232,11 +232,11 @@ forge <- function(
       x_synth <- post_x(x_synth, params)
     }
     
-    if(condition_row_mode == "separate" & any(omega[,is.na(f_idx)])){
+    if(evidence_row_mode == "separate" & any(omega[,is.na(f_idx)])){
       setDT(x_synth)
       indices_na <- cparams$forest[is.na(f_idx), c_idx]
       indices_sampled <- cparams$forest[!is.na(f_idx), unique(c_idx)]
-      rows_na <- condition_part[indices_na,]
+      rows_na <- evidence_part[indices_na,]
       if(!all(factor_cols)){
         rows_na <- rows_na[,(names(x_synth)[!factor_cols]) := lapply(.SD,as.numeric),.SDcols=!factor_cols]
       }

@@ -332,7 +332,7 @@ post_x <- function(x, params) {
 #' Compute conditional circuit parameters
 #' 
 #' @param params Circuit parameters learned via \code{\link{forde}}.
-#' @param condition Data frame of conditioning event(s).
+#' @param evidence Data frame of conditioning event(s).
 #' @param row_mode Interpretation of rows in multi-row conditions.
 #' @param stepsize Stepsize defining number of condition rows handled in one for each step.
 #' 
@@ -342,7 +342,7 @@ post_x <- function(x, params) {
 #' @importFrom stats dunif punif
 #' 
 
-cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize = 0, parallel = TRUE) {
+cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 0, parallel = TRUE) {
   
   row_mode <- match.arg(row_mode)
   
@@ -366,7 +366,7 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
   cat_cols <-meta[family == "multinom", variable]
   
   # format c, calculate DNF and output disjoint hyperrectangles
-  condition_long <- prep_cond(condition,params, row_mode)
+  condition_long <- prep_cond(evidence, params, row_mode)
   setkey(condition_long, c_idx)
   
   if(nrow(condition_long) == 0){
@@ -568,7 +568,7 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
     registerDoParallel(num_workers)
   }
   
-  list(condition_input = condition, condition_prepped = condition_long, cnt = cnt_new, cat = cat_new, forest = forest_new)
+  list(condition_input = evidence, condition_prepped = condition_long, cnt = cnt_new, cat = cat_new, forest = forest_new)
 }
 
 
