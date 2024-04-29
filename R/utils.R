@@ -295,7 +295,7 @@ post_x <- function(x, params) {
   # Recode
   if (sum(idx_numeric) > 0L) {
     x[, idx_numeric] <- lapply(idx_numeric, function(j) {
-        round(as.numeric(x[[j]]), meta_tmp$decimals[j])
+      round(as.numeric(x[[j]]), meta_tmp$decimals[j])
     })
   }
   if (sum(idx_factor) > 0L) {
@@ -305,7 +305,7 @@ post_x <- function(x, params) {
   }
   if (sum(idx_ordered) > 0L) {
     x[, idx_ordered] <- lapply(idx_ordered, function(j) {
-        factor(x[[j]], levels = params$levels[variable == colnames(x)[j], val], ordered = TRUE)
+      factor(x[[j]], levels = params$levels[variable == colnames(x)[j], val], ordered = TRUE)
     })
   }
   if (sum(idx_logical) > 0L) {
@@ -401,7 +401,7 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
     # store conditions for cat and cnt separately
     cat_conds <- condition_long_step[variable %in% cat_cols,c("c_idx","variable","val")][,variable := factor(variable)]
     cnt_conds <- condition_long_step[variable %in% cnt_cols,c("c_idx","variable","min", "max","val")][,`:=` (variable = factor(variable),
-                                                                                                         val = as.numeric(val))]
+                                                                                                             val = as.numeric(val))]
     
     if (nrow(cat_conds) != 0) {
       cat_relevant <- cat[,.(.(f_idx)), by=.(variable,val)]
@@ -428,13 +428,13 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
       cnt_relevant <- cnt[,.(min = .(min), max = .(max)),by = variable]
       cnt_relevant <- cnt_conds_compact[cnt_relevant, on = .(variable), nomatch = NULL]
       setkey(cnt_relevant,c_idx)
-
+      
       if (nrow(cat_conds) != 0) {
         cnt_relevant <- cnt_relevant[relevant_leaves_cat_list, on = .(c_idx)]
       } else {
         cnt_relevant[, f_idx := NA]
       }
-
+      
       relevant_leaves_changed_cnt <- cnt_relevant[, .(
         c_idx,
         variable,
@@ -452,14 +452,13 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
           }
           intersect(rel_min,rel_max) 
         }, f_idx = f_idx, min = min, max = max, i.min = i.min, i.max = i.max))
-        ][, Reduce(intersect,f_idx),by = c_idx][,.(c_idx, f_idx = V1)]
+      ][, Reduce(intersect,f_idx),by = c_idx][,.(c_idx, f_idx = V1)]
       
       conditions_unchanged_cnt <- setdiff(condition_long_step[, c_idx], cnt_conds[, c_idx])
-      relevant_leaves_unchanged_cnt <- relevant_leaves_cat[c_idx %in% conditions_unchanged_cnt]
-      relevant_leaves <- rbind(relevant_leaves_changed_cnt, relevant_leaves_unchanged_cnt)
-      setorder(relevant_leaves)
+      relevant_leaves_unchanged_cnt <- data.table(c_idx = rep(conditions_unchanged_cnt, each = nrow(forest)), f_idx = rep(forest[,f_idx],length(conditions_unchanged_cnt)))
+      relevant_leaves_cnt <- rbind(relevant_leaves_changed_cnt, relevant_leaves_unchanged_cnt)
       
-      cnt_new <- merge(merge(relevant_leaves_changed_cnt, cnt_conds, by = "c_idx", allow.cartesian = T, sort = F), cnt, by = c("f_idx", "variable"), all.x = T, allow.cartesian = T, sort = F)
+      cnt_new <- merge(merge(relevant_leaves_cnt, cnt_conds, by = "c_idx", allow.cartesian = T, sort = F), cnt, by = c("f_idx", "variable"), all.x = T, allow.cartesian = T, sort = F)
       cnt_new[!is.na(val),`:=` (min = min.y,
                                 max = max.y)]
       cnt_new[is.na(val),`:=` (min = pmax(min.x, min.y, na.rm = T),
@@ -475,11 +474,16 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
         cnt_new[is.na(val) & is.na(cvg_factor), cvg_factor := punif(max, min=min.y, max=max.y) - punif(min, min=min.y, max.y)]  
       }
       cnt_new[,c("min.x","max.x","min.y","max.y") := NULL]
+      if (nrow(cat_conds) > 0) {
+        relevant_leaves <- merge(relevant_leaves_cnt, relevant_leaves_cat, by = c("c_idx", "f_idx"))[,.(c_idx, f_idx)] #necessary?
+      } else {
+        relevant_leaves <- relevant_leaves_cnt[,.(c_idx, f_idx)]
+      }
     } else {
-      relevant_leaves <- relevant_leaves_cat
+      relevant_leaves <- relevant_leaves_cat[,.(c_idx, f_idx)]
       cnt_new <- cbind(cnt[F,], data.table(cvg_factor = numeric(), c_idx = integer(), val = numeric()))
     }
-    cat_new <- merge(merge(relevant_leaves, cat_conds, by = "c_idx", allow.cartesian = T, sort = F), cat, by = c("f_idx","variable", "val"), sort = F) 
+    cat_new <- merge(merge(relevant_leaves, cat_conds, by = "c_idx", allow.cartesian = T), cat, by = c("f_idx","variable", "val")) 
     cat_new[,`:=` (cvg_factor = prob, prob = 1)]
     
     list(cnt_new = cnt_new, cat_new = cat_new, relevant_leaves = relevant_leaves)
@@ -488,12 +492,12 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
   if(is.matrix(updates_relevant_leaves)) {
     updates_relevant_leaves <- lapply(as.data.table(updates_relevant_leaves), rbindlist) 
   }
-
+  
   relevant_leaves <- updates_relevant_leaves$relevant_leaves[,`:=` (f_idx = .I, f_idx_uncond = f_idx)][]
   
   cnt_new <- setcolorder(merge(relevant_leaves, updates_relevant_leaves$cnt_new, by.x = c("c_idx", "f_idx_uncond"), by.y = c("c_idx", "f_idx"), sort = F), c("f_idx","c_idx","variable","min","max","val","cvg_factor"))[]
   cat_new <- setcolorder(merge(relevant_leaves, updates_relevant_leaves$cat_new, by.x = c("c_idx", "f_idx_uncond"), by.y = c("c_idx", "f_idx"), sort = F), c("f_idx","c_idx","variable","val","prob","cvg_factor"))[]
-
+  
   if(relevant_leaves[,uniqueN(c_idx)] < nconds_conditioned) {
     if(relevant_leaves[,uniqueN(c_idx)] == 0 & row_mode == "or") {
       stop("For all entered evidence rows, no matching leaves could be found. This is probably because evidence lies outside of the distribution calculated by FORDE. For continuous data, consider setting epsilon>0 or finite_bounds=FALSE in forde(). For categorical data, consider setting alpha>0 in forde()")
@@ -508,12 +512,11 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
   setnames(forest_new,"cvg","cvg_arf")
   
   cvg_new <- rbind(cat_new[,.(f_idx, c_idx, cvg_factor)], cnt_new[, .(f_idx, c_idx, cvg_factor)])
-  unique(cvg_new[,.(c_idx, f_idx)])
-
+  
   if(nrow(cvg_new) > 0) {
     cvg_new[,cvg_factor := log(cvg_factor)]
     cvg_new <- cvg_new[, .(cvg_factor = sum(cvg_factor)), keyby = f_idx]
-    cvg_new <- cbind(cvg_new, forest_new[, .(c_idx,cvg_arf = log(cvg_arf))])
+    cvg_new <- cbind(cvg_new, forest_new[, .(c_idx, cvg_arf = log(cvg_arf))])
     cvg_new[,`:=` (cvg = cvg_factor + cvg_arf, cvg_factor = NULL, cvg_arf = NULL)]
     
     if(row_mode == "or") {
@@ -529,12 +532,11 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
       if(any(cvg_new[, leaf_zero_lik])) {
         warning("All leaves have zero likelihood for some entered evidence rows. This is probably because evidence contains an (almost) impossible combination.")
         cvg_new[leaf_zero_lik == T, cvg := 1/.N, by = c_idx]
-      } else {
-        cvg_new[, scale := max(cvg), by = c_idx]
-        cvg_new[, cvg := exp(cvg - scale)]
-        cvg_new[, scale := sum(cvg), by = c_idx]
-        cvg_new[, cvg := cvg / scale]
       }
+      cvg_new[leaf_zero_lik == F, scale := max(cvg), by = c_idx]
+      cvg_new[leaf_zero_lik == F, cvg := exp(cvg - scale)]
+      cvg_new[leaf_zero_lik == F, scale := sum(cvg), by = c_idx]
+      cvg_new[leaf_zero_lik == F, cvg := cvg / scale]
       cvg_new[, `:=` (leaf_zero_lik = NULL, scale = NULL)]
     }
   }
@@ -559,7 +561,7 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
     forest_new_unconditioned[, `:=` (c_idx = rep(conds_unconditioned,each = nrow(forest)), f_idx_uncond = f_idx, cvg_arf = cvg)]
     forest_new <- rbind(forest_new, forest_new_unconditioned)
   }
-
+  
   setorder(setcolorder(forest_new,c("f_idx","c_idx","f_idx_uncond","tree","leaf","cvg_arf","cvg")), c_idx, f_idx, f_idx_uncond, tree, leaf)
   
   if(!parallel & doParRegistered & (num_workers > 1)) {

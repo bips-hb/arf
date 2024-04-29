@@ -156,13 +156,14 @@ forge <- function(
       omega <- omega[rep(1, n_synth),][, idx := .I]
     } else {
       if(condition_row_mode == "or") {
+        draws <- omega[, .(f_idx = sample(f_idx, size = n_synth, replace = TRUE, prob = wt))]
         omega <- merge(draws, omega, by = "f_idx", sort = FALSE)[, idx := .I]
       } else {
         omega[, N := .N, by = c_idx]
         draws <- setorder(rbind(
           omega[N != 1, .(f_idx = sample(f_idx, size = n_synth, replace = TRUE, prob = wt)), by = c_idx],
           omega[N == 1, .(f_idx, c_idx)]
-        ))
+        ), c_idx)
         omega <- merge(draws, omega[,-"N"], by = c("c_idx", "f_idx"), sort = FALSE)[, idx := .I]
       }
       setcolorder(omega, "idx")
@@ -174,14 +175,14 @@ forge <- function(
       fam <- params$meta[family != 'multinom', unique(family)]
       if(!is.null(cparams)) {
         psi_cond <- merge(omega, cparams$cnt[,-c("cvg_factor", "f_idx_uncond")], by = c('c_idx', 'f_idx'), 
-                                                sort = FALSE, allow.cartesian = TRUE)
+                          sort = FALSE, allow.cartesian = TRUE)
       } else {
         psi_cond <- data.table()
       }
       psi <- unique(rbind(psi_cond,
-                   merge(omega, params$cnt, by.x = 'f_idx_uncond', by.y = 'f_idx',
-                         sort = FALSE, allow.cartesian = TRUE)[,val := NA_real_]
-                   ), by = c("idx", "variable")
+                          merge(omega, params$cnt, by.x = 'f_idx_uncond', by.y = 'f_idx',
+                                sort = FALSE, allow.cartesian = TRUE)[,val := NA_real_]
+      ), by = c("idx", "variable")
       )
       if (fam == 'truncnorm') {
         psi[is.na(val), val := truncnorm::rtruncnorm(.N, a = min, b = max, mean = mu, sd = sigma)]
@@ -197,14 +198,14 @@ forge <- function(
       if(!is.null(cparams)) {
         psi_cond <- merge(omega, cparams$cat[,-c("cvg_factor", "f_idx_uncond")], by = c('c_idx', 'f_idx'), 
                           sort = FALSE, allow.cartesian = TRUE)
-      } else {
-        psi_cond <- data.table()
+        psi_uncond <- merge(omega, params$cat, by.x = 'f_idx_uncond', by.y = 'f_idx',
+                            sort = FALSE, allow.cartesian = TRUE)
+        psi_uncond_relevant <- psi_uncond[!psi_cond[,.(idx, variable)], on = .(idx, variable), all = F]
+        psi <- rbind(psi_cond, psi_uncond_relevant)
       }
-      psi <- unique(rbind(psi_cond,
-                          merge(omega, params$cat, by.x = 'f_idx_uncond', by.y = 'f_idx',
-                                sort = FALSE, allow.cartesian = TRUE)
-      ), by = c("idx", "variable")
-      )
+      else {
+        psi <- merge(omega, params$cat, by.x = 'f_idx_uncond', by.y = 'f_idx', sort = FALSE, allow.cartesian = TRUE)
+      }
       psi[prob < 1, val := sample(val, 1, prob = prob), by = .(variable, idx)]
       
       psi <- unique(psi[, .(idx, variable, val, NA_share)])

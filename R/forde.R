@@ -223,8 +223,10 @@ forde <- function(
       if (family == 'truncnorm') {
         dt[, c('mu', 'sigma','NA_share') := .(mean(value, na.rm = T), sd(value, na.rm = T) ,sum(is.na(value))/.N),
            by = .(leaf, variable)]
-        dt[NA_share == 1, c("min", "max") := .(fifelse(!is.finite(min),min(x[,variable], na.rm = T),min),
-                                               fifelse(!is.finite(max),max(x[,variable], na.rm = T), max))]
+        dt[, c("min_emp", "max_emp") := .(min(value, na.rm = T),max(value, na.rm = T)) , by = variable]
+        dt[NA_share == 1, c("min", "max") := .(fifelse(is.infinite(min),min_emp, min),
+                                                                    fifelse(is.infinite(max),max_emp, max))]
+        dt[, c("min_emp", "max_emp") := NULL]
         dt[NA_share == 1, mu := (max - min) / 2]
         dt[is.na(sigma), sigma := 0]
         if (any(dt[, sigma == 0])) {
