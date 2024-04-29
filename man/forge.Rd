@@ -10,7 +10,7 @@ forge(
   condition = NULL,
   condition_row_mode = c("separate", "or"),
   sample_NAs = F,
-  stepsize = 200,
+  stepsize = 0,
   parallel = TRUE
 )
 }
@@ -25,7 +25,8 @@ forge(
 
 \item{sample_NAs}{Sample NAs respecting the probability for missing values in the original data.}
 
-\item{stepsize}{Stepsize defining number of condition rows handled in one for each step.}
+\item{stepsize}{Stepsize defining number of condition rows handled in one for each step.
+Defaults to nrow(condition)/num_registered_workers for parallel == TRUE.}
 
 \item{parallel}{Compute in parallel? Must register backend beforehand, e.g.
 via \code{doParallel}.}

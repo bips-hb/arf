@@ -11,13 +11,15 @@
 #'   features. Current options include truncated normal (the default
 #'   \code{family = "truncnorm"}) and uniform (\code{family = "unif"}). See 
 #'   Details.
-#' @param finite_bounds Impose finite bounds on all continuous variables? 
+#' @param finite_bounds Impose finite bounds on all continuous variables? If
+#'   \code{'local'}, infinite bounds are shrinked to empircal extrema within leaves.
+#'   If \code{'global'}, infinite bounds are shrinked to global emprical extrema. 
 #' @param alpha Optional pseudocount for Laplace smoothing of categorical 
 #'   features. This avoids zero-mass points when test data fall outside the 
 #'   support of training data. Effectively parametrizes a flat Dirichlet prior
 #'   on multinomial likelihoods.
 #' @param epsilon Optional slack parameter on empirical bounds when 
-#'   \code{family = "unif"} or \code{finite_bounds = TRUE}. This avoids 
+#'   \code{finite_bounds != 'no'}. This avoids 
 #'   zero-density points when test data fall outside the support of training 
 #'   data. The gap between lower and upper bounds is expanded by a factor of 
 #'   \code{1 + epsilon}. 
@@ -87,7 +89,7 @@ forde <- function(
     x, 
     oob = FALSE,
     family = 'truncnorm', 
-    finite_bounds = FALSE,
+    finite_bounds = c('no', 'local', 'global'),
     alpha = 0,
     epsilon = 0,
     parallel = TRUE) {
@@ -105,6 +107,14 @@ forde <- function(
   if (!family %in% c('truncnorm', 'unif')) {
     stop('family not recognized.')
   }
+  
+  finite_bounds <- match.arg(finite_bounds)
+  
+  if(family == 'unif' & finite_bounds == 'no') {
+    finite_bounds <- 'local'
+    warning("Denisity estimation with uniform distribution requires finite bounds. finite_bounds has been set to 'local'.")
+  }
+  
   if (alpha < 0) {
     stop('alpha must be nonnegative.')
   }
@@ -150,15 +160,15 @@ forde <- function(
     num_nodes <- length(arf$forest$split.varIDs[[tree]])
     lb <- matrix(-Inf, nrow = num_nodes, ncol = d)
     ub <- matrix(Inf, nrow = num_nodes, ncol = d)
-    # if (family == 'unif' | isTRUE(finite_bounds) & any(!factor_cols)) {
-    #   for (j in which(!factor_cols)) {
-    #     min_j <- min(x[[j]], na.rm = TRUE)
-    #     max_j <- max(x[[j]], na.rm = TRUE)
-    #     gap <- max_j - min_j
-    #     lb[, j] <- min_j - epsilon / 2 * gap
-    #     ub[, j] <- max_j + epsilon / 2 * gap
-    #   }
-    # }
+    if (finite_bounds == 'global' & any(!factor_cols)) {
+      for (j in which(!factor_cols)) {
+        min_j <- min(x[[j]], na.rm = TRUE)
+        max_j <- max(x[[j]], na.rm = TRUE)
+        gap <- max_j - min_j
+        lb[, j] <- min_j - epsilon / 2 * gap
+        ub[, j] <- max_j + epsilon / 2 * gap
+      }
+    }
     for (i in 1:num_nodes) {
       left_child <- arf$forest$child.nodeIDs[[tree]][[1]][i] + 1L
       right_child <- arf$forest$child.nodeIDs[[tree]][[2]][i] + 1L
@@ -220,11 +230,11 @@ forde <- function(
       dt <- melt(dt, id.vars = 'leaf', variable.factor = FALSE)[, tree := tree]
       dt <- merge(dt, bnds[, .(tree, leaf, variable, min, max, f_idx)],
                   by = c('tree', 'leaf', 'variable'), sort = FALSE)
-      if (finite_bounds) {
+      if (finite_bounds == 'local') {
         dt[, c('min_emp', 'max_emp') := .(min(value, na.rm = T), max(value, na.rm = T)), by = .(leaf, variable)]
         dt[, length_emp := max_emp - min_emp]
-        length_emp_0_replace <- min(dt[length_emp > 0, min(length_emp, na.rm = T)], max(epsilon, 1e-15))
-        dt[length_emp == 0, length_emp := length_emp_0_replace]
+        length_emp_0_replace <- min(dt[length_emp > 0, min(length_emp, na.rm = T)], max(epsilon, 1e-12))
+        dt[length_emp == 0, c("min_emp", "max_emp", "length_emp") := .(min_emp - length_emp_0_replace/2, max_emp + length_emp_0_replace/2, length_emp_0_replace)]
         dt[, c('min', 'max', 'min_emp', 'max_emp', 'length_emp') := .(fifelse(!is.finite(min) & !is.na(min_emp), min_emp - length_emp*(epsilon/2), min),
                                                                     fifelse(!is.finite(max) & !is.na(max_emp), max_emp + length_emp*(epsilon/2), max),
                                                                     NULL, NULL, NULL)]
@@ -232,8 +242,10 @@ forde <- function(
       if (family == 'truncnorm') {
         dt[, c('mu', 'sigma','NA_share') := .(mean(value, na.rm = T), sd(value, na.rm = T), sum(is.na(value))/.N),
            by = .(leaf, variable)]
-        dt[NA_share == 1, c("min", "max") := .(fifelse(!is.finite(min),min(x[,variable], na.rm = T),min),
-                                               fifelse(!is.finite(max),max(x[,variable], na.rm = T), max))]
+        dt[, c("min_emp", "max_emp") := .(min(value, na.rm = T),max(value, na.rm = T)) , by = variable]
+        dt[NA_share == 1, c("min", "max") := .(fifelse(is.infinite(min),min_emp, min),
+                                                                     fifelse(is.infinite(max),max_emp, max))]
+        dt[, c("min_emp", "max_emp") := NULL]
         dt[NA_share == 1, mu := (max - min) / 2]
         dt[is.na(sigma), sigma := 0]
         if (any(dt[, sigma == 0])) {

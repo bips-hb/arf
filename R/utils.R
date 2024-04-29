@@ -496,7 +496,7 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
   relevant_leaves <- updates_relevant_leaves$relevant_leaves[,`:=` (f_idx = .I, f_idx_uncond = f_idx)][]
   
   cnt_new <- setcolorder(merge(relevant_leaves, updates_relevant_leaves$cnt_new, by.x = c("c_idx", "f_idx_uncond"), by.y = c("c_idx", "f_idx"), sort = F), c("f_idx","c_idx","variable","min","max","val","cvg_factor"))[]
-  cat_new <- setcolorder(merge(relevant_leaves, updates_relevant_leaves$cat_new, by = c("c_idx", "f_idx"), sort = F), c("f_idx","c_idx","variable","val","prob","cvg_factor"))[]
+  cat_new <- setcolorder(merge(relevant_leaves, updates_relevant_leaves$cat_new, by.x = c("c_idx", "f_idx_uncond"), by.y = c("c_idx", "f_idx"), sort = F), c("f_idx","c_idx","variable","val","prob","cvg_factor"))[]
     
   if(relevant_leaves[,uniqueN(c_idx)] < nconds_conditioned) {
     if(relevant_leaves[,uniqueN(c_idx)] == 0 & row_mode == "or") {
@@ -516,7 +516,7 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
   if(nrow(cvg_new) > 0) {
     cvg_new[,cvg_factor := log(cvg_factor)]
     cvg_new <- cvg_new[, .(cvg_factor = sum(cvg_factor)), keyby = f_idx]
-    cvg_new <- cbind(cvg_new, forest_new[, .(c_idx,cvg_arf = log(cvg_arf))])
+    cvg_new <- cbind(cvg_new, forest_new[, .(c_idx, cvg_arf = log(cvg_arf))])
     cvg_new[,`:=` (cvg = cvg_factor + cvg_arf, cvg_factor = NULL, cvg_arf = NULL)]
     
     if(row_mode == "or") {
@@ -532,12 +532,11 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
       if(any(cvg_new[, leaf_zero_lik])) {
         warning("All leaves have zero likelihood for some entered evidence rows. This is probably because evidence contains an (almost) impossible combination.")
         cvg_new[leaf_zero_lik == T, cvg := 1/.N, by = c_idx]
-      } else {
-        cvg_new[, scale := max(cvg), by = c_idx]
-        cvg_new[, cvg := exp(cvg - scale)]
-        cvg_new[, scale := sum(cvg), by = c_idx]
-        cvg_new[, cvg := cvg / scale]
       }
+      cvg_new[leaf_zero_lik == F, scale := max(cvg), by = c_idx]
+      cvg_new[leaf_zero_lik == F, cvg := exp(cvg - scale)]
+      cvg_new[leaf_zero_lik == F, scale := sum(cvg), by = c_idx]
+      cvg_new[leaf_zero_lik == F, cvg := cvg / scale]
       cvg_new[, `:=` (leaf_zero_lik = NULL, scale = NULL)]
     }
   }
