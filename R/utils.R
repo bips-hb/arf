@@ -428,7 +428,7 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
       cnt_relevant <- cnt[,.(min = .(min), max = .(max)),by = variable]
       cnt_relevant <- cnt_conds_compact[cnt_relevant, on = .(variable), nomatch = NULL]
       setkey(cnt_relevant,c_idx)
-      
+
       if (nrow(cat_conds) != 0) {
         cnt_relevant <- cnt_relevant[relevant_leaves_cat_list, on = .(c_idx)]
       } else {
@@ -452,7 +452,7 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
           }
           intersect(rel_min,rel_max) 
         }, f_idx = f_idx, min = min, max = max, i.min = i.min, i.max = i.max))
-      ][, Reduce(intersect,f_idx),by = c_idx][,.(c_idx, f_idx = V1)]
+                                                 ][, Reduce(intersect,f_idx),by = c_idx][,.(c_idx, f_idx = V1)]
       
       conditions_unchanged_cnt <- setdiff(condition_long_step[, c_idx], cnt_conds[, c_idx])
       relevant_leaves_unchanged_cnt <- data.table(c_idx = rep(conditions_unchanged_cnt, each = nrow(forest)), f_idx = rep(forest[,f_idx],length(conditions_unchanged_cnt)))
@@ -492,12 +492,12 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
   if(is.matrix(updates_relevant_leaves)) {
     updates_relevant_leaves <- lapply(as.data.table(updates_relevant_leaves), rbindlist) 
   }
-  
+
   relevant_leaves <- updates_relevant_leaves$relevant_leaves[,`:=` (f_idx = .I, f_idx_uncond = f_idx)][]
   
   cnt_new <- setcolorder(merge(relevant_leaves, updates_relevant_leaves$cnt_new, by.x = c("c_idx", "f_idx_uncond"), by.y = c("c_idx", "f_idx"), sort = F), c("f_idx","c_idx","variable","min","max","val","cvg_factor"))[]
   cat_new <- setcolorder(merge(relevant_leaves, updates_relevant_leaves$cat_new, by.x = c("c_idx", "f_idx_uncond"), by.y = c("c_idx", "f_idx"), sort = F), c("f_idx","c_idx","variable","val","prob","cvg_factor"))[]
-  
+
   if(relevant_leaves[,uniqueN(c_idx)] < nconds_conditioned) {
     if(relevant_leaves[,uniqueN(c_idx)] == 0 & row_mode == "or") {
       stop("For all entered evidence rows, no matching leaves could be found. This is probably because evidence lies outside of the distribution calculated by FORDE. For continuous data, consider setting epsilon>0 or finite_bounds=FALSE in forde(). For categorical data, consider setting alpha>0 in forde()")
@@ -512,7 +512,7 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
   setnames(forest_new,"cvg","cvg_arf")
   
   cvg_new <- rbind(cat_new[,.(f_idx, c_idx, cvg_factor)], cnt_new[, .(f_idx, c_idx, cvg_factor)])
-  
+
   if(nrow(cvg_new) > 0) {
     cvg_new[,cvg_factor := log(cvg_factor)]
     cvg_new <- cvg_new[, .(cvg_factor = sum(cvg_factor)), keyby = f_idx]
@@ -561,7 +561,7 @@ cforde <- function(params, condition, row_mode = c("separate", "or"), stepsize =
     forest_new_unconditioned[, `:=` (c_idx = rep(conds_unconditioned,each = nrow(forest)), f_idx_uncond = f_idx, cvg_arf = cvg)]
     forest_new <- rbind(forest_new, forest_new_unconditioned)
   }
-  
+
   setorder(setcolorder(forest_new,c("f_idx","c_idx","f_idx_uncond","tree","leaf","cvg_arf","cvg")), c_idx, f_idx, f_idx_uncond, tree, leaf)
   
   if(!parallel & doParRegistered & (num_workers > 1)) {

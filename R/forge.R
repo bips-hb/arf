@@ -202,7 +202,7 @@ forge <- function(
                             sort = FALSE, allow.cartesian = TRUE)
         psi_uncond_relevant <- psi_uncond[!psi_cond[,.(idx, variable)], on = .(idx, variable), all = F]
         psi <- rbind(psi_cond, psi_uncond_relevant)
-      }
+    }
       else {
         psi <- merge(omega, params$cat, by.x = 'f_idx_uncond', by.y = 'f_idx', sort = FALSE, allow.cartesian = TRUE)
       }
