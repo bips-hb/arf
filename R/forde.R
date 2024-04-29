@@ -244,7 +244,7 @@ forde <- function(
            by = .(leaf, variable)]
         dt[, c("min_emp", "max_emp") := .(min(value, na.rm = T),max(value, na.rm = T)) , by = variable]
         dt[NA_share == 1, c("min", "max") := .(fifelse(is.infinite(min),min_emp, min),
-                                                                     fifelse(is.infinite(max),max_emp, max))]
+                                               fifelse(is.infinite(max),max_emp, max))]
         dt[, c("min_emp", "max_emp") := NULL]
         dt[NA_share == 1, mu := (max - min) / 2]
         dt[is.na(sigma), sigma := 0]

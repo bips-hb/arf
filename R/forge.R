@@ -175,14 +175,14 @@ forge <- function(
       fam <- params$meta[family != 'multinom', unique(family)]
       if(!is.null(cparams)) {
         psi_cond <- merge(omega, cparams$cnt[,-c("cvg_factor", "f_idx_uncond")], by = c('c_idx', 'f_idx'), 
-                                                sort = FALSE, allow.cartesian = TRUE)
+                          sort = FALSE, allow.cartesian = TRUE)
       } else {
         psi_cond <- data.table()
       }
       psi <- unique(rbind(psi_cond,
-                   merge(omega, params$cnt, by.x = 'f_idx_uncond', by.y = 'f_idx',
-                         sort = FALSE, allow.cartesian = TRUE)[,val := NA_real_]
-                   ), by = c("idx", "variable")
+                          merge(omega, params$cnt, by.x = 'f_idx_uncond', by.y = 'f_idx',
+                                sort = FALSE, allow.cartesian = TRUE)[,val := NA_real_]
+      ), by = c("idx", "variable")
       )
       if (fam == 'truncnorm') {
         psi[is.na(val), val := truncnorm::rtruncnorm(.N, a = min, b = max, mean = mu, sd = sigma)]
@@ -199,7 +199,7 @@ forge <- function(
         psi_cond <- merge(omega, cparams$cat[,-c("cvg_factor", "f_idx_uncond")], by = c('c_idx', 'f_idx'), 
                           sort = FALSE, allow.cartesian = TRUE)
         psi_uncond <- merge(omega, params$cat, by.x = 'f_idx_uncond', by.y = 'f_idx',
-                                     sort = FALSE, allow.cartesian = TRUE)
+                            sort = FALSE, allow.cartesian = TRUE)
         psi_uncond_relevant <- psi_uncond[!psi_cond[,.(idx, variable)], on = .(idx, variable), all = F]
         psi <- rbind(psi_cond, psi_uncond_relevant)
     }
