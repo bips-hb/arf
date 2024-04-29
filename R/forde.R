@@ -12,8 +12,8 @@
 #'   \code{family = "truncnorm"}) and uniform (\code{family = "unif"}). See 
 #'   Details.
 #' @param finite_bounds Impose finite bounds on all continuous variables? If
-#'   \code{'local'}, infinite bounds are shrinked to empircal extrema within leaves.
-#'   If \code{'global'}, infinite bounds are shrinked to global emprical extrema. 
+#'   \code{'local'}, infinite bounds are shrinked to empirical extrema within leaves.
+#'   If \code{'global'}, infinite bounds are shrinked to global empirical extrema. 
 #' @param alpha Optional pseudocount for Laplace smoothing of categorical 
 #'   features. This avoids zero-mass points when test data fall outside the 
 #'   support of training data. Effectively parametrizes a flat Dirichlet prior
@@ -110,6 +110,7 @@ forde <- function(
   
   finite_bounds <- match.arg(finite_bounds)
   
+  # Uniform distribution requires finite boudns
   if(family == 'unif' & finite_bounds == 'no') {
     finite_bounds <- 'local'
     warning("Denisity estimation with uniform distribution requires finite bounds. finite_bounds has been set to 'local'.")
@@ -230,9 +231,11 @@ forde <- function(
       dt <- melt(dt, id.vars = 'leaf', variable.factor = FALSE)[, tree := tree]
       dt <- merge(dt, bnds[, .(tree, leaf, variable, min, max, f_idx)],
                   by = c('tree', 'leaf', 'variable'), sort = FALSE)
+      # Caculate bounds for finite_bounds == 'local'
       if (finite_bounds == 'local') {
         dt[, c('min_emp', 'max_emp') := .(min(value, na.rm = T), max(value, na.rm = T)), by = .(leaf, variable)]
         dt[, length_emp := max_emp - min_emp]
+        # Calculate bounds if min_emp == max_emp in order to be able to sample from cont. distribution
         length_emp_0_replace <- min(dt[length_emp > 0, min(length_emp, na.rm = T)], max(epsilon, 1e-12))
         dt[length_emp == 0, c("min_emp", "max_emp", "length_emp") := .(min_emp - length_emp_0_replace/2, max_emp + length_emp_0_replace/2, length_emp_0_replace)]
         dt[, c('min', 'max', 'min_emp', 'max_emp', 'length_emp') := .(fifelse(!is.finite(min) & !is.na(min_emp), min_emp - length_emp*(epsilon/2), min),
