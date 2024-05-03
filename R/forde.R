@@ -112,7 +112,7 @@ forde <- function(
   finite_bounds <- match.arg(finite_bounds)
   
   # Uniform distribution requires finite boudns
-  if(family == 'unif' & finite_bounds == 'no') {
+  if (family == 'unif' & finite_bounds == 'no') {
     finite_bounds <- 'local'
     warning("Denisity estimation with uniform distribution requires finite bounds. finite_bounds has been set to 'local'.")
   }
@@ -238,17 +238,17 @@ forde <- function(
         dt[, length_emp := max_emp - min_emp]
         # Calculate bounds if min_emp == max_emp in order to be able to sample from cont. distribution
         length_emp_0_replace <- min(dt[length_emp > 0, min(length_emp, na.rm = T)], max(epsilon, 1e-12))
-        dt[length_emp == 0, c("min_emp", "max_emp", "length_emp") := .(min_emp - length_emp_0_replace/2, max_emp + length_emp_0_replace/2, length_emp_0_replace)]
+        dt[length_emp == 0, c('min_emp', 'max_emp', 'length_emp') := .(min_emp - length_emp_0_replace/2, max_emp + length_emp_0_replace/2, length_emp_0_replace)]
         dt[, c('min', 'max', 'min_emp', 'max_emp', 'length_emp') := .(fifelse(!is.finite(min) & !is.na(min_emp), min_emp - length_emp*(epsilon/2), min),
-                                                                    fifelse(!is.finite(max) & !is.na(max_emp), max_emp + length_emp*(epsilon/2), max),
-                                                                    NULL, NULL, NULL)]
+                                                                      fifelse(!is.finite(max) & !is.na(max_emp), max_emp + length_emp*(epsilon/2), max),
+                                                                      NULL, NULL, NULL)]
       }
       if (family == 'truncnorm') {
-        dt[, c('mu', 'sigma','NA_share') := .(mean(value, na.rm = T), sd(value, na.rm = T), sum(is.na(value))/.N),
+        dt[, c('mu', 'sigma', 'NA_share') := .(mean(value, na.rm = T), sd(value, na.rm = T), sum(is.na(value))/.N),
            by = .(leaf, variable)]
-        dt[, c("min_emp", "max_emp") := .(min(value, na.rm = T),max(value, na.rm = T)) , by = variable]
-        dt[NA_share == 1, c("min", "max") := .(fifelse(is.infinite(min),min_emp, min),
-                                               fifelse(is.infinite(max),max_emp, max))]
+        dt[, c('min_emp', 'max_emp') := .(min(value, na.rm = T), max(value, na.rm = T)), by = variable]
+        dt[NA_share == 1, c('min', 'max') := .(fifelse(is.infinite(min), min_emp, min),
+                                               fifelse(is.infinite(max), max_emp, max))]
         dt[, c("min_emp", "max_emp") := NULL]
         dt[NA_share == 1, mu := (max - min) / 2]
         dt[is.na(sigma), sigma := 0]
@@ -281,9 +281,9 @@ forde <- function(
     setcolorder(psi_cnt, c('f_idx', 'variable'))
   } else {
     psi_cnt <- data.table(f_idx = integer(), variable = character(), min = numeric(), max = numeric(), 
-                           mu = numeric(), sigma = numeric(), NA_share = numeric())
+                          mu = numeric(), sigma = numeric(), NA_share = numeric())
   }
-
+  
   # Categorical case
   if (any(factor_cols)) {
     psi_cat_fn <- function(tree) {
@@ -296,8 +296,9 @@ forde <- function(
       dt[, NA_share := sum(is.na(val))/.N, by = .(leaf, variable)]
       dt <- dt[!(is.na(val) & NA_share != 1)]
       if (dt[, any(NA_share == 1)]) {
-        all_na <- unique(dt[NA_share == 1])
-        dt <- dt[NA_share != 1]
+        # Handle leaves where all values for a categorical variable are NA
+        all_na <- unique(dt[NA_share == 1, ])
+        dt <- dt[NA_share != 1, ]
         all_na <- merge(all_na, bnds[, .(tree, leaf, variable, min, max, f_idx)],
                         by = c('tree', 'leaf', 'variable'), sort = FALSE)
         all_na[!is.finite(min), min := 0.5]
