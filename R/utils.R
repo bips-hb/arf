@@ -337,6 +337,10 @@ post_x <- function(x, params) {
 #' @param stepsize Stepsize defining number of condition rows handled in one for each step.
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
 #'   via \code{doParallel}.
+#'   
+#' @return List with conditions (\code{evidence_input}), prepared conditions (\code{evidence_prepped})
+#'   and leaves that match the conditions in evidence with continuous data (\code{cnt}) 
+#'   and categorical data (\code{cat}) as well as leaf info (\code{forest}).
 #' 
 #' @import data.table
 #' @importFrom foreach foreach %dopar%
@@ -367,24 +371,24 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
   setkey(condition_long, c_idx)
   
   # If evidence does not any conditions (i.e. all entries equal NA), return NULL
-  if(nrow(condition_long) == 0){
+  if (nrow(condition_long) == 0){
     return(NULL)
   }
   
   # Store number of evidence rows and number of evidence rows that do not consist of NA only
-  if(row_mode == "or") {
+  if (row_mode == "or") {
     nconds <- nconds_conditioned <- condition_long[,max(c_idx)]
   } else {
     nconds <- nrow(evidence)
     nconds_conditioned <- condition_long[,uniqueN(c_idx)]
   }
   
-  # Store set of condition (from evidence rows that do not consits of NA only)
-  conds_conditioned <- condition_long[,unique(c_idx)]
+  # Store set of condition (from evidence rows that do not consist of NA only)
+  conds_conditioned <- condition_long[, unique(c_idx)]
   
   # Calculate stepsize for parallelization depending on number of conditions and registered workers
-  if(stepsize == 0) {
-    if(parallel) {
+  if (stepsize == 0) {
+    if (parallel) {
       stepsize <- ceiling(nconds_conditioned/getDoParWorkers())
     } else {
       stepsize <- nconds_conditioned
@@ -401,21 +405,21 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
     condition_long_step <- condition_long[.(index_start:index_end),nomatch = NULL]
     
     # Store cat and cnt conditions separately
-    cat_conds <- condition_long_step[variable %in% cat_cols,c("c_idx","variable","val")][,variable := factor(variable)]
+    cat_conds <- condition_long_step[variable %in% cat_cols,c("c_idx","variable","val")][, variable := factor(variable)]
     cnt_conds <- condition_long_step[variable %in% cnt_cols,c("c_idx","variable","min", "max","val")][,`:=` (variable = factor(variable),
                                                                                                              val = as.numeric(val))]
     # If cat conditions exist, calculate matching leaves
     if (nrow(cat_conds) != 0) {
       
       # Save leaf indices f_idx cat params in list column grouped by variable and val (value) and merge with cat conditions
-      cat_relevant <- cat[,.(.(f_idx)), by=.(variable,val)]
+      cat_relevant <- cat[, .(.(f_idx)), by=.(variable,val)]
       setkey(cat_relevant, variable, val)
       setkey(cat_conds, variable, val)
       cat_relevant <- cat_conds[cat_relevant, on = .(variable, val), nomatch = NULL]
       setkey(cat_relevant, c_idx)
       
       # Determine matching leaves for cat conditions
-      relevant_leaves_changed_cat <- cat_relevant[, Reduce(intersect,V1),by = c_idx][,.(c_idx, f_idx = V1)]
+      relevant_leaves_changed_cat <- cat_relevant[, Reduce(intersect,V1), by = c_idx][, .(c_idx, f_idx = V1)]
       setorder(relevant_leaves_changed_cat)
       conditions_unchanged_cat <- setdiff(condition_long_step[, c_idx], cat_conds[, c_idx])
       relevant_leaves_unchanged_cat <- data.table(c_idx = rep(conditions_unchanged_cat, each = nrow(forest) ), f_idx = rep(forest[,f_idx],length(conditions_unchanged_cat)))
@@ -429,11 +433,11 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
     if (nrow(cnt_conds) != 0) {
       
       # Save min, max in cnt params in list columns grouped by variable and merge with cnt conditions
-      cnt_relevant <- cnt[,.(min = .(min), max = .(max)), by = variable]
+      cnt_relevant <- cnt[, .(min = .(min), max = .(max)), by = variable]
       cnt_conds_compact <- copy(cnt_conds)
       cnt_conds_compact[!is.na(val), `:=`(min = val, max = val)][, val := NULL]
       cnt_relevant <- cnt_conds_compact[cnt_relevant, on = .(variable), nomatch = NULL]
-      setkey(cnt_relevant,c_idx)
+      setkey(cnt_relevant, c_idx)
       
       # If cat conds exist, use only matching subset of potentially relevant leaves for cnt conditions
       if (nrow(cat_conds) != 0) {
@@ -504,7 +508,7 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
   }
   
   # Combine results
-  if(is.matrix(updates_relevant_leaves)) {
+  if (is.matrix(updates_relevant_leaves)) {
     updates_relevant_leaves <- lapply(as.data.table(updates_relevant_leaves), rbindlist) 
   }
   
@@ -514,11 +518,11 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
   cat_new <- setcolorder(merge(relevant_leaves, updates_relevant_leaves$cat_new, by.x = c("c_idx", "f_idx_uncond"), by.y = c("c_idx", "f_idx"), sort = F), c("f_idx","c_idx","variable","val","prob","cvg_factor"))[]
 
   # Check for conditions with no matching leaves and handle this according to row_mode
-  if(relevant_leaves[,uniqueN(c_idx)] < nconds_conditioned) {
-    if(relevant_leaves[,uniqueN(c_idx)] == 0 & row_mode == "or") {
-      stop("For all entered evidence rows, no matching leaves could be found. This is probably because evidence lies outside of the distribution calculated by FORDE. For continuous data, consider setting epsilon>0 or finite_bounds=FALSE in forde(). For categorical data, consider setting alpha>0 in forde()")
+  if (relevant_leaves[,uniqueN(c_idx)] < nconds_conditioned) {
+    if (relevant_leaves[,uniqueN(c_idx)] == 0 & row_mode == "or") {
+      stop("For all entered evidence rows, no matching leaves could be found. This is probably because evidence lies outside of the distribution calculated by FORDE. For continuous data, consider setting epsilon>0 or finite_bounds='no' in forde(). For categorical data, consider setting alpha>0 in forde()")
     } else {
-      warning("For some entered evidence rows, no matching leaves could be found. This is probably because evidence lies outside of the distribution calculated by FORDE. For continuous data, consider setting epsilon>0 or finite_bounds=FALSE in forde(). For categorical data, consider setting alpha>0 in forde()")
+      warning("For some entered evidence rows, no matching leaves could be found. This is probably because evidence lies outside of the distribution calculated by FORDE. For continuous data, consider setting epsilon>0 or finite_bounds='no' in forde(). For categorical data, consider setting alpha>0 in forde()")
       conds_impossible <- conds_conditioned[!(conds_conditioned %in% relevant_leaves[,unique(c_idx)])]
       relevant_leaves <- setorder(rbind(relevant_leaves, data.table(c_idx = conds_impossible, f_idx = NA_integer_, f_idx_uncond = NA_integer_)))
     }
@@ -526,12 +530,11 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
   
   # Calculate new forest (set of leaves and weights)
   forest_new <- merge(relevant_leaves, forest, by.x = "f_idx_uncond", by.y = "f_idx", all.x = T, sort = F)
-  setnames(forest_new,"cvg","cvg_arf")
+  setnames(forest_new, "cvg", "cvg_arf")
   
-  cvg_new <- rbind(cat_new[,.(f_idx, c_idx, cvg_factor)], cnt_new[, .(f_idx, c_idx, cvg_factor)])
+  cvg_new <- rbind(cat_new[, .(f_idx, c_idx, cvg_factor)], cnt_new[, .(f_idx, c_idx, cvg_factor)])
   
-  if(nrow(cvg_new) > 0) {
-    
+  if (nrow(cvg_new) > 0) {
     # Use log transformation to avoid overflow
     cvg_new[,cvg_factor := log(cvg_factor)]
     cvg_new <- cvg_new[, .(cvg_factor = sum(cvg_factor)), keyby = f_idx]
@@ -539,24 +542,24 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
     cvg_new[,`:=` (cvg = cvg_factor + cvg_arf, cvg_factor = NULL, cvg_arf = NULL)]
     
     # Re-calculate weights and transform back from log scale, handle (numerically) impossible cases
-    if(row_mode == "or") {
-      if(cvg_new[,all(cvg == -Inf)]) {
+    if (row_mode == "or") {
+      if (cvg_new[,all(cvg == -Inf)]) {
         warning("All leaves have zero likelihood. This is probably because evidence contains an (almost) impossible combination.")
         cvg_new[, cvg := 1/.N]
       } else {
         cvg_new[, cvg := exp(cvg - max(cvg))]
-        cvg_new <- cvg_new[cvg > 0,][,cvg := cvg / sum(cvg)]
+        cvg_new <- cvg_new[cvg > 0,][, cvg := cvg / sum(cvg)]
       }
     } else {
       cvg_new[, leaf_zero_lik := all(cvg == -Inf), by = c_idx]
-      if(any(cvg_new[, leaf_zero_lik])) {
+      if (any(cvg_new[, leaf_zero_lik])) {
         warning("All leaves have zero likelihood for some entered evidence rows. This is probably because evidence contains an (almost) impossible combination.")
-        cvg_new[leaf_zero_lik == T, cvg := 1/.N, by = c_idx]
+        cvg_new[leaf_zero_lik == TRUE, cvg := 1/.N, by = c_idx]
       }
-      cvg_new[leaf_zero_lik == F, scale := max(cvg), by = c_idx]
-      cvg_new[leaf_zero_lik == F, cvg := exp(cvg - scale)]
-      cvg_new[leaf_zero_lik == F, scale := sum(cvg), by = c_idx]
-      cvg_new[leaf_zero_lik == F, cvg := cvg / scale]
+      cvg_new[leaf_zero_lik == FALSE, scale := max(cvg), by = c_idx]
+      cvg_new[leaf_zero_lik == FALSE, cvg := exp(cvg - scale)]
+      cvg_new[leaf_zero_lik == FALSE, scale := sum(cvg), by = c_idx]
+      cvg_new[leaf_zero_lik == FALSE, cvg := cvg / scale]
       cvg_new[, `:=` (leaf_zero_lik = NULL, scale = NULL)]
     }
   }
@@ -565,9 +568,9 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
   forest_new_noleaf <- data.table(c_idx = setdiff(unique(forest_new[,c_idx]), unique(cvg_new[,c_idx])))[,f_idx := NA_integer_]
   forest_new <- cbind(forest_new, cvg_new[,.(cvg)])
   forest_new <- forest_new[cvg > 0,]
-  forest_new <- rbind(forest_new, forest_new_noleaf, fill = T)
+  forest_new <- rbind(forest_new, forest_new_noleaf, fill = TRUE)
   if (row_mode == "or") {
-    if(forest_new[,all(is.na(f_idx))]) {
+    if (forest_new[,all(is.na(f_idx))]) {
       forest_new[is.na(f_idx), cvg := 1/.N]
     } else {
       forest_new[is.na(f_idx), cvg := 0]
@@ -577,7 +580,7 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
   }
   
   # Add all leaves for all-NA conditions to forest
-  if(row_mode == "separate" & (nconds != nconds_conditioned)) {
+  if (row_mode == "separate" & (nconds != nconds_conditioned)) {
     conds_unconditioned <- (1:nconds)[!(1:nconds) %in% conds_conditioned]
     forest_new_unconditioned <- copy(forest)
     forest_new_unconditioned <- rbindlist(replicate(length(conds_unconditioned), forest, simplify = F))
@@ -647,13 +650,13 @@ prep_cond <- function(evidence, params, row_mode) {
     }
   }
   
-  cond[,c_idx := .I]
+  cond[, c_idx := .I]
   
   suppressWarnings(
     condition_long <- melt(cond,id.vars = "c_idx", value.name = "val")[!is.na(val),]
   )
   
-  if(row_mode == "or") {
+  if (row_mode == "or") {
     condition_long[,c_idx:= .GRP, by = c_idx]
   }
   condition_long[(variable %in% cnt_cols) & str_detect(val,"\\("),c("val", "min", "max") := cbind(c(NA_real_,transpose(strsplit(substr(val, 2, nchar(val) - 1), split = ","))))]

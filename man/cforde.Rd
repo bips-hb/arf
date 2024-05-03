@@ -24,6 +24,11 @@ cforde(
 \item{parallel}{Compute in parallel? Must register backend beforehand, e.g.
 via \code{doParallel}.}
 }
+\value{
+List with conditions (\code{evidence_input}), prepared conditions (\code{evidence_prepped})
+and leaves that match the conditions in evidence with continuous data (\code{cnt})
+and categorical data (\code{cat}) as well as leaf info (\code{forest}).
+}
 \description{
 Compute conditional circuit parameters
 }
