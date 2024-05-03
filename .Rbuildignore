@@ -9,3 +9,5 @@
 ^arf\.Rcheck$
 ^arf.*\.tar\.gz$
 ^arf.*\.tgz$
+^doc$
+^Meta$
