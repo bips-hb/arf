@@ -52,9 +52,8 @@
 #' x_synth <- forge(psi, n_synth = 100, evidence = evi)
 #' 
 #' # Condition on Species = "setosa" and Sepal.Length > 6
-#' evi <- data.frame(variable = c("Species", "Sepal.Length"),
-#'                   relation = c("==", ">"), 
-#'                   value = c("setosa", 6))
+#' evi <- data.frame(Sepal.Length = "(6, Inf)", 
+#'                   Species = "setosa")
 #' x_synth <- forge(psi, n_synth = 100, evidence = evi)
 #' 
 #' # Condition on first two data rows with some missing values
@@ -63,13 +62,6 @@
 #' evidence[1,5] <- NA_character_
 #' evidence[2,2] <- NA_real_
 #' x_synth <- forge(psi, n_synth = 1, evidence = evidence)
-#' 
-#' # Or just input some distribution on leaves
-#' # (Weights that do not sum to unity are automatically scaled)
-#' n_leaves <- nrow(psi$forest)
-#' evi <- data.frame(f_idx = psi$forest$f_idx, wt = rexp(n_leaves))
-#' x_synth <- forge(psi, n_synth = 100, evidence = evi)
-#' 
 #'
 #' @seealso
 #' \code{\link{adversarial_rf}}, \code{\link{forde}}
@@ -77,7 +69,7 @@
 #' 
 #' @export
 #' @import data.table
-#' @importFrom foreach foreach %dopar% getDoParRegistered getDoParWorkers
+#' @importFrom foreach foreach %dopar% getDoParWorkers
 #' @importFrom truncnorm rtruncnorm 
 #' @importFrom stats rbinom
 #'
@@ -93,12 +85,6 @@ forge <- function(
   
   evidence_row_mode <- match.arg(evidence_row_mode)
   
-  doParRegistered <- getDoParRegistered()
-  num_workers <- getDoParWorkers()
-  if(!parallel & doParRegistered & (num_workers > 1)) {
-    registerDoSEQ()
-  }
-  
   # To avoid data.table check issues
   tree <- cvg <- leaf <- idx <- family <- mu <- sigma <- prob <- dat <- 
     variable <- relation <- wt <- j <- f_idx <- val <- . <- step_ <- c_idx <-
@@ -110,7 +96,7 @@ forge <- function(
     evidence <- as.data.table(evidence)
     if(parallel & evidence_row_mode == "separate") {
       if(stepsize == 0) {
-        stepsize <- ceiling(nrow(evidence)/getDoParWorkers())
+        stepsize <- ceiling(nrow(evidence)/foreach::getDoParWorkers())
       }
       stepsize_cforde <- 0
       parallel_cforde = F
@@ -248,10 +234,6 @@ forge <- function(
       x_synth <- post_x(x_synth, params)
     }
     x_synth
-  }
-  
-  if(!parallel & doParRegistered & (num_workers > 1)) {
-    registerDoParallel(num_workers)
   }
   
   return(x_synth_)

@@ -99,7 +99,7 @@ forde <- function(
   tree <- n_oob <- cvg <- leaf <- variable <- count <- sd <- value <- psi_cnt <- 
     psi_cat <- f_idx <- sigma <- new_min <- new_max <- mid <- sigma0 <- prob <- 
     val <- val_count <- level <- all_na <- i <- k <- cnt <- . <- NA_share <-
-    mu <- NULL
+    mu <- length_emp <- max_emp <- min_emp <- NULL
   
   # Prelimz
   if (isTRUE(oob) & !nrow(x) %in% c(arf$num.samples, arf$num.samples/2)) {

@@ -335,9 +335,11 @@ post_x <- function(x, params) {
 #' @param evidence Data frame of conditioning event(s).
 #' @param row_mode Interpretation of rows in multi-row conditions.
 #' @param stepsize Stepsize defining number of condition rows handled in one for each step.
+#' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
+#'   via \code{doParallel}.
 #' 
 #' @import data.table
-#' @importFrom foreach foreach %dopar% getDoParRegistered getDoParWorkers
+#' @importFrom foreach foreach %dopar%
 #' @importFrom truncnorm dtruncnorm ptruncnorm 
 #' @importFrom stats dunif punif
 #' 
@@ -346,16 +348,10 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
   
   row_mode <- match.arg(row_mode)
   
-  doParRegistered <- getDoParRegistered()
-  num_workers <- getDoParWorkers()
-  if(!parallel & doParRegistered & (num_workers > 1)) {
-    registerDoSEQ()
-  }
-  
   # To avoid data.table check issues
   . <- c_idx <- cvg <- cvg_arf <- cvg_factor <- f_idx <- f_idx_uncond <- i.max <-
     i.min <- leaf <- max.x <- max.y <- min.x <- min.y <- mu <- prob <- sigma <-
-    step_ <-	tree <-	V1 <- val <- variable <- NULL
+    step_ <-	tree <-	V1 <- val <- variable <- leaf_zero_lik <- NULL
   
   # Store informations of params as variables
   meta <- params$meta
@@ -590,10 +586,6 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
   }
 
   setorder(setcolorder(forest_new,c("f_idx","c_idx","f_idx_uncond","tree","leaf","cvg_arf","cvg")), c_idx, f_idx, f_idx_uncond, tree, leaf)
-  
-  if(!parallel & doParRegistered & (num_workers > 1)) {
-    registerDoParallel(num_workers)
-  }
   
   list(evidence_input = evidence, evidence_prepped = condition_long, cnt = cnt_new, cat = cat_new, forest = forest_new)
 }

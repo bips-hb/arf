@@ -65,9 +65,8 @@ evi <- data.frame(Species = "setosa")
 x_synth <- forge(psi, n_synth = 100, evidence = evi)
 
 # Condition on Species = "setosa" and Sepal.Length > 6
-evi <- data.frame(variable = c("Species", "Sepal.Length"),
-                  relation = c("==", ">"), 
-                  value = c("setosa", 6))
+evi <- data.frame(Sepal.Length = "(6, Inf)", 
+                  Species = "setosa")
 x_synth <- forge(psi, n_synth = 100, evidence = evi)
 
 # Condition on first two data rows with some missing values
@@ -76,13 +75,6 @@ evidence[1,1] <- NA_real_
 evidence[1,5] <- NA_character_
 evidence[2,2] <- NA_real_
 x_synth <- forge(psi, n_synth = 1, evidence = evidence)
-
-# Or just input some distribution on leaves
-# (Weights that do not sum to unity are automatically scaled)
-n_leaves <- nrow(psi$forest)
-evi <- data.frame(f_idx = psi$forest$f_idx, wt = rexp(n_leaves))
-x_synth <- forge(psi, n_synth = 100, evidence = evi)
-
 
 }
 \references{

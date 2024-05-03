@@ -20,6 +20,9 @@ cforde(
 \item{row_mode}{Interpretation of rows in multi-row conditions.}
 
 \item{stepsize}{Stepsize defining number of condition rows handled in one for each step.}
+
+\item{parallel}{Compute in parallel? Must register backend beforehand, e.g.
+via \code{doParallel}.}
 }
 \description{
 Compute conditional circuit parameters
