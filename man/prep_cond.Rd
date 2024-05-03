@@ -4,10 +4,10 @@
 \alias{prep_cond}
 \title{Preprocess conditions}
 \usage{
-prep_cond(condition, params, row_mode)
+prep_cond(evidence, params, row_mode)
 }
 \arguments{
-\item{condition}{Optional set of conditioning events.}
+\item{evidence}{Optional set of conditioning events.}
 
 \item{params}{Circuit parameters learned via \code{\link{forde}}.}
 

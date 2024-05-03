@@ -14,6 +14,7 @@
 #' @param finite_bounds Impose finite bounds on all continuous variables? If
 #'   \code{'local'}, infinite bounds are shrinked to empirical extrema within leaves.
 #'   If \code{'global'}, infinite bounds are shrinked to global empirical extrema. 
+#'   if \code{'no'} (the default), do not impose finite bounds.
 #' @param alpha Optional pseudocount for Laplace smoothing of categorical 
 #'   features. This avoids zero-mass points when test data fall outside the 
 #'   support of training data. Effectively parametrizes a flat Dirichlet prior

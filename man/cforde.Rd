@@ -6,7 +6,7 @@
 \usage{
 cforde(
   params,
-  condition,
+  evidence,
   row_mode = c("separate", "or"),
   stepsize = 0,
   parallel = TRUE
@@ -15,7 +15,7 @@ cforde(
 \arguments{
 \item{params}{Circuit parameters learned via \code{\link{forde}}.}
 
-\item{condition}{Data frame of conditioning event(s).}
+\item{evidence}{Data frame of conditioning event(s).}
 
 \item{row_mode}{Interpretation of rows in multi-row conditions.}
 
