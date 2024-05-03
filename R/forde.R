@@ -111,7 +111,7 @@ forde <- function(
   
   finite_bounds <- match.arg(finite_bounds)
   
-  # Uniform distribution requires finite boudns
+  # Uniform distribution requires finite bounds
   if (family == 'unif' & finite_bounds == 'no') {
     finite_bounds <- 'local'
     warning("Denisity estimation with uniform distribution requires finite bounds. finite_bounds has been set to 'local'.")
