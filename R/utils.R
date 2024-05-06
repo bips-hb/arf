@@ -615,7 +615,7 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
 prep_cond <- function(evidence, params, row_mode) {
   
   # To avoid data.table check issues
-  c_idx <- family <- val <- variable <- NULL
+  c_idx <- family <- val <- variable <- val._x <- NULL
   
   n_row_cond <- nrow(evidence)
   meta <- params$meta
