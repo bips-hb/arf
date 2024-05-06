@@ -645,7 +645,7 @@ prep_cond <- function(evidence, params, row_mode) {
     cond <- unique(cond)
     names(cond) <- meta[, variable]
   } else if (row_mode == "separate") {
-    if (any(cols_check_or > 0,na.rm = T)) {
+    if (any(cols_check_or > 0, na.rm = TRUE)) {
       stop("Please use the option row_mode = 'or' when including logical disjunctions.")
     }
   }
@@ -659,8 +659,18 @@ prep_cond <- function(evidence, params, row_mode) {
   if (row_mode == "or") {
     condition_long[,c_idx:= .GRP, by = c_idx]
   }
-  condition_long[(variable %in% cnt_cols) & str_detect(val,"\\("),c("val", "min", "max") := cbind(c(NA_real_,transpose(strsplit(substr(val, 2, nchar(val) - 1), split = ","))))]
-  condition_long[, c("min", "max") := lapply(.SD,as.numeric), .SDcols = c("min","max")]
+  
+  # Interval syntax, e.g. (X,Inf)
+  condition_long[(variable %in% cnt_cols) & str_detect(val, "\\("), 
+    c("val", "min", "max") := cbind(c(NA_real_, transpose(strsplit(substr(val, 2, nchar(val) - 1), split = ","))))]
+  
+  # >, <, >=, <= syntax
+  condition_long[(variable %in% cnt_cols) & str_detect(val, "<"), 
+                 c("val", "min", "max") := list(NA_real_, -Inf, as.numeric(str_remove_all(str_remove_all(val, "\\s"), "<")))]
+  condition_long[(variable %in% cnt_cols) & str_detect(val, ">"), 
+                 c("val", "min", "max") := list(NA_real_, as.numeric(str_remove_all(str_remove_all(val, "\\s"), ">")), Inf)]
+  
+  condition_long[, c("min", "max") := lapply(.SD, as.numeric), .SDcols = c("min", "max")]
   setcolorder(condition_long, c("c_idx", "variable", "min", "max"))
   
   if (row_mode == 'or' & nrow(cond) > 1 & !all(cols_check_range == 0)) {
