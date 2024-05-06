@@ -418,8 +418,11 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
       cat_relevant <- cat_conds[cat_relevant, on = .(variable, val), nomatch = NULL]
       setkey(cat_relevant, c_idx)
       
+      # or-combine different conditions on the same feature
+      cat_relevant <- cat_relevant[, .(.(Reduce(union, V1))), by = .(c_idx, variable)]
+      
       # Determine matching leaves for cat conditions
-      relevant_leaves_changed_cat <- cat_relevant[, Reduce(intersect,V1), by = c_idx][, .(c_idx, f_idx = V1)]
+      relevant_leaves_changed_cat <- cat_relevant[, Reduce(intersect, V1), by = c_idx][, .(c_idx, f_idx = V1)]
       setorder(relevant_leaves_changed_cat)
       conditions_unchanged_cat <- setdiff(condition_long_step[, c_idx], cat_conds[, c_idx])
       relevant_leaves_unchanged_cat <- data.table(c_idx = rep(conditions_unchanged_cat, each = nrow(forest) ), f_idx = rep(forest[,f_idx],length(conditions_unchanged_cat)))
@@ -502,7 +505,10 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
     
     # Calculate updates for cat params matching cat conditions
     cat_new <- merge(merge(relevant_leaves, cat_conds, by = "c_idx", allow.cartesian = T), cat, by = c("f_idx","variable", "val")) 
-    cat_new[,`:=` (cvg_factor = prob, prob = 1)]
+
+    # Ensure probabilities sum to 1
+    cat_new[, cvg_factor := prob]
+    cat_new[, prob := prob/sum(prob), by = .(f_idx, variable)]
     
     list(cnt_new = cnt_new, cat_new = cat_new, relevant_leaves = relevant_leaves)
   }
@@ -660,11 +666,21 @@ prep_cond <- function(evidence, params, row_mode) {
     condition_long[,c_idx:= .GRP, by = c_idx]
   }
   
+  # Logical not
+  cond_lnot <- condition_long[(variable %in% cat_cols) & str_detect(val, "^!"), ]
+  if (nrow(cond_lnot) > 0) {
+    cond_lnot[, val := str_remove(val, "^!")]
+    cond_lnot <- merge(cond_lnot, params$levels, by = "variable", suffixes = c("._x", ""), allow.cartesian = TRUE)
+    cond_lnot <- cond_lnot[val != val._x, ][, val._x := NULL]
+    condition_long <- rbind(condition_long[!((variable %in% cat_cols) & str_detect(val, "^!")), ], 
+                            cond_lnot)
+  }
+  
   # Interval syntax, e.g. (X,Inf)
   condition_long[(variable %in% cnt_cols) & str_detect(val, "\\("), 
     c("val", "min", "max") := cbind(c(NA_real_, transpose(strsplit(substr(val, 2, nchar(val) - 1), split = ","))))]
   
-  # >, <, >=, <= syntax
+  # >, < syntax
   condition_long[(variable %in% cnt_cols) & str_detect(val, "<"), 
                  c("val", "min", "max") := list(NA_real_, -Inf, as.numeric(str_remove_all(str_remove_all(val, "\\s"), "<")))]
   condition_long[(variable %in% cnt_cols) & str_detect(val, ">"), 

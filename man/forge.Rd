@@ -64,6 +64,14 @@ evi <- data.frame(Species = "setosa",
                   Sepal.Length = "(6, Inf)")
 x_synth <- forge(psi, n_synth = 100, evidence = evi)
 
+# Alternative syntax for </> conditions
+evi <- data.frame(Sepal.Length = ">6")
+x_synth <- forge(psi, n_synth = 100, evidence = evi)
+
+# Negation condition, i.e. all classes except "setosa"
+evi <- data.frame(Species = "!setosa")
+x_synth <- forge(psi, n_synth = 100, evidence = evi)
+
 # Condition on first two data rows with some missing values
 evi <- iris[1:2,]
 evi[1, 1] <- NA_real_
