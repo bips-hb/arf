@@ -98,7 +98,10 @@ forge <- function(
     step_no <- 1
   } else {
     evidence <- as.data.table(evidence)
-    if (parallel & evidence_row_mode == "separate") {
+    if (all(colnames(evidence) == c("f_idx", "wt"))) {
+      stepsize <- nrow(evidence)
+      step_no <- 1
+    } else if (parallel & evidence_row_mode == "separate") {
       # For "separate", parallelize in forge (not in cforde)
       if (stepsize == 0) {
         stepsize <- ceiling(nrow(evidence)/foreach::getDoParWorkers())
@@ -122,7 +125,7 @@ forge <- function(
   x_synth_ <- foreach(step_ = 1:step_no, .combine = "rbind") %dopar% {
     
     # Prepare the event space
-    if (is.null(evidence)) {
+    if (is.null(evidence) || all(colnames(evidence) == c("f_idx", "wt"))) {
       cparams <- NULL
     } else {
       # Call cforde with part of the evidence for this step
@@ -134,13 +137,19 @@ forge <- function(
         n_synth <- n_synth * nrow(evidence_part)
       }
     } 
-    
+
     # omega contains the weight (wt) for each leaf (f_idx) for each condition (c_idx)
     if (is.null(cparams)) {
-      num_trees <- params$forest[, max(tree)]
-      omega <- params$forest[, .(f_idx, f_idx_uncond = f_idx, cvg)]
-      omega[, `:=` (c_idx = 1, wt = cvg / num_trees)]
-      omega[, cvg := NULL]
+      if (all(colnames(evidence) == c("f_idx", "wt"))) {
+        omega <- copy(evidence)
+        omega[, f_idx_uncond := f_idx]
+        omega[, c_idx := 1]
+      } else {
+        num_trees <- params$forest[, max(tree)]
+        omega <- params$forest[, .(f_idx, f_idx_uncond = f_idx, cvg)]
+        omega[, `:=` (c_idx = 1, wt = cvg / num_trees)]
+        omega[, cvg := NULL]
+      }
     } else {
       omega <- cparams$forest[, .(c_idx, f_idx, f_idx_uncond, wt = cvg)]
     } 
