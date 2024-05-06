@@ -19,13 +19,15 @@ forge(
 
 \item{n_synth}{Number of synthetic samples to generate.}
 
-\item{evidence}{Optional set of conditioning events. A data.frame, which can be
-incomplete, i.e. include not all columns, can contain NAs or include intervals,
-e.g. for inequalities; see examples.}
+\item{evidence}{Optional set of conditioning events. This can take one of
+three forms: (1) a partial sample, i.e. a single row of data with
+some but not all columns; (2) a data frame of conditioning events,
+which allows for inequalities and intervals; or (3) a posterior distribution over leaves;
+see Details and Examples.}
 
 \item{evidence_row_mode}{Interpretation of rows in multi-row evidence. If \code{'separate'},
 each row in \code{evidence} is a separate conditioning event for which \code{n_synth} synthetic samples
-are generated. If \code{'or'}, the rows are combined with a logical or; see examples.}
+are generated. If \code{'or'}, the rows are combined with a logical or; see Examples.}
 
 \item{sample_NAs}{Sample NAs respecting the probability for missing values in the original data.}
 
@@ -49,6 +51,14 @@ sampled independently within each leaf according to the probability mass or
 density function learned by \code{\link{forde}}. This will create realistic
 data so long as the adversarial RF used in the previous step satisfies the
 local independence criterion. See Watson et al. (2023).
+
+There are three methods for (optionally) encoding conditioning events via the
+\code{evidence} argument. The first is to provide a partial sample, where
+some columns from the training data are missing or set to \code{NA}. The second is to
+provide a data frame with condition events. This supports inequalities and intervals.
+Alternatively, users may directly input a pre-calculated posterior
+distribution over leaves, with columns \code{f_idx} and \code{wt}. This may
+be preferable for complex constraints. See Examples.
 }
 \examples{
 arf <- adversarial_rf(iris)
@@ -78,6 +88,12 @@ evi[1, 1] <- NA_real_
 evi[1, 5] <- NA_character_
 evi[2, 2] <- NA_real_
 x_synth <- forge(psi, n_synth = 1, evidence = evi)
+
+# Or just input some distribution on leaves
+# (Weights that do not sum to unity are automatically scaled)
+n_leaves <- nrow(psi$forest)
+evi <- data.frame(f_idx = psi$forest$f_idx, wt = rexp(n_leaves))
+x_synth <- forge(psi, n_synth = 100, evidence = evi)
 
 }
 \references{

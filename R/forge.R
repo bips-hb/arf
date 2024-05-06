@@ -3,12 +3,14 @@
 #' Uses pre-trained FORDE model to simulate synthetic data.
 #' 
 #' @param params Circuit parameters learned via \code{\link{forde}}. 
-#' @param evidence Optional set of conditioning events. A data.frame, which can be
-#'   incomplete, i.e. include not all columns, can contain NAs or include intervals, 
-#'   e.g. for inequalities; see examples.
+#' @param evidence Optional set of conditioning events. This can take one of 
+#'   three forms: (1) a partial sample, i.e. a single row of data with
+#'   some but not all columns; (2) a data frame of conditioning events, 
+#'   which allows for inequalities and intervals; or (3) a posterior distribution over leaves;
+#'   see Details and Examples.
 #' @param evidence_row_mode Interpretation of rows in multi-row evidence. If \code{'separate'},
 #'   each row in \code{evidence} is a separate conditioning event for which \code{n_synth} synthetic samples
-#'   are generated. If \code{'or'}, the rows are combined with a logical or; see examples.
+#'   are generated. If \code{'or'}, the rows are combined with a logical or; see Examples.
 #' @param sample_NAs Sample NAs respecting the probability for missing values in the original data.
 #' @param stepsize Stepsize defining number of evidence rows handled in one for each step.
 #'   Defaults to nrow(evidence)/num_registered_workers for \code{parallel == TRUE}.
@@ -24,6 +26,14 @@
 #' density function learned by \code{\link{forde}}. This will create realistic 
 #' data so long as the adversarial RF used in the previous step satisfies the 
 #' local independence criterion. See Watson et al. (2023).
+#' 
+#' There are three methods for (optionally) encoding conditioning events via the 
+#' \code{evidence} argument. The first is to provide a partial sample, where
+#' some columns from the training data are missing or set to \code{NA}. The second is to 
+#' provide a data frame with condition events. This supports inequalities and intervals. 
+#' Alternatively, users may directly input a pre-calculated posterior 
+#' distribution over leaves, with columns \code{f_idx} and \code{wt}. This may 
+#' be preferable for complex constraints. See Examples.
 #' 
 #' @return  
 #' A dataset of \code{n_synth} synthetic samples. 
@@ -64,6 +74,12 @@
 #' evi[1, 5] <- NA_character_
 #' evi[2, 2] <- NA_real_
 #' x_synth <- forge(psi, n_synth = 1, evidence = evi)
+#' 
+#' # Or just input some distribution on leaves
+#' # (Weights that do not sum to unity are automatically scaled)
+#' n_leaves <- nrow(psi$forest)
+#' evi <- data.frame(f_idx = psi$forest$f_idx, wt = rexp(n_leaves))
+#' x_synth <- forge(psi, n_synth = 100, evidence = evi)
 #'
 #' @seealso
 #' \code{\link{adversarial_rf}}, \code{\link{forde}}
@@ -140,15 +156,15 @@ forge <- function(
 
     # omega contains the weight (wt) for each leaf (f_idx) for each condition (c_idx)
     if (is.null(cparams)) {
-      if (all(colnames(evidence) == c("f_idx", "wt"))) {
-        omega <- copy(evidence)
-        omega[, f_idx_uncond := f_idx]
-        omega[, c_idx := 1]
-      } else {
+      if (is.null(evidence)) {
         num_trees <- params$forest[, max(tree)]
         omega <- params$forest[, .(f_idx, f_idx_uncond = f_idx, cvg)]
         omega[, `:=` (c_idx = 1, wt = cvg / num_trees)]
         omega[, cvg := NULL]
+      } else {
+        omega <- copy(evidence)
+        omega[, f_idx_uncond := f_idx]
+        omega[, c_idx := 1]
       }
     } else {
       omega <- cparams$forest[, .(c_idx, f_idx, f_idx_uncond, wt = cvg)]
