@@ -97,7 +97,7 @@ expct <- function(
     omega[, wt := cvg / num_trees]
     omega[, cvg := NULL]
   } else if (conj) {
-    omega <- arf:::cforde(params, evidence, "or")
+    omega <-cforde(params, evidence, "or")$forest[, .(f_idx = f_idx_uncond, wt = cvg)]
   } else {
     omega <- evidence
   }
