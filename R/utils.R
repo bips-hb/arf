@@ -367,7 +367,7 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
   cat_cols <- meta[family == "multinom", variable]
   
   # Calculate long format of evidence depending on row_mode
-  condition_long <- prep_cond(evidence, params, row_mode)
+  condition_long <- arf:::prep_cond(evidence, params, row_mode)
   setkey(condition_long, c_idx)
   
   # If evidence does not any conditions (i.e. all entries equal NA), return NULL
@@ -554,7 +554,7 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
         cvg_new[, cvg := 1/.N]
       } else {
         cvg_new[, cvg := exp(cvg - max(cvg))]
-        cvg_new <- cvg_new[cvg > 0,][, cvg := cvg / sum(cvg)]
+        cvg_new <- cvg_new[, cvg := cvg / sum(cvg)]
       }
     } else {
       cvg_new[, leaf_zero_lik := all(cvg == -Inf), by = c_idx]
