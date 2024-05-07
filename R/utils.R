@@ -649,7 +649,7 @@ prep_cond <- function(evidence, params, row_mode) {
     cond <- apply(cond,1,str_split,"\\|")
     cond <- rbindlist(lapply(cond,expand.grid))
     cond <- unique(cond)
-    names(cond) <- meta[, variable]
+    names(cond) <- names(evidence)
   } else if (row_mode == "separate") {
     if (any(cols_check_or > 0, na.rm = TRUE)) {
       stop("Please use the option row_mode = 'or' when including logical disjunctions.")
