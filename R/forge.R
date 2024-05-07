@@ -114,7 +114,7 @@ forge <- function(
     step_no <- 1
   } else {
     evidence <- as.data.table(evidence)
-    if (all(colnames(evidence) == c("f_idx", "wt"))) {
+    if (ncol(evidence) == 2 && all(colnames(evidence) == c("f_idx", "wt"))) {
       stepsize <- nrow(evidence)
       step_no <- 1
     } else if (parallel & evidence_row_mode == "separate") {
@@ -141,7 +141,7 @@ forge <- function(
   x_synth_ <- foreach(step_ = 1:step_no, .combine = "rbind") %dopar% {
     
     # Prepare the event space
-    if (is.null(evidence) || all(colnames(evidence) == c("f_idx", "wt"))) {
+    if (is.null(evidence) || ( ncol(evidence) == 2 && all(colnames(evidence) == c("f_idx", "wt")))) {
       cparams <- NULL
     } else {
       # Call cforde with part of the evidence for this step
