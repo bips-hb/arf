@@ -65,7 +65,6 @@ expct <- function(
   
   # Prep evidence
   conj <- FALSE
-  
   if (!is.null(evidence) && !(ncol(evidence) == 2 && all(c("f_idx", "wt") %in% colnames(evidence)))) {
     evidence_variable <- arf:::prep_cond(evidence, params, "or")$variable
     conj <- TRUE
@@ -97,7 +96,7 @@ expct <- function(
     omega[, wt := cvg / num_trees]
     omega[, cvg := NULL]
   } else if (conj) {
-    omega <-cforde(params, evidence, "or")$forest[, .(f_idx = f_idx_uncond, wt = cvg)]
+    omega <- cforde(params, evidence, "or")$forest[, .(f_idx = f_idx_uncond, wt = cvg)]
   } else {
     omega <- evidence
   }

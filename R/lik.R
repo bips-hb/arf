@@ -119,13 +119,7 @@ lik <- function(
   factor_cols <- sapply(x, is.factor)
   
   # Prep evidence
-  conj <- FALSE
-  if (!is.null(evidence)) {
-    evidence <- prep_evi(params, evidence)
-    if (!all(c('f_idx', 'wt') %in% colnames(evidence))) {
-      conj <- TRUE
-    }
-  } 
+  conj <- !is.null(evidence) && !(ncol(evidence) == 2 && all(c("f_idx", "wt") %in% colnames(evidence)))
   
   # Check ARF
   if (d == params$meta[, .N] & !is.null(arf)) {
@@ -152,7 +146,7 @@ lik <- function(
     omega[, wt := cvg / num_trees]
     omega[, cvg := NULL]
   } else if (isTRUE(conj)) {
-    omega <- leaf_posterior(params, evidence)
+    omega <- cforde(params, evidence, "or")$forest[, .(f_idx = f_idx_uncond, wt = cvg)]
   } else {
     omega <- evidence
   }
