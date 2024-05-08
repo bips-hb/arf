@@ -34,7 +34,7 @@
 #' arf <- adversarial_rf(iris)
 #' psi <- forde(arf, iris)
 #' 
-#' # What is the expected value Sepal.Length?
+#' # What is the expected value of Sepal.Length?
 #' expct(psi, query = "Sepal.Length")
 #' 
 #' # What if we condition on Species = "setosa"?
@@ -61,12 +61,12 @@ expct <- function(
   
   # To avoid data.table check issues
   variable <- tree <- f_idx <- cvg <- wt <- V1 <- value <- val <- family <-
-    mu <- sigma <- obs <- prob <- . <- NULL
+    mu <- sigma <- obs <- prob <- f_idx_uncond <- . <- NULL
   
   # Prep evidence
   conj <- FALSE
   if (!is.null(evidence) && !(ncol(evidence) == 2 && all(c("f_idx", "wt") %in% colnames(evidence)))) {
-    evidence_variable <- arf:::prep_cond(evidence, params, "or")$variable
+    evidence_variable <- prep_cond(evidence, params, "or")$variable
     conj <- TRUE
   }
   

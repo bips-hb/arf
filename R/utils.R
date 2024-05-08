@@ -185,7 +185,7 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
   cat_cols <- meta[family == "multinom", variable]
   
   # Calculate long format of evidence depending on row_mode
-  condition_long <- arf:::prep_cond(evidence, params, row_mode)
+  condition_long <- prep_cond(evidence, params, row_mode)
   setkey(condition_long, c_idx)
   
   # If evidence does not any conditions (i.e. all entries equal NA), return NULL

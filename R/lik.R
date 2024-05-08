@@ -70,11 +70,9 @@
 #' lik(psi, query = iris[1, 1:3], evidence = evi)
 #' 
 #' # Condition on Species = "setosa" and Petal.Width > 0.3
-#' evi <- data.frame(variable = c("Species", "Petal.Width"),
-#'                   relation = c("==", ">"), 
-#'                   value = c("setosa", 0.3))
+#' evi <- data.frame(Species = "setosa", 
+#'                   Petal.Width = ">0.3")
 #' lik(psi, query = iris[1, 1:3], evidence = evi)
-#' 
 #' 
 #' @seealso
 #' \code{\link{adversarial_rf}}, \code{\link{forge}}
@@ -100,7 +98,8 @@ lik <- function(
   
   # To avoid data.table check issues
   tree <- cvg <- leaf <- variable <- mu <- sigma <- value <- obs <- prob <- 
-    V1 <- relation <- f_idx <- wt <- val <- family <- fold <- . <- NULL
+    V1 <- relation <- f_idx <- wt <- val <- family <- fold <- f_idx_uncond <- 
+    . <- NULL
   
   # Check query
   x <- as.data.frame(query)

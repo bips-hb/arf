@@ -34,7 +34,7 @@ conditioned on some event(s).
 arf <- adversarial_rf(iris)
 psi <- forde(arf, iris)
 
-# What is the expected value Sepal.Length?
+# What is the expected value of Sepal.Length?
 expct(psi, query = "Sepal.Length")
 
 # What if we condition on Species = "setosa"?
