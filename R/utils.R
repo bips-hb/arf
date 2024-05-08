@@ -375,9 +375,9 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
   
   if (nrow(cvg_new) > 0) {
     # Use log transformation to avoid overflow
-    cvg_new[,cvg_factor := log(cvg_factor)]
+    cvg_new[, cvg_factor := log(cvg_factor)]
     cvg_new <- cvg_new[, .(cvg_factor = sum(cvg_factor)), keyby = f_idx]
-    cvg_new <- cbind(cvg_new, forest_new[, .(c_idx, cvg_arf = log(cvg_arf))])
+    cvg_new <- merge(cvg_new, forest_new[, .(f_idx, c_idx, cvg_arf = log(cvg_arf))], by = f_idx)
     cvg_new[,`:=` (cvg = cvg_factor + cvg_arf, cvg_factor = NULL, cvg_arf = NULL)]
     
     # Re-calculate weights and transform back from log scale, handle (numerically) impossible cases
@@ -405,7 +405,7 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
   
   # Add conditions with no matching leaves to forest
   forest_new_noleaf <- data.table(c_idx = setdiff(unique(forest_new[,c_idx]), unique(cvg_new[,c_idx])))[,f_idx := NA_integer_]
-  forest_new <- cbind(forest_new, cvg_new[,.(cvg)])
+  forest_new <- merge(forest_new, cvg_new[,.(f_idx, cvg)], by = "f_idx")
   forest_new <- forest_new[cvg > 0,]
   forest_new <- rbind(forest_new, forest_new_noleaf, fill = TRUE)
   if (row_mode == "or") {
