@@ -179,12 +179,8 @@ forge <- function(
         draws <- omega[, .(f_idx = sample(f_idx, size = n_synth, replace = TRUE, prob = wt))]
         omega <- merge(draws, omega, by = "f_idx", sort = FALSE)[, idx := .I]
       } else {
-        omega[, N := .N, by = c_idx]
-        draws <- setorder(rbind(
-          omega[N != 1, .(f_idx = sample(f_idx, size = n_synth, replace = TRUE, prob = wt)), by = c_idx],
-          omega[N == 1, .(f_idx, c_idx)]
-        ), c_idx)
-        omega <- merge(draws, omega[,-"N"], by = c("c_idx", "f_idx"), sort = FALSE)[, idx := .I]
+        draws <- omega[, .(f_idx = resample(f_idx, size = n_synth, replace = TRUE, prob = wt)), by = c_idx]
+        omega <- merge(draws, omega, by = c("c_idx", "f_idx"), sort = FALSE)[, idx := .I]
       }
       setcolorder(omega, "idx")
     }

@@ -21,6 +21,17 @@ col_rename <- function(df, old_name) {
   return(new_name)
 }
 
+#' Safer version of sample()
+#'
+#' @param x A vector of one or more elements from which to choose.
+#' @param ... Further arguments for sample().
+#'
+#' @return A vector of length size with elements drawn from x.
+
+resample <- function(x, ...) {
+  x[sample.int(length(x), ...)]
+}
+
 #' Preprocess input data
 #' 
 #' This function prepares input data for ARFs.
