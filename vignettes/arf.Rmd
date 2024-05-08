@@ -223,19 +223,17 @@ The partial observation method of passing evidence requires users to specify uni
 
 ```{r cond2}
 # Data frame of conditioning events
-evi <- data.frame(variable = c('Species', 'Petal.Width'),
-                  relation = c('==', '>'), 
-                  value = c('setosa', 0.3))
+evi <- data.frame(Species = "setosa", 
+                  Petal.Width = ">0.3")
 evi
 ```
-Each row is treated as an extra condition, so we can define intervals by putting multiple constraints on a single variable.
+We can also define intervals:
 ```{r cond3}
-evi <- data.frame(variable = c('Species', 'Petal.Width', 'Petal.Width'),
-                  relation = c('==', '>', '<='), 
-                  value = c('setosa', 0.3, 0.5))
+evi <- data.frame(Species = "setosa", 
+                  Petal.Width = "(0.3,0.5)")
 evi
 ```
-Resulting likelihoods will be computed on the condition that all queries are drawn from setosa flowers with petal width on the interval $(0.3, 0.5]$. 
+Resulting likelihoods will be computed on the condition that all queries are drawn from setosa flowers with petal width on the interval $(0.3, 0.5)$. 
 
 A final method for passing evidence is to directly compute a posterior distribution on leaves. This could be useful for particularly complex conditioning events for which there is currently no inbuilt interface, such as polynomial constraints or arbitrary propositions in disjunctive normal form. In this case, we just require a data frame with columns for `f_idx` and `wt`. If the latter does not sum to unity, the distribution will be normalized with a warning.
 ```{r cond4}
