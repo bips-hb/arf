@@ -191,6 +191,7 @@ adversarial_rf <- function(
   if (isTRUE(prune)) {
     pred <- stats::predict(rf0, x_real, type = 'terminalNodes')$predictions + 1L
     prune <- function(tree) {
+      # Nodes to prune are leaves which contain fewer than min_node_size real samples
       out <- rf0$forest$child.nodeIDs[[tree]]
       leaves <- which(out[[1]] == 0L)
       to_prune <- leaves[!(leaves %in% which(tabulate(pred[, tree]) >= min_node_size))]
@@ -200,17 +201,19 @@ adversarial_rf <- function(
           break
         }
         for (tp in to_prune) {
-          # Find parents
+          # Find parent
           parent <- which((out[[1]] + 1L) == tp)
           if (length(parent) > 0) {
-            # Left child
+            # If node to prune (tp) is the left child of parent, replace left child with right child
             out[[1]][parent] <- out[[2]][parent]
           } else {
-            # Right child
+            # If node to prune (tp) is the right child of parent, replace right child with left child
             parent <- which((out[[2]] + 1L) == tp)
             out[[2]][parent] <- out[[1]][parent]
           }
         }
+        # If both children of a parent are to be pruned, prune the parent in the next round
+        # This happens if both children have been pruned
         to_prune <- which((out[[1]] + 1L) %in% to_prune)
       }
       return(out)
