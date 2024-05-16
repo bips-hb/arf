@@ -195,6 +195,10 @@ adversarial_rf <- function(
       leaves <- which(out[[1]] == 0L)
       to_prune <- leaves[!(leaves %in% which(tabulate(pred[, tree]) >= min_node_size))]
       while(length(to_prune) > 0) {
+        if (1 %in% to_prune) {
+          # Never prune the root
+          break
+        }
         for (tp in to_prune) {
           # Find parents
           parent <- which((out[[1]] + 1L) == tp)
