@@ -202,12 +202,12 @@ forge <- function(
         psi_cond <- data.table()
       } else {
         psi_cond <- merge(omega, cparams$cnt[,-c("cvg_factor", "f_idx_uncond")], by = c('c_idx', 'f_idx'), 
-                          sort = FALSE, allow.cartesian = TRUE)
+                          sort = FALSE, allow.cartesian = TRUE)[prob > 0,]
         # draw sub-leaf areas (resulting from within-row or-conditions)
         if(any(psi_cond[,prob != 1])) {
           psi_cond[, I := .I]
           psi_cond <- psi_cond[sort(c(psi_cond[prob == 1, I],
-                          psi_cond[prob < 1, fifelse(.N > 1, resample(I, 1, prob = prob), 0), by = .(variable, idx)][,V1])), -"I"]
+                          psi_cond[prob > 0 & prob < 1, fifelse(.N > 1, resample(I, 1, prob = prob), 0), by = .(variable, idx)][,V1])), -"I"]
         }
         psi_cond[, prob := NULL]
       } 
@@ -266,14 +266,15 @@ forge <- function(
       setDT(x_synth)
       indices_na <- cparams$forest[is.na(f_idx), c_idx]
       indices_sampled <- cparams$forest[!is.na(f_idx), unique(c_idx)]
-      rows_na <- evidence_part[indices_na, ]
-      if (!all(factor_cols)) {
-        rows_na <- rows_na[, (names(x_synth)[!factor_cols]) := lapply(.SD, as.numeric),.SDcols = !factor_cols]
-      }
+      evidence_part_long <- dcast(rbind(data.table(c_idx = 0, variable = params$meta[,variable]),
+                                        cparams$evidence_prepped,
+                                        fill = T),
+                                  c_idx ~ variable, value.var = "val")[c_idx != 0,-"c_idx"]
+      rows_na <- evidence_part_long[indices_na, ]
       rows_na[, idx := indices_na]
       rows_na <- rbindlist(replicate(n_synth, rows_na, simplify = FALSE))
       x_synth[, idx := rep(indices_sampled, each = n_synth)]
-      x_synth <- rbind(x_synth, rows_na)
+      x_synth <- rbind(x_synth, rows_na, fill = T)
       setorder(x_synth, idx)[, idx :=  NULL]
       x_synth <- post_x(x_synth, params)
     }

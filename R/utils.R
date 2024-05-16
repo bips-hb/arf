@@ -321,7 +321,7 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
                                 max = max.y)]
       cnt_new[is.na(val),`:=` (min = pmax(min.x, min.y, na.rm = T),
                                max = pmin(max.x, max.y, na.rm = T))]
-      cnt_new <- cnt_new[min <= max & max.x != min.y, ]
+      cnt_new <- cnt_new[min <= max & sum(max.x, val, na.rm = T) != min.y, ]
       cnt_new[, prob := NA_real_]
       if (family == "truncnorm") {
         cnt_new[!is.na(val), prob := dtruncnorm(val, a=min.y, b=max.y, mean=mu, sd=sigma)*(val != min.y)]
@@ -398,7 +398,7 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
     # Use log transformation to avoid overflow
     cvg_new[, cvg_factor := log(cvg_factor)]
     cvg_new <- cvg_new[, .(cvg_factor = sum(cvg_factor)), keyby = f_idx]
-    cvg_new <- merge(cvg_new, forest_new[, .(f_idx, c_idx, cvg_arf = log(cvg_arf))], by = f_idx)
+    cvg_new <- cbind(cvg_new, forest_new[!is.na(cvg_arf), .(c_idx, cvg_arf = log(cvg_arf))])
     cvg_new[,`:=` (cvg = cvg_factor + cvg_arf, cvg_factor = NULL, cvg_arf = NULL)]
     
     # Re-calculate weights and transform back from log scale, handle (numerically) impossible cases
