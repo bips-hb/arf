@@ -185,7 +185,7 @@ forge <- function(
       omega <- omega[rep(1, n_synth),][, idx := .I]
     } else {
       if (evidence_row_mode == "or") {
-        draws <- omega[, .(f_idx = sample(f_idx, size = n_synth, replace = TRUE, prob = wt))]
+        draws <- omega[, .(f_idx = resample(f_idx, size = n_synth, replace = TRUE, prob = wt))]
         omega <- merge(draws, omega, by = "f_idx", sort = FALSE)[, idx := .I]
       } else {
         draws <- omega[, .(f_idx = resample(f_idx, size = n_synth, replace = TRUE, prob = wt)), by = c_idx]
@@ -203,6 +203,13 @@ forge <- function(
       } else {
         psi_cond <- merge(omega, cparams$cnt[,-c("cvg_factor", "f_idx_uncond")], by = c('c_idx', 'f_idx'), 
                           sort = FALSE, allow.cartesian = TRUE)
+        # draw sub-leaf areas (resulting from within-row or-conditions)
+        if(any(psi_cond[,prob != 1])) {
+          psi_cond[, I := .I]
+          psi_cond <- psi_cond[sort(c(psi_cond[prob == 1, I],
+                          psi_cond[prob < 1, fifelse(.N > 1, resample(I, 1, prob = prob), 0), by = .(variable, idx)][,V1])), -"I"]
+        }
+        psi_cond[, prob := NULL]
       } 
       psi <- unique(rbind(psi_cond,
                           merge(omega, params$cnt, by.x = 'f_idx_uncond', by.y = 'f_idx',
