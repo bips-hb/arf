@@ -230,7 +230,7 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
   step_no <- ceiling(nconds_conditioned/stepsize)
   
   # Loop through conditions with defined stepsize to determined matching leaves and updates for cat and cnt params
-  updates_relevant_leaves <- foreach(step_ = 1:step_no, .combine = "rbind") %dopar% {
+  update_fun <-function(step_) {
     
     # Define subset of conditions for step_
     index_start <- conds_conditioned[(step_ - 1)*stepsize + 1]
@@ -363,6 +363,11 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
     cat_new[, prob := prob/cvg_factor]
     
     list(cnt_new = cnt_new, cat_new = cat_new, relevant_leaves = relevant_leaves)
+  }
+  if (isTRUE(parallel)) {
+    updates_relevant_leaves <- foreach(step = 1:step_no, .combine = "rbind") %dopar% update_fun(step)
+  } else {
+    updates_relevant_leaves <- foreach(step = 1:step_no, .combine = "rbind") %do% update_fun(step)
   }
   
   # Combine results

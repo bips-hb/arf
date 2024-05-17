@@ -36,14 +36,14 @@ test_that("Likelihood calculation returns vector of log-likelihoods", {
 test_that("FORGE returns data frame when called with data frame", {
   arf <- adversarial_rf(iris, num_trees = 2, verbose = FALSE, parallel = FALSE)
   psi <- forde(arf, iris, parallel = FALSE)
-  x_synth <- forge(psi, n_synth = 20)
+  x_synth <- forge(psi, n_synth = 20, parallel = FALSE)
   expect_s3_class(x_synth, "data.frame")
 })
 
 test_that("FORGE returns data table when called with data table", {
   arf <- adversarial_rf(data.table::as.data.table(iris), num_trees = 2, verbose = FALSE, parallel = FALSE)
   psi <- forde(arf, data.table::as.data.table(iris), parallel = FALSE)
-  x_synth <- forge(psi, n_synth = 20)
+  x_synth <- forge(psi, n_synth = 20, parallel = FALSE)
   expect_s3_class(x_synth, "data.table")
 })
 
@@ -54,7 +54,7 @@ test_that("FORGE returns matrix when called with matrix", {
   
   arf <- adversarial_rf(x, num_trees = 2, verbose = FALSE, parallel = FALSE)
   psi <- forde(arf, x, parallel = FALSE)
-  x_synth <- forge(psi, n_synth = 20)
+  x_synth <- forge(psi, n_synth = 20, parallel = FALSE)
   expect_type(x_synth, "double")
   expect_true(is.matrix(x_synth))
 })
@@ -69,7 +69,7 @@ test_that("FORGE returns same column types", {
   
   expect_warning(arf <- adversarial_rf(dat, num_trees = 2, verbose = FALSE, parallel = FALSE))
   psi <- forde(arf, dat, parallel = FALSE)
-  x_synth <- forge(psi, n_synth = 20)
+  x_synth <- forge(psi, n_synth = 20, parallel = FALSE)
   
   # No NAs
   expect_true(all(!is.na(x_synth)))
