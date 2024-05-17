@@ -509,7 +509,7 @@ prep_cond <- function(evidence, params, row_mode) {
   )
   
   # handle logical or within rows
-  if(any(cols_check_or > 0)) {
+  if (any(cols_check_or > 0, na.rm = TRUE)) {
     condition_long <- condition_long[, .(val = unlist(str_split(val,"\\|"))), by = .(c_idx, variable)]
   }
   
