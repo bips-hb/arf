@@ -105,7 +105,7 @@ forge <- function(
   # To avoid data.table check issues
   tree <- cvg <- leaf <- idx <- family <- mu <- sigma <- prob <- dat <- 
     variable <- relation <- wt <- j <- f_idx <- val <- . <- step_ <- c_idx <-
-    f_idx_uncond <- N <- NULL
+    f_idx_uncond <- N <- step <- V1 <- NULL
   
   factor_cols <- params$meta[, family == 'multinom']
   

@@ -188,7 +188,7 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
   # To avoid data.table check issues
   . <- c_idx <- cvg <- cvg_arf <- cvg_factor <- f_idx <- f_idx_uncond <- i.max <-
     i.min <- leaf <- max.x <- max.y <- min.x <- min.y <- mu <- prob <- sigma <-
-    step_ <-	tree <-	V1 <- val <- variable <- leaf_zero_lik <- NULL
+    step_ <-	tree <-	V1 <- val <- variable <- leaf_zero_lik <- step <- NULL
   
   # Store informations of params as variables
   meta <- params$meta
@@ -474,7 +474,7 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
 prep_cond <- function(evidence, params, row_mode) {
   
   # To avoid data.table check issues
-  c_idx <- family <- val <- variable <- val._x <- NULL
+  c_idx <- family <- val <- variable <- val._x <- . <- NULL
   
   # If condition already in correct long format, do nothing
   if(ncol(evidence) == 5 && all(names(evidence) == c("c_idx", "variable", "min", "max", "val"))) {
