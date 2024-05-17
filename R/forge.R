@@ -172,8 +172,8 @@ forge <- function(
     omega <- omega[wt > 0, ]
     
     # Use random leaves if NA (no matching leaves found)
-    if (omega[, any(is.na(f_idx))]) {
-      row_idx <- sample(nrow(omega[!is.na(f_idx), ]), omega[, sum(is.na(f_idx))])
+    if (omega[, any(is.na(f_idx))] & omega[, any(!is.na(f_idx))]) {
+      row_idx <- sample(nrow(omega[!is.na(f_idx), ]), omega[, sum(is.na(f_idx))], replace = TRUE)
       temp <- omega[!is.na(f_idx), ][row_idx, .(f_idx, f_idx_uncond)]
       omega[is.na(f_idx), f_idx_uncond := temp[, f_idx_uncond]]
       omega[is.na(f_idx), f_idx := temp[, f_idx]]
