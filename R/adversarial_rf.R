@@ -104,14 +104,18 @@ adversarial_rf <- function(
   dat <- rbind(data.frame(y = 1L, x_real),
                data.frame(y = 0L, x_synth))
   if (isTRUE(parallel)) {
-    rf0 <- ranger(y ~ ., dat, keep.inbag = TRUE, classification = TRUE, 
-                  num.trees = num_trees, min.node.size = 2L * min_node_size, 
-                  respect.unordered.factors = TRUE, ...)
+    num.threads <- NULL
   } else {
-    rf0 <- ranger(y ~ ., dat, keep.inbag = TRUE, classification = TRUE, 
-                  num.trees = num_trees, min.node.size = 2L * min_node_size, 
-                  respect.unordered.factors = TRUE, num.threads = 1L, ...)
+    num.threads <- 1L
   }
+  if (utils::packageVersion("ranger") >= "0.16.1") {
+    min.bucket <- c(min_node_size, 0)
+  } else {
+    min.bucket <- min_node_size
+  }
+  rf0 <- ranger(y ~ ., dat, keep.inbag = TRUE, classification = TRUE, 
+                num.trees = num_trees, min.bucket = min.bucket, 
+                respect.unordered.factors = TRUE, num.threads = num.threads, ...)
   
   # Recurse
   iters <- 0L
@@ -159,15 +163,9 @@ adversarial_rf <- function(
       dat <- rbind(data.frame(y = 1L, x_real),
                    data.frame(y = 0L, x_synth))
       # Train discriminator
-      if (isTRUE(parallel)) {
-        rf1 <- ranger(y ~ ., dat, keep.inbag = TRUE, classification = TRUE, 
-                      num.trees = num_trees, min.node.size = 2 * min_node_size, 
-                      respect.unordered.factors = TRUE, ...)
-      } else {
-        rf1 <- ranger(y ~ ., dat, keep.inbag = TRUE, classification = TRUE, 
-                      num.trees = num_trees, min.node.size = 2 * min_node_size, 
-                      respect.unordered.factors = TRUE, num.threads = 1, ...)
-      }
+      rf1 <- ranger(y ~ ., dat, keep.inbag = TRUE, classification = TRUE, 
+                    num.trees = num_trees, min.bucket = min.bucket, 
+                    respect.unordered.factors = TRUE, num.threads = num.threads, ...)
       # Evaluate
       acc0 <- 1 - rf1$prediction.error
       acc <- c(acc, acc0)
