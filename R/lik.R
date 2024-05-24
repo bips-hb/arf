@@ -70,11 +70,9 @@
 #' lik(psi, query = iris[1, 1:3], evidence = evi)
 #' 
 #' # Condition on Species = "setosa" and Petal.Width > 0.3
-#' evi <- data.frame(variable = c("Species", "Petal.Width"),
-#'                   relation = c("==", ">"), 
-#'                   value = c("setosa", 0.3))
+#' evi <- data.frame(Species = "setosa", 
+#'                   Petal.Width = ">0.3")
 #' lik(psi, query = iris[1, 1:3], evidence = evi)
-#' 
 #' 
 #' @seealso
 #' \code{\link{adversarial_rf}}, \code{\link{forge}}
@@ -100,7 +98,8 @@ lik <- function(
   
   # To avoid data.table check issues
   tree <- cvg <- leaf <- variable <- mu <- sigma <- value <- obs <- prob <- 
-    V1 <- relation <- f_idx <- wt <- val <- family <- fold <- . <- NULL
+    V1 <- relation <- f_idx <- wt <- val <- family <- fold <- f_idx_uncond <- 
+    . <- NULL
   
   # Check query
   x <- as.data.frame(query)
@@ -119,13 +118,7 @@ lik <- function(
   factor_cols <- sapply(x, is.factor)
   
   # Prep evidence
-  conj <- FALSE
-  if (!is.null(evidence)) {
-    evidence <- prep_evi(params, evidence)
-    if (!all(c('f_idx', 'wt') %in% colnames(evidence))) {
-      conj <- TRUE
-    }
-  } 
+  conj <- !is.null(evidence) && !(ncol(evidence) == 2 && all(c("f_idx", "wt") %in% colnames(evidence)))
   
   # Check ARF
   if (d == params$meta[, .N] & !is.null(arf)) {
@@ -152,7 +145,7 @@ lik <- function(
     omega[, wt := cvg / num_trees]
     omega[, cvg := NULL]
   } else if (isTRUE(conj)) {
-    omega <- leaf_posterior(params, evidence)
+    omega <- cforde(params, evidence, "or")$forest[, .(f_idx = f_idx_uncond, wt = cvg)]
   } else {
     omega <- evidence
   }

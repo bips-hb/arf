@@ -104,14 +104,18 @@ adversarial_rf <- function(
   dat <- rbind(data.frame(y = 1L, x_real),
                data.frame(y = 0L, x_synth))
   if (isTRUE(parallel)) {
-    rf0 <- ranger(y ~ ., dat, keep.inbag = TRUE, classification = TRUE, 
-                  num.trees = num_trees, min.node.size = 2L * min_node_size, 
-                  respect.unordered.factors = TRUE, ...)
+    num.threads <- NULL
   } else {
-    rf0 <- ranger(y ~ ., dat, keep.inbag = TRUE, classification = TRUE, 
-                  num.trees = num_trees, min.node.size = 2L * min_node_size, 
-                  respect.unordered.factors = TRUE, num.threads = 1L, ...)
+    num.threads <- 1L
   }
+  if (utils::packageVersion("ranger") >= "0.16.1") {
+    min.bucket <- c(min_node_size, 0)
+  } else {
+    min.bucket <- min_node_size
+  }
+  rf0 <- ranger(y ~ ., dat, keep.inbag = TRUE, classification = TRUE, 
+                num.trees = num_trees, min.bucket = min.bucket, 
+                respect.unordered.factors = TRUE, num.threads = num.threads, ...)
   
   # Recurse
   iters <- 0L
@@ -159,15 +163,9 @@ adversarial_rf <- function(
       dat <- rbind(data.frame(y = 1L, x_real),
                    data.frame(y = 0L, x_synth))
       # Train discriminator
-      if (isTRUE(parallel)) {
-        rf1 <- ranger(y ~ ., dat, keep.inbag = TRUE, classification = TRUE, 
-                      num.trees = num_trees, min.node.size = 2 * min_node_size, 
-                      respect.unordered.factors = TRUE, ...)
-      } else {
-        rf1 <- ranger(y ~ ., dat, keep.inbag = TRUE, classification = TRUE, 
-                      num.trees = num_trees, min.node.size = 2 * min_node_size, 
-                      respect.unordered.factors = TRUE, num.threads = 1, ...)
-      }
+      rf1 <- ranger(y ~ ., dat, keep.inbag = TRUE, classification = TRUE, 
+                    num.trees = num_trees, min.bucket = min.bucket, 
+                    respect.unordered.factors = TRUE, num.threads = num.threads, ...)
       # Evaluate
       acc0 <- 1 - rf1$prediction.error
       acc <- c(acc, acc0)
@@ -191,22 +189,29 @@ adversarial_rf <- function(
   if (isTRUE(prune)) {
     pred <- stats::predict(rf0, x_real, type = 'terminalNodes')$predictions + 1L
     prune <- function(tree) {
+      # Nodes to prune are leaves which contain fewer than min_node_size real samples
       out <- rf0$forest$child.nodeIDs[[tree]]
       leaves <- which(out[[1]] == 0L)
       to_prune <- leaves[!(leaves %in% which(tabulate(pred[, tree]) >= min_node_size))]
       while(length(to_prune) > 0) {
+        if (1 %in% to_prune) {
+          # Never prune the root
+          break
+        }
         for (tp in to_prune) {
-          # Find parents
+          # Find parent
           parent <- which((out[[1]] + 1L) == tp)
           if (length(parent) > 0) {
-            # Left child
+            # If node to prune (tp) is the left child of parent, replace left child with right child
             out[[1]][parent] <- out[[2]][parent]
           } else {
-            # Right child
+            # If node to prune (tp) is the right child of parent, replace right child with left child
             parent <- which((out[[2]] + 1L) == tp)
             out[[2]][parent] <- out[[1]][parent]
           }
         }
+        # If both children of a parent are to be pruned, prune the parent in the next round
+        # This happens if both children have been pruned
         to_prune <- which((out[[1]] + 1L) %in% to_prune)
       }
       return(out)

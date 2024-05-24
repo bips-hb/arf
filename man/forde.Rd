@@ -9,7 +9,7 @@ forde(
   x,
   oob = FALSE,
   family = "truncnorm",
-  finite_bounds = FALSE,
+  finite_bounds = c("no", "local", "global"),
   alpha = 0,
   epsilon = 0,
   parallel = TRUE
@@ -29,7 +29,10 @@ features. Current options include truncated normal (the default
 \code{family = "truncnorm"}) and uniform (\code{family = "unif"}). See
 Details.}
 
-\item{finite_bounds}{Impose finite bounds on all continuous variables?}
+\item{finite_bounds}{Impose finite bounds on all continuous variables? If
+\code{'local'}, infinite bounds are shrinked to empirical extrema within leaves.
+If \code{'global'}, infinite bounds are shrinked to global empirical extrema.
+if \code{'no'} (the default), do not impose finite bounds.}
 
 \item{alpha}{Optional pseudocount for Laplace smoothing of categorical
 features. This avoids zero-mass points when test data fall outside the
@@ -37,7 +40,7 @@ support of training data. Effectively parametrizes a flat Dirichlet prior
 on multinomial likelihoods.}
 
 \item{epsilon}{Optional slack parameter on empirical bounds when
-\code{family = "unif"} or \code{finite_bounds = TRUE}. This avoids
+\code{finite_bounds != 'no'}. This avoids
 zero-density points when test data fall outside the support of training
 data. The gap between lower and upper bounds is expanded by a factor of
 \code{1 + epsilon}.}

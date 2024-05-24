@@ -4,7 +4,15 @@
 \alias{forge}
 \title{Forests for Generative Modeling}
 \usage{
-forge(params, n_synth, evidence = NULL)
+forge(
+  params,
+  n_synth,
+  evidence = NULL,
+  evidence_row_mode = c("separate", "or"),
+  sample_NAs = FALSE,
+  stepsize = 0,
+  parallel = TRUE
+)
 }
 \arguments{
 \item{params}{Circuit parameters learned via \code{\link{forde}}.}
@@ -14,8 +22,20 @@ forge(params, n_synth, evidence = NULL)
 \item{evidence}{Optional set of conditioning events. This can take one of
 three forms: (1) a partial sample, i.e. a single row of data with
 some but not all columns; (2) a data frame of conditioning events,
-which allows for inequalities; or (3) a posterior distribution over leaves.
-See Details.}
+which allows for inequalities and intervals; or (3) a posterior distribution over leaves;
+see Details and Examples.}
+
+\item{evidence_row_mode}{Interpretation of rows in multi-row evidence. If \code{'separate'},
+each row in \code{evidence} is a separate conditioning event for which \code{n_synth} synthetic samples
+are generated. If \code{'or'}, the rows are combined with a logical or; see Examples.}
+
+\item{sample_NAs}{Sample NAs respecting the probability for missing values in the original data.}
+
+\item{stepsize}{Stepsize defining number of evidence rows handled in one for each step.
+Defaults to nrow(evidence)/num_registered_workers for \code{parallel == TRUE}.}
+
+\item{parallel}{Compute in parallel? Must register backend beforehand, e.g.
+via \code{doParallel}.}
 }
 \value{
 A dataset of \code{n_synth} synthetic samples.
@@ -34,9 +54,8 @@ local independence criterion. See Watson et al. (2023).
 
 There are three methods for (optionally) encoding conditioning events via the
 \code{evidence} argument. The first is to provide a partial sample, where
-some but not all columns from the training data are present. The second is to
-provide a data frame with three columns: \code{variable}, \code{relation},
-and \code{value}. This supports inequalities via \code{relation}.
+some columns from the training data are missing or set to \code{NA}. The second is to
+provide a data frame with condition events. This supports inequalities and intervals.
 Alternatively, users may directly input a pre-calculated posterior
 distribution over leaves, with columns \code{f_idx} and \code{wt}. This may
 be preferable for complex constraints. See Examples.
@@ -50,18 +69,31 @@ x_synth <- forge(psi, n_synth = 100)
 evi <- data.frame(Species = "setosa")
 x_synth <- forge(psi, n_synth = 100, evidence = evi)
 
-# Condition in Species = "setosa" and Sepal.Length > 6
-evi <- data.frame(variable = c("Species", "Sepal.Length"),
-                  relation = c("==", ">"), 
-                  value = c("setosa", 6))
+# Condition on Species = "setosa" and Sepal.Length > 6
+evi <- data.frame(Species = "setosa",
+                  Sepal.Length = "(6, Inf)")
 x_synth <- forge(psi, n_synth = 100, evidence = evi)
+
+# Alternative syntax for </> conditions
+evi <- data.frame(Sepal.Length = ">6")
+x_synth <- forge(psi, n_synth = 100, evidence = evi)
+
+# Negation condition, i.e. all classes except "setosa"
+evi <- data.frame(Species = "!setosa")
+x_synth <- forge(psi, n_synth = 100, evidence = evi)
+
+# Condition on first two data rows with some missing values
+evi <- iris[1:2,]
+evi[1, 1] <- NA_real_
+evi[1, 5] <- NA_character_
+evi[2, 2] <- NA_real_
+x_synth <- forge(psi, n_synth = 1, evidence = evi)
 
 # Or just input some distribution on leaves
 # (Weights that do not sum to unity are automatically scaled)
 n_leaves <- nrow(psi$forest)
 evi <- data.frame(f_idx = psi$forest$f_idx, wt = rexp(n_leaves))
 x_synth <- forge(psi, n_synth = 100, evidence = evi)
-
 
 }
 \references{
