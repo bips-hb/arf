@@ -10,7 +10,7 @@
     
     <a class="navbar-brand me-2" href="../index.html">arf</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.2</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -59,7 +59,7 @@
 <span>  <span class="va">x</span>,</span>
 <span>  oob <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  family <span class="op">=</span> <span class="st">"truncnorm"</span>,</span>
-<span>  finite_bounds <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  finite_bounds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"no"</span>, <span class="st">"local"</span>, <span class="st">"global"</span><span class="op">)</span>,</span>
 <span>  alpha <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  epsilon <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  parallel <span class="op">=</span> <span class="cn">TRUE</span></span>
@@ -90,7 +90,10 @@ Details.</p></dd>
 
 
 <dt>finite_bounds</dt>
-<dd><p>Impose finite bounds on all continuous variables?</p></dd>
+<dd><p>Impose finite bounds on all continuous variables? If
+<code>'local'</code>, infinite bounds are shrinked to empirical extrema within leaves.
+If <code>'global'</code>, infinite bounds are shrinked to global empirical extrema.
+if <code>'no'</code> (the default), do not impose finite bounds.</p></dd>
 
 
 <dt>alpha</dt>
@@ -102,7 +105,7 @@ on multinomial likelihoods.</p></dd>
 
 <dt>epsilon</dt>
 <dd><p>Optional slack parameter on empirical bounds when
-<code>family = "unif"</code> or <code>finite_bounds = TRUE</code>. This avoids
+<code>finite_bounds != 'no'</code>. This avoids
 zero-density points when test data fall outside the support of training
 data. The gap between lower and upper bounds is expanded by a factor of
 <code>1 + epsilon</code>.</p></dd>
@@ -160,57 +163,57 @@ treatment effects using random forests. <em>J. Am. Stat. Assoc.</em>,
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">arf</span> <span class="op">&lt;-</span> <span class="fu"><a href="adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">iris</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 0, Accuracy: 86.05%</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 1, Accuracy: 45.67%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 0, Accuracy: 82.99%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 1, Accuracy: 42.33%</span>
 <span class="r-in"><span><span class="va">psi</span> <span class="op">&lt;-</span> <span class="fu">forde</span><span class="op">(</span><span class="va">arf</span>, <span class="va">iris</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">psi</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $cnt</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Key: &lt;f_idx, variable&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>      f_idx     variable   min   max    mu      sigma</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>      &lt;int&gt;       &lt;char&gt; &lt;num&gt; &lt;num&gt; &lt;num&gt;      &lt;num&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   1:     1 Petal.Length  -Inf  1.55  1.35 0.07071068</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   2:     1  Petal.Width  -Inf   Inf  0.25 0.07071068</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   3:     1 Sepal.Length  -Inf   Inf  4.45 0.07071068</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   4:     1  Sepal.Width  -Inf  2.95  2.60 0.42426407</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   5:     2 Petal.Length  4.05  4.30  4.15 0.07071068</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  ---                                                </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 720:   180  Sepal.Width  2.90  3.45  3.40 0.11456157</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 721:   181 Petal.Length  -Inf   Inf  4.96 0.13416408</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 722:   181  Petal.Width  1.65   Inf  1.96 0.26076810</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 723:   181 Sepal.Length  -Inf  6.15  5.88 0.19235384</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 724:   181  Sepal.Width  2.75   Inf  2.92 0.10954451</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      f_idx     variable   min   max        mu      sigma NA_share</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      &lt;int&gt;       &lt;char&gt; &lt;num&gt; &lt;num&gt;     &lt;num&gt;      &lt;num&gt;    &lt;num&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   1:     1 Petal.Length  6.65   Inf 6.7666667 0.11547005        0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   2:     1  Petal.Width  -Inf   Inf 2.1666667 0.15275252        0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   3:     1 Sepal.Length  -Inf   Inf 7.7000000 0.74985758        0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   4:     1  Sepal.Width  -Inf   Inf 3.0666667 0.64291005        0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   5:     2 Petal.Length  -Inf  6.65 5.4333333 0.28867513        0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  ---                                                             </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 840:   210  Sepal.Width  2.90  3.45 3.4000000 0.14030870        0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 841:   211 Petal.Length  1.20   Inf 1.4500000 0.08366600        0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 842:   211  Petal.Width  -Inf  0.25 0.1833333 0.04082483        0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 843:   211 Sepal.Length  5.15  6.15 5.3500000 0.13784049        0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 844:   211  Sepal.Width  3.45   Inf 3.7833333 0.29944393        0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $cat</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Key: &lt;f_idx, variable&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>      f_idx variable        val  prob</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>      &lt;int&gt;   &lt;char&gt;     &lt;char&gt; &lt;num&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   1:     1  Species     setosa   1.0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   2:     2  Species versicolor   1.0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   3:     3  Species versicolor   1.0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   4:     4  Species versicolor   0.5</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   5:     4  Species  virginica   0.5</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  ---                                </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 211:   177  Species versicolor   1.0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 212:   178  Species     setosa   1.0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 213:   179  Species  virginica   1.0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 214:   180  Species     setosa   1.0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 215:   181  Species  virginica   1.0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      f_idx variable       val  prob NA_share</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      &lt;int&gt;   &lt;char&gt;    &lt;char&gt; &lt;num&gt;    &lt;num&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   1:     1  Species virginica     1        0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   2:     2  Species virginica     1        0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   3:     3  Species virginica     1        0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   4:     4  Species    setosa     1        0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   5:     5  Species    setosa     1        0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  ---                                        </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 232:   207  Species    setosa     1        0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 233:   208  Species virginica     1        0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 234:   209  Species virginica     1        0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 235:   210  Species    setosa     1        0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 236:   211  Species    setosa     1        0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $forest</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Key: &lt;tree, leaf&gt;</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>      f_idx  tree  leaf        cvg</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>      &lt;int&gt; &lt;int&gt; &lt;int&gt;      &lt;num&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   1:     1     1    14 0.01333333</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   2:     2     1    20 0.01333333</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   3:     3     1    26 0.10000000</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   4:     4     1    28 0.01333333</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   5:     5     1    29 0.02000000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   1:     1     1     3 0.02000000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   2:     2     1    15 0.02000000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   3:     3     1    17 0.02000000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   4:     4     1    19 0.01333333</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   5:     5     1    25 0.02666667</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  ---                             </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 177:   177    10    48 0.03333333</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 178:   178    10    50 0.15333333</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 179:   179    10    52 0.02666667</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 180:   180    10    55 0.02000000</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 181:   181    10    56 0.03333333</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 207:   207    10    56 0.14000000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 208:   208    10    58 0.04000000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 209:   209    10    59 0.02000000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 210:   210    10    60 0.01333333</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 211:   211    10    61 0.04000000</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $meta</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>        variable   class    family decimals</span>
