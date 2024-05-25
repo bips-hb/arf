@@ -32,6 +32,19 @@ resample <- function(x, ...) {
   x[sample.int(length(x), ...)]
 }
 
+#' which.max() with random at ties
+#'
+#' @param x A numeric vector.
+#'
+#' @return Index of maximum value in x, with random tie-breaking.
+
+which.max.random <- function(x) {
+  if (all(is.na(x))) {
+    return(NA)
+  }
+  which(rank(x, ties.method = "random", na.last = FALSE) == length(x))
+}
+
 #' Preprocess input data
 #' 
 #' This function prepares input data for ARFs.
