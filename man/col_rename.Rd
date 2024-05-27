@@ -4,14 +4,14 @@
 \alias{col_rename}
 \title{Adaptive column renaming}
 \usage{
-col_rename(df, old_name)
+col_rename(cn, old_name)
 }
 \arguments{
-\item{df}{Input data.frame.}
+\item{cn}{Column names.}
 
 \item{old_name}{Name of column to be renamed.}
 }
 \description{
-This function renames columns in case the input data.frame includes any
+This function renames columns in case the input colnames includes any
 colnames required by internal functions (e.g., \code{"y"}).
 }
