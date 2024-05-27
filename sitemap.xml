@@ -31,6 +31,9 @@
     <loc>https://bips-hb.github.io/arf/reference/col_rename.html</loc>
   </url>
   <url>
+    <loc>https://bips-hb.github.io/arf/reference/col_rename_all.html</loc>
+  </url>
+  <url>
     <loc>https://bips-hb.github.io/arf/reference/expct.html</loc>
   </url>
   <url>
@@ -56,5 +59,8 @@
   </url>
   <url>
     <loc>https://bips-hb.github.io/arf/reference/resample.html</loc>
+  </url>
+  <url>
+    <loc>https://bips-hb.github.io/arf/reference/which.max.random.html</loc>
   </url>
 </urlset>
