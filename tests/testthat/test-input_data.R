@@ -29,6 +29,10 @@ test_that("FORGE works if y is a column name", {
 })
 
 test_that("Imputation works if integers recoded to factors", {
+  if (utils::packageVersion("ranger") >= "0.16.1") {
+    skip("can only test this with recent ranger version.")
+  }
+  
   dat <- iris
   dat$int <- as.integer(sample(1:4, nrow(iris), replace = TRUE))
   dat[1:50, "int"] <- NA_integer_
