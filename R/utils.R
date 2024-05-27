@@ -1,24 +1,53 @@
 #' Adaptive column renaming
 #' 
-#' This function renames columns in case the input data.frame includes any
+#' This function renames columns in case the input colnames includes any
 #' colnames required by internal functions (e.g., \code{"y"}).
 #' 
-#' @param df Input data.frame.
+#' @param cn Column names.
 #' @param old_name Name of column to be renamed.
 #' 
 
-col_rename <- function(df, old_name) {
+col_rename <- function(cn, old_name) {
   k <- 1L
   converged <- FALSE
   while (!isTRUE(converged)) {
     new_name <- paste0(old_name, k)
-    if (!new_name %in% colnames(df)) {
+    if (!new_name %in% cn) {
       converged <- TRUE
     } else {
       k <- k + 1L
     }
   }
   return(new_name)
+}
+
+#' Rename all problematic columns with col_rename().
+#'
+#' @param cn Old column names.
+#'
+#' @return New columns names.
+
+col_rename_all <- function(cn) {
+
+  if ('y' %in% cn) {
+    cn[which(cn == 'y')] <- col_rename(cn, 'y')
+  }
+  if ('obs' %in% cn) {
+    cn[which(cn == 'obs')] <- col_rename(cn, 'obs')
+  }
+  if ('tree' %in% cn) {
+    cn[which(cn == 'tree')] <- col_rename(cn, 'tree')
+  }
+  if ('leaf' %in% cn) {
+    cn[which(cn == 'leaf')] <- col_rename(cn, 'leaf')
+  }
+  if ('cnt' %in% cn) {
+    cn[which(cn == 'cnt')] <- col_rename(cn, 'cnt')
+  }
+  if ('N' %in% cn) {
+    cn[which(cn == 'N')] <- col_rename(cn, 'N')
+  }
+  cn
 }
 
 #' Safer version of sample()
@@ -30,6 +59,19 @@ col_rename <- function(df, old_name) {
 
 resample <- function(x, ...) {
   x[sample.int(length(x), ...)]
+}
+
+#' which.max() with random at ties
+#'
+#' @param x A numeric vector.
+#'
+#' @return Index of maximum value in x, with random tie-breaking.
+
+which.max.random <- function(x) {
+  if (all(is.na(x))) {
+    return(NA)
+  }
+  which(rank(x, ties.method = "random", na.last = FALSE) == length(x))
 }
 
 #' Preprocess input data
@@ -74,24 +116,7 @@ prep_x <- function(x) {
     }
   }
   # Rename annoying columns
-  if ('y' %in% colnames(x)) {
-    colnames(x)[which(colnames(x) == 'y')] <- col_rename(x, 'y')
-  }
-  if ('obs' %in% colnames(x)) {
-    colnames(x)[which(colnames(x) == 'obs')] <- col_rename(x, 'obs')
-  }
-  if ('tree' %in% colnames(x)) {
-    colnames(x)[which(colnames(x) == 'tree')] <- col_rename(x, 'tree')
-  } 
-  if ('leaf' %in% colnames(x)) {
-    colnames(x)[which(colnames(x) == 'leaf')] <- col_rename(x, 'leaf')
-  }
-  if ('cnt' %in% colnames(x)) {
-    colnames(x)[which(colnames(x) == 'cnt')] <- col_rename(x, 'cnt')
-  }
-  if ('N' %in% colnames(x)) {
-    colnames(x)[which(colnames(x) == 'N')] <- col_rename(x, 'N')
-  }
+  colnames(x) <- col_rename_all(colnames(x))
   return(x)
 }
 
