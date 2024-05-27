@@ -127,7 +127,6 @@ post_x <- function(x, params) {
   meta_tmp <- params$meta[variable %in% colnames(x)]
   setcolorder(x, match(meta_tmp$variable, colnames(x)))
   setDF(x)
-  renamed_cols <- col_rename_all(colnames(x))
   idx_numeric <- meta_tmp[, which(class == 'numeric')]
   idx_factor <- meta_tmp[, which(class == 'factor')]
   idx_ordered <- meta_tmp[, which(grepl('ordered', class))]
@@ -142,12 +141,12 @@ post_x <- function(x, params) {
   }
   if (sum(idx_factor) > 0L) {
     x[, idx_factor] <- lapply(idx_factor, function(j) {
-      factor(x[[j]], levels = params$levels[variable == renamed_cols[j], val])
+      factor(x[[j]], levels = params$levels[variable == colnames(x)[j], val])
     })
   }
   if (sum(idx_ordered) > 0L) {
     x[, idx_ordered] <- lapply(idx_ordered, function(j) {
-      factor(x[[j]], levels = params$levels[variable == renamed_cols[j], val], ordered = TRUE)
+      factor(x[[j]], levels = params$levels[variable == colnames(x)[j], val], ordered = TRUE)
     })
   }
   if (sum(idx_logical) > 0L) {
