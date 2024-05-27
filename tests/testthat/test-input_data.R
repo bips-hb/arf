@@ -29,7 +29,7 @@ test_that("FORGE works if y is a column name", {
 })
 
 test_that("Imputation works if integers recoded to factors", {
-  if (utils::packageVersion("ranger") >= "0.16.1") {
+  if (utils::packageVersion("ranger") < "0.16.1") {
     skip("can only test this with recent ranger version.")
   }
   
