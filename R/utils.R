@@ -23,12 +23,12 @@ col_rename <- function(cn, old_name) {
 
 #' Rename all problematic columns with col_rename().
 #'
-#' @param Old column names.
+#' @param cn Old column names.
 #'
 #' @return New columns names.
-#'
-#' @examples
+
 col_rename_all <- function(cn) {
+
   if ('y' %in% cn) {
     cn[which(cn == 'y')] <- col_rename(cn, 'y')
   }

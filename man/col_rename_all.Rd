@@ -7,7 +7,7 @@
 col_rename_all(cn)
 }
 \arguments{
-\item{Old}{column names.}
+\item{cn}{Old column names.}
 }
 \value{
 New columns names.
