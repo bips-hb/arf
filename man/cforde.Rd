@@ -32,3 +32,4 @@ and categorical data (\code{cat}) as well as leaf info (\code{forest}).
 \description{
 Compute conditional circuit parameters
 }
+\keyword{internal}

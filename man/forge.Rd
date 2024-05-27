@@ -61,8 +61,11 @@ distribution over leaves, with columns \code{f_idx} and \code{wt}. This may
 be preferable for complex constraints. See Examples.
 }
 \examples{
+# Train ARF and estimate leaf parameters
 arf <- adversarial_rf(iris)
 psi <- forde(arf, iris)
+
+# Generate 100 synthetic samples from the iris dataset
 x_synth <- forge(psi, n_synth = 100)
 
 # Condition on Species = "setosa"
@@ -103,5 +106,5 @@ of the 26th International Conference on Artificial Intelligence and
 Statistics}, pp. 5357-5375.
 }
 \seealso{
-\code{\link{adversarial_rf}}, \code{\link{forde}}
+\code{\link{arf}}, \code{\link{adversarial_rf}}, \code{\link{forde}}, \code{\link{expct}}, \code{\link{lik}}
 }

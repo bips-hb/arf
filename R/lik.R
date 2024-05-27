@@ -52,9 +52,11 @@
 #' 
 #' 
 #' @examples
-#' # Estimate average log-likelihood
+#' # Train ARF and estimate leaf parameters
 #' arf <- adversarial_rf(iris)
 #' psi <- forde(arf, iris)
+#' 
+#' # Estimate average log-likelihood
 #' ll <- lik(psi, iris, arf = arf, log = TRUE)
 #' mean(ll)
 #' 
@@ -75,7 +77,7 @@
 #' lik(psi, query = iris[1, 1:3], evidence = evi)
 #' 
 #' @seealso
-#' \code{\link{adversarial_rf}}, \code{\link{forge}}
+#' \code{\link{arf}}, \code{\link{adversarial_rf}}, \code{\link{forde}}, \code{\link{forge}}, \code{\link{expct}}
 #' 
 #'
 #' @export

@@ -15,3 +15,4 @@ col_rename(cn, old_name)
 This function renames columns in case the input colnames includes any
 colnames required by internal functions (e.g., \code{"y"}).
 }
+\keyword{internal}

@@ -5,7 +5,7 @@
 #' 
 #' @param cn Column names.
 #' @param old_name Name of column to be renamed.
-#' 
+#' @keywords internal
 
 col_rename <- function(cn, old_name) {
   k <- 1L
@@ -26,6 +26,7 @@ col_rename <- function(cn, old_name) {
 #' @param cn Old column names.
 #'
 #' @return New columns names.
+#' @keywords internal
 
 col_rename_all <- function(cn) {
 
@@ -56,6 +57,7 @@ col_rename_all <- function(cn) {
 #' @param ... Further arguments for sample().
 #'
 #' @return A vector of length size with elements drawn from x.
+#' @keywords internal
 
 resample <- function(x, ...) {
   x[sample.int(length(x), ...)]
@@ -66,6 +68,7 @@ resample <- function(x, ...) {
 #' @param x A numeric vector.
 #'
 #' @return Index of maximum value in x, with random tie-breaking.
+#' @keywords internal
 
 which.max.random <- function(x) {
   if (all(is.na(x))) {
@@ -79,7 +82,7 @@ which.max.random <- function(x) {
 #' This function prepares input data for ARFs.
 #' 
 #' @param x Input data.frame.
-#' 
+#' @keywords internal
 
 prep_x <- function(x) {
   # Reclass all non-numeric features as factors
@@ -129,7 +132,7 @@ prep_x <- function(x) {
 #' @param params Circuit parameters learned via \code{\link{forde}}.
 #' 
 #' @import data.table
-#'
+#' @keywords internal
 
 post_x <- function(x, params) {
   
@@ -204,7 +207,7 @@ post_x <- function(x, params) {
 #' @importFrom foreach foreach %dopar%
 #' @importFrom truncnorm dtruncnorm ptruncnorm 
 #' @importFrom stats dunif punif
-#' 
+#' @keywords internal
 
 cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 0, parallel = TRUE) {
   
@@ -494,7 +497,7 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
 #' 
 #' @import data.table
 #' @import stringr
-#' 
+#' @keywords internal
 
 prep_cond <- function(evidence, params, row_mode) {
   

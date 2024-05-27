@@ -17,3 +17,4 @@ A vector of length size with elements drawn from x.
 \description{
 Safer version of sample()
 }
+\keyword{internal}

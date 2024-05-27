@@ -15,3 +15,4 @@ New columns names.
 \description{
 Rename all problematic columns with col_rename().
 }
+\keyword{internal}
