@@ -114,27 +114,27 @@ forge <- function(
     step_no <- 1
   } else {
     evidence <- as.data.table(evidence)
-    if (ncol(evidence) == 2 && all(colnames(evidence) == c("f_idx", "wt"))) {
-      stepsize <- nrow(evidence)
-      step_no <- 1
-    } else if (parallel & evidence_row_mode == "separate") {
-      # For "separate", parallelize in forge (not in cforde)
-      if (stepsize == 0) {
+    if (stepsize == 0) {
+      if (parallel) {
         stepsize <- ceiling(nrow(evidence)/foreach::getDoParWorkers())
-      }
-      stepsize_cforde <- 0
-      parallel_cforde = FALSE
-      step_no <- ceiling(nrow(evidence)/stepsize)
-    } else {
-      # For "or", parallelize in cforde (not in forge)
-      if (stepsize == 0) {
+      } else {
         stepsize <- nrow(evidence)
       }
-      stepsize_cforde <- stepsize
-      parallel_cforde <- parallel
-      stepsize <- nrow(evidence)
-      step_no <- 1
     }
+    if (ncol(evidence) == 2 && all(colnames(evidence) == c("f_idx", "wt"))) {
+      stepsize <- nrow(evidence)
+    } else if (evidence_row_mode == "separate") {
+      # For "separate", parallelize in forge (not in cforde)
+      stepsize_cforde <- 0
+      parallel_cforde = FALSE
+    } else {
+      # For "or", parallelize in cforde (not in forge)
+      parallel_cforde <- parallel
+      stepsize_cforde <- stepsize
+      parallel <- FALSE
+      stepsize <- nrow(evidence)
+    }
+    step_no <- ceiling(nrow(evidence)/stepsize)
   } 
   
   # Run in parallel for each step
