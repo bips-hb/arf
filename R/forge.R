@@ -47,8 +47,11 @@
 #'
 #'
 #' @examples
+#' # Train ARF and estimate leaf parameters
 #' arf <- adversarial_rf(iris)
 #' psi <- forde(arf, iris)
+#' 
+#' # Generate 100 synthetic samples from the iris dataset
 #' x_synth <- forge(psi, n_synth = 100)
 #'
 #' # Condition on Species = "setosa"
@@ -82,7 +85,7 @@
 #' x_synth <- forge(psi, n_synth = 100, evidence = evi)
 #'
 #' @seealso
-#' \code{\link{adversarial_rf}}, \code{\link{forde}}
+#' \code{\link{arf}}, \code{\link{adversarial_rf}}, \code{\link{forde}}, \code{\link{expct}}, \code{\link{lik}}
 #' 
 #' @export
 #' @import data.table

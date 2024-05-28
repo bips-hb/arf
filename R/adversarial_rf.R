@@ -63,12 +63,28 @@
 #' 
 #' 
 #' @examples
+#' # Train ARF and estimate leaf parameters
 #' arf <- adversarial_rf(iris)
+#' psi <- forde(arf, iris)
 #' 
+#' # Generate 100 synthetic samples from the iris dataset
+#' x_synth <- forge(psi, n_synth = 100)
+#'
+#' # Condition on Species = "setosa" and Sepal.Length > 6
+#' evi <- data.frame(Species = "setosa",
+#'                   Sepal.Length = "(6, Inf)")
+#' x_synth <- forge(psi, n_synth = 100, evidence = evi)
+#' 
+#' # Estimate average log-likelihood
+#' ll <- lik(psi, iris, arf = arf, log = TRUE)
+#' mean(ll)
+#' 
+#' # Expectation of Sepal.Length for class setosa
+#' evi <- data.frame(Species = "setosa")
+#' expct(psi, query = "Sepal.Length", evidence = evi)
 #' 
 #' @seealso
-#' \code{\link{forde}}, \code{\link{forge}}
-#' 
+#' \code{\link{arf}}, \code{\link{forde}}, \code{\link{forge}}, \code{\link{expct}}, \code{\link{lik}}
 #' 
 #' @export
 #' @import ranger 

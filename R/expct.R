@@ -45,7 +45,7 @@
 #' 
 #' 
 #' @examples
-#' # Train ARF and corresponding circuit
+#' # Train ARF and estimate leaf parameters
 #' arf <- adversarial_rf(iris)
 #' psi <- forde(arf, iris)
 #' 
@@ -67,7 +67,7 @@
 #' x_synth <- expct(psi, evidence = evi)
 #' 
 #' @seealso
-#' \code{\link{adversarial_rf}}, \code{\link{forde}}, \code{\link{lik}}
+#' \code{\link{arf}}, \code{\link{adversarial_rf}}, \code{\link{forde}}, \code{\link{forge}}, \code{\link{lik}}
 #' 
 #'
 #' @export

@@ -15,3 +15,4 @@ Index of maximum value in x, with random tie-breaking.
 \description{
 which.max() with random at ties
 }
+\keyword{internal}

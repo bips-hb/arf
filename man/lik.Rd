@@ -66,9 +66,11 @@ distribution over leaves, with columns \code{f_idx} and \code{wt}. This may
 be preferable for complex constraints. See Examples.
 }
 \examples{
-# Estimate average log-likelihood
+# Train ARF and estimate leaf parameters
 arf <- adversarial_rf(iris)
 psi <- forde(arf, iris)
+
+# Estimate average log-likelihood
 ll <- lik(psi, iris, arf = arf, log = TRUE)
 mean(ll)
 
@@ -96,5 +98,5 @@ of the 26th International Conference on Artificial Intelligence and
 Statistics}, pp. 5357-5375.
 }
 \seealso{
-\code{\link{adversarial_rf}}, \code{\link{forge}}
+\code{\link{arf}}, \code{\link{adversarial_rf}}, \code{\link{forde}}, \code{\link{forge}}, \code{\link{expct}}
 }

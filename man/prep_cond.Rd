@@ -16,3 +16,4 @@ prep_cond(evidence, params, row_mode)
 \description{
 This function prepares conditions for computing conditional circuit paramaters via cforde
 }
+\keyword{internal}
