@@ -101,6 +101,8 @@ expct <- function(
       } else {
         stepsize <- nrow(evidence)
       }
+    } else if (stepsize > nrow(evidence)) {
+      stepsize <- nrow(evidence)
     }
     if (ncol(evidence) == 2 && all(colnames(evidence) == c("f_idx", "wt"))) {
       stepsize <- nrow(evidence)
