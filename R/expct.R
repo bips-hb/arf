@@ -144,7 +144,7 @@ expct <- function(
       index_start <- (step_-1)*stepsize + 1
       index_end <- min(step_*stepsize, nrow(evidence))
       evidence_part <- evidence[index_start:index_end,]
-      cparams <- cforde(params, evidence_part, evidence_row_mode, stepsize_cforde, parallel_cforde)
+      cparams <- arf:::cforde(params, evidence_part, evidence_row_mode, stepsize_cforde, parallel_cforde)
     } 
     
     # omega contains the weight (wt) for each leaf (f_idx) for each condition (c_idx)
@@ -173,17 +173,18 @@ expct <- function(
       } else {
         psi_cond <- merge(omega, cparams$cnt[variable %in% query, -c("cvg_factor", "f_idx_uncond")], by = c('c_idx', 'f_idx'), 
                           sort = FALSE, allow.cartesian = TRUE)[prob > 0,]
-        # draw sub-leaf areas (resulting from within-row or-conditions)
+        # calculate absolute weights for sub-leaf areas (resulting from within-row or-conditions)
         if(any(psi_cond[,prob != 1])) {
-          psi_cond[, I := .I]
-          psi_cond <- psi_cond[sort(c(psi_cond[prob == 1, I],
-                                      psi_cond[prob > 0 & prob < 1, fifelse(.N > 1, resample(I, 1, prob = prob), 0), by = .(variable, idx)][,V1])), -"I"]
+          psi_cond[, wt := wt*prob]
+          psi_cond[, I := seq_len(.N), by = .(variable, idx)]
+        } else {
+          psi_cond[, I := 1]
         }
         psi_cond[, prob := NULL]
       } 
       psi <- unique(rbind(psi_cond,
                           merge(omega, params$cnt[variable %in% query, ], by.x = 'f_idx_uncond', by.y = 'f_idx',
-                                sort = FALSE, allow.cartesian = TRUE)[,val := NA_real_]), by = c("c_idx", "f_idx", "variable"))
+                                sort = FALSE, allow.cartesian = TRUE)[,`:=` (val = NA_real_, I = 1)]), by = c("c_idx", "f_idx", "variable", "I"))[, I := NULL]
       psi[NA_share == 1, wt := 0]
       cnt <- psi[is.na(val), val := sum(wt * mu)/sum(wt), by = .(c_idx, variable)]
       cnt <- unique(cnt[, .(c_idx, variable, val)])
