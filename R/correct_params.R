@@ -168,7 +168,11 @@ correct_params <- function(params, threshold = 1e-5, discard_deteriorations = T,
     if (discard_deteriorations) {
       cnt[abs(dev_mu) + abs(dev_sigma) >= abs(dev_mu_old) + abs(dev_sigma_old), c("mu", "sigma") := .(mu_old, sigma_old)]
     }
-  } else {
+    if (!show_deviation) {
+      cnt[, c("dev_mu", "dev_sigma") := NULL]
+    }
+  }
+  if (!show_deviation) {
     cnt[, c("dev_mu_old", "dev_sigma_old") := NULL]
   }
   if (!keep_old_params) {
