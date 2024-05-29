@@ -140,7 +140,7 @@ expct <- function(
       index_start <- (step_-1)*stepsize + 1
       index_end <- min(step_*stepsize, nrow(evidence))
       evidence_part <- evidence[index_start:index_end,]
-      cparams <- arf:::cforde(params, evidence_part, evidence_row_mode, stepsize_cforde, parallel_cforde)
+      cparams <- cforde(params, evidence_part, evidence_row_mode, stepsize_cforde, parallel_cforde)
     } 
     
     # omega contains the weight (wt) for each leaf (f_idx) for each condition (c_idx)
