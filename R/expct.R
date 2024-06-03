@@ -208,9 +208,8 @@ expct <- function(
         psi <- rbind(psi_cond, psi_uncond_relevant)
       }
       psi[NA_share == 1, wt := 0]
-      psi[prob < 1, prob := sum(wt * prob)/sum(wt), by = .(c_idx, variable, val)]
-      cat <- setDT(psi)[, .SD[which.max.random(prob)], by = .(c_idx, variable)]
-      cat <- unique(cat[, .(c_idx, variable, val)]) 
+      cat <- psi[, sum(wt * prob), by = .(c_idx, variable, val)]
+      cat <- setDT(cat)[, .SD[which.max.random(V1)], by = .(c_idx, variable)]
       synth_cat <- dcast(cat, c_idx ~ variable, value.var = 'val')[, c_idx := NULL]
     }
     
