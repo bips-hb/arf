@@ -33,6 +33,9 @@
 #' distribution over leaves, with columns \code{f_idx} and \code{wt}. This may 
 #' be preferable for complex constraints. See Examples.
 #' 
+#' Please note that results for continuous features which are both included in \code{query} and in
+#' \code{evidence} with an interval condition are currently inconsistent.
+#' 
 #' @return 
 #' A one row data frame with values for all query variables.
 #' 
@@ -122,7 +125,11 @@ expct <- function(
   
   # Check query
   if (is.null(query)) {
-    query <- params$meta$variable
+    if (any(is.na(evidence))) {
+      query <- params$meta$variable
+    } else {
+      query <- setdiff(params$meta$variable, colnames(evidence))
+    }
   } else if (any(!query %in% params$meta$variable)) {
     err <- setdiff(query, params$meta$variable)
     stop('Unrecognized feature(s) in query: ', err)

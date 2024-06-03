@@ -40,14 +40,14 @@ test_that("expct works with partial sample", {
   res <- expct(psi, evidence = evi, parallel = FALSE)
   expect_s3_class(res, "data.frame")
   expect_equal(nrow(res), nrow(evi))
-  expect_equal(ncol(res), ncol(iris))
-  expect_equal(colnames(res), colnames(iris))
+  expect_equal(ncol(res), ncol(iris) - ncol(evi))
+  expect_equal(colnames(res), colnames(iris)[3:4])
   
   # Petal.* and Species missing
   evi <- iris[1:3, 1:2]
   res <- expct(psi, evidence = evi, parallel = FALSE)
   expect_s3_class(res, "data.frame")
   expect_equal(nrow(res), nrow(evi))
-  expect_equal(ncol(res), ncol(iris))
-  expect_equal(colnames(res), colnames(iris))
+  expect_equal(ncol(res), ncol(iris) - ncol(evi))
+  expect_equal(colnames(res), colnames(iris)[3:5])
 })
