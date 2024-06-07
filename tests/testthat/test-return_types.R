@@ -80,6 +80,20 @@ test_that("FORGE returns same column types", {
   expect_equal(classes, classes_synth)
 })
 
+test_that("FORGE returns factors with same levels (and order of levels)", {
+  arf <- adversarial_rf(iris, num_trees = 2, verbose = FALSE, parallel = FALSE)
+  psi <- forde(arf, iris, parallel = FALSE)
+  x_synth <- forge(psi, n_synth = 10, parallel = FALSE)
+  expect_equal(levels(x_synth$Species), levels(iris$Species))
+})
+
+test_that("EXPCT returns factors with same levels (and order of levels)", {
+  arf <- adversarial_rf(iris, num_trees = 2, verbose = FALSE, parallel = FALSE)
+  psi <- forde(arf, iris, parallel = FALSE)
+  x_synth <- expct(psi, parallel = FALSE)
+  expect_equal(levels(x_synth$Species), levels(iris$Species))
+})
+
 # test_that("MAP returns proper column types", {
 #   n <- 50
 #   dat <- data.frame(numeric = rnorm(n), 

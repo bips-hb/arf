@@ -152,8 +152,8 @@ forde <- function(
   classes <- sapply(x, class)
   x <- suppressWarnings(prep_x(x))
   factor_cols <- sapply(x, is.factor)
-  lvls <- arf$forest$covariate.levels[factor_cols]
-  if (!is.null(lvls)) {
+  if (any(factor_cols)) {
+    lvls <- lapply(x[, factor_cols, drop = FALSE], levels)
     names(lvls) <- colnames_x[factor_cols]
     lvl_df <- rbindlist(lapply(seq_along(lvls), function(j) {
       melt(as.data.table(lvls[j]), measure.vars = names(lvls)[j], 
