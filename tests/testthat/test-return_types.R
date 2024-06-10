@@ -80,6 +80,19 @@ test_that("FORGE returns same column types", {
   expect_equal(classes, classes_synth)
 })
 
+test_that("FORGE does not round to real data set precision if 'round == FALSE'", {
+  arf <- adversarial_rf(iris, num_trees = 2, verbose = FALSE, parallel = FALSE)
+  psi <- forde(arf, iris, parallel = FALSE)
+  x_synth <- forge(psi, n_synth = 20, round = FALSE, parallel = FALSE)
+  x_synth_rounded <- arf:::post_x(x_synth, psi, round = TRUE)
+  
+  # Check if continuous variables were not rounded
+  expect_false(all(x_synth[,1:4] == x_synth_rounded[,1:4]))
+  expect_equal(data.frame(lapply(x_synth[,1:4], round, 1)), x_synth_rounded[,1:4])
+})
+
+
+
 # test_that("MAP returns proper column types", {
 #   n <- 50
 #   dat <- data.frame(numeric = rnorm(n), 

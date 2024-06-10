@@ -16,6 +16,7 @@
 #' @param evidence_row_mode Interpretation of rows in multi-row evidence. If \code{'separate'},
 #'   each row in \code{evidence} is a separate conditioning event for which \code{n_synth} synthetic samples
 #'   are generated. If \code{'or'}, the rows are combined with a logical or; see Examples.
+#' @param round Round continuous variables to their respective maximum precision in the real data set?
 #' @param stepsize Stepsize defining number of evidence rows handled in one for each step.
 #'   Defaults to nrow(evidence)/num_registered_workers for \code{parallel == TRUE}.
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
@@ -32,9 +33,6 @@
 #' Alternatively, users may directly input a pre-calculated posterior 
 #' distribution over leaves, with columns \code{f_idx} and \code{wt}. This may 
 #' be preferable for complex constraints. See Examples.
-#' 
-#' Please note that results for continuous features which are both included in \code{query} and in
-#' \code{evidence} with an interval condition are currently inconsistent.
 #' 
 #' @return 
 #' A one row data frame with values for all query variables.
@@ -83,6 +81,7 @@ expct <- function(
     query = NULL, 
     evidence = NULL,
     evidence_row_mode = c("separate", "or"),
+    round = FALSE,
     stepsize = 0,
     parallel = TRUE) {
   
@@ -176,18 +175,17 @@ expct <- function(
       } else {
         psi_cond <- merge(omega, cparams$cnt[variable %in% query, -c("cvg_factor", "f_idx_uncond")], by = c('c_idx', 'f_idx'), 
                           sort = FALSE, allow.cartesian = TRUE)[prob > 0,]
-        # calculate absolute weights for sub-leaf areas (resulting from within-row or-conditions)
+        # draw sub-leaf areas (resulting from within-row or-conditions)
         if(any(psi_cond[,prob != 1])) {
-          psi_cond[, wt := wt*prob]
-          psi_cond[, I := seq_len(.N), by = .(variable, idx)]
-        } else {
-          psi_cond[, I := 1]
+          psi_cond[, I := .I]
+          psi_cond <- psi_cond[sort(c(psi_cond[prob == 1, I],
+                                      psi_cond[prob > 0 & prob < 1, fifelse(.N > 1, resample(I, 1, prob = prob), 0), by = .(variable, idx)][,V1])), -"I"]
         }
         psi_cond[, prob := NULL]
       } 
       psi <- unique(rbind(psi_cond,
                           merge(omega, params$cnt[variable %in% query, ], by.x = 'f_idx_uncond', by.y = 'f_idx',
-                                sort = FALSE, allow.cartesian = TRUE)[,`:=` (val = NA_real_, I = 1)]), by = c("c_idx", "f_idx", "variable", "I"))[, I := NULL]
+                                sort = FALSE, allow.cartesian = TRUE)[,val := NA_real_]), by = c("c_idx", "f_idx", "variable"))
       psi[NA_share == 1, wt := 0]
       cnt <- psi[is.na(val), val := sum(wt * mu)/sum(wt), by = .(c_idx, variable)]
       cnt <- unique(cnt[, .(c_idx, variable, val)])
@@ -208,14 +206,15 @@ expct <- function(
         psi <- rbind(psi_cond, psi_uncond_relevant)
       }
       psi[NA_share == 1, wt := 0]
-      cat <- psi[, sum(wt * prob), by = .(c_idx, variable, val)]
-      cat <- setDT(cat)[, .SD[which.max.random(V1)], by = .(c_idx, variable)]
+      psi[prob < 1, prob := sum(wt * prob)/sum(wt), by = .(c_idx, variable, val)]
+      cat <- setDT(psi)[, .SD[which.max.random(prob)], by = .(c_idx, variable)]
+      cat <- unique(cat[, .(c_idx, variable, val)]) 
       synth_cat <- dcast(cat, c_idx ~ variable, value.var = 'val')[, c_idx := NULL]
     }
     
     # Create dataset with expectations
     x_synth <- cbind(synth_cnt, synth_cat)
-    x_synth <- post_x(x_synth, params)
+    x_synth <- post_x(x_synth, params, round)
     
     x_synth
   }
