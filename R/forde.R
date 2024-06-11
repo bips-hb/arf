@@ -328,13 +328,7 @@ forde <- function(
         all_na[!grepl('\\.5', min), min := min + 0.5]
         all_na[!grepl('\\.5', max), max := max + 0.5]
         all_na[, min := min + 0.5][, max := max - 0.5]
-        all_na <- rbindlist(lapply(seq_len(nrow(all_na)), function(i) {
-          data.table(
-            leaf = all_na[i, leaf], variable = all_na[i, variable],
-            level = all_na[i, seq(min, max)],
-            NA_share = all_na[i, NA_share]
-          )
-        }))
+        all_na <- all_na[, .(level = seq(min, max), NA_share), by = .(leaf, variable)]
         all_na <- merge(all_na, lvl_df, by = c('variable', 'level'))
         all_na[, level := NULL][, tree := tree]
         setcolorder(all_na, colnames(dt))
