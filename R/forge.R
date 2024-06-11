@@ -11,6 +11,7 @@
 #' @param evidence_row_mode Interpretation of rows in multi-row evidence. If \code{'separate'},
 #'   each row in \code{evidence} is a separate conditioning event for which \code{n_synth} synthetic samples
 #'   are generated. If \code{'or'}, the rows are combined with a logical or; see Examples.
+#' @param round Round continuous variables to their respective maximum precision in the real data set?
 #' @param sample_NAs Sample NAs respecting the probability for missing values in the original data.
 #' @param stepsize Stepsize defining number of evidence rows handled in one for each step.
 #'   Defaults to nrow(evidence)/num_registered_workers for \code{parallel == TRUE}.
@@ -99,6 +100,7 @@ forge <- function(
     n_synth,
     evidence = NULL,
     evidence_row_mode = c("separate", "or"),
+    round = TRUE,
     sample_NAs = FALSE,
     stepsize = 0,
     parallel = TRUE) {
@@ -254,7 +256,7 @@ forge <- function(
     }
     
     # Clean up, export
-    x_synth <- post_x(x_synth, params)
+    x_synth <- post_x(x_synth, params, round)
     
     if (sample_NAs) {
       setDT(x_synth)
@@ -262,7 +264,7 @@ forge <- function(
       setorder(NA_share[,variable := factor(variable, levels = params$meta[,variable])], variable, idx)
       NA_share[,dat := rbinom(.N, 1, prob = NA_share)]
       x_synth[dcast(NA_share,formula =  idx ~ variable, value.var = "dat")[,-"idx"] == 1] <- NA
-      x_synth <- post_x(x_synth, params)
+      x_synth <- post_x(x_synth, params, round)
     }
     
     if (evidence_row_mode == "separate" & any(omega[, is.na(f_idx)])) {
@@ -279,7 +281,7 @@ forge <- function(
       x_synth[, idx := rep(indices_sampled, each = n_synth)]
       x_synth <- rbind(x_synth, rows_na, fill = T)
       setorder(x_synth, idx)[, idx :=  NULL]
-      x_synth <- post_x(x_synth, params)
+      x_synth <- post_x(x_synth, params, round)
     }
     x_synth
   }

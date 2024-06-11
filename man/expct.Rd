@@ -9,6 +9,7 @@ expct(
   query = NULL,
   evidence = NULL,
   evidence_row_mode = c("separate", "or"),
+  round = FALSE,
   stepsize = 0,
   parallel = TRUE
 )
@@ -30,6 +31,8 @@ see Details and Examples.}
 \item{evidence_row_mode}{Interpretation of rows in multi-row evidence. If \code{'separate'},
 each row in \code{evidence} is a separate conditioning event for which \code{n_synth} synthetic samples
 are generated. If \code{'or'}, the rows are combined with a logical or; see Examples.}
+
+\item{round}{Round continuous variables to their respective maximum precision in the real data set?}
 
 \item{stepsize}{Stepsize defining number of evidence rows handled in one for each step.
 Defaults to nrow(evidence)/num_registered_workers for \code{parallel == TRUE}.}
@@ -55,9 +58,6 @@ provide a data frame with condition events. This supports inequalities and inter
 Alternatively, users may directly input a pre-calculated posterior
 distribution over leaves, with columns \code{f_idx} and \code{wt}. This may
 be preferable for complex constraints. See Examples.
-
-Please note that results for continuous features which are both included in \code{query} and in
-\code{evidence} with an interval condition are currently inconsistent.
 }
 \examples{
 # Train ARF and estimate leaf parameters

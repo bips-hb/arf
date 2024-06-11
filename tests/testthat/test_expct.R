@@ -6,11 +6,11 @@ test_that("expct returns correct values", {
   # For all classes
   res <- expct(psi, query = "Sepal.Length", parallel = FALSE)
   expect_equal(colnames(res), "Sepal.Length")
-  expect_equal(res$Sepal.Length, round(mean(iris$Sepal.Length), 1), tolerance = .2)
+  expect_equal(res$Sepal.Length, mean(iris$Sepal.Length))
   
   # Only for setosa
   res <- expct(psi, query = "Sepal.Length", evidence = data.frame(Species = "setosa"), parallel = FALSE)
-  expect_equal(res$Sepal.Length, round(mean(iris[iris$Species == "setosa", "Sepal.Length"]), 1))
+  expect_equal(res$Sepal.Length, mean(iris[iris$Species == "setosa", "Sepal.Length"]), tolerance = .1)
 })
 
 test_that("expct works for vectorized evidence", {

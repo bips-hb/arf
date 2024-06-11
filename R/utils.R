@@ -29,7 +29,7 @@ col_rename <- function(cn, old_name) {
 #' @keywords internal
 
 col_rename_all <- function(cn) {
-
+  
   if ('y' %in% cn) {
     cn[which(cn == 'y')] <- col_rename(cn, 'y')
   }
@@ -130,11 +130,12 @@ prep_x <- function(x) {
 #' 
 #' @param x Input data.frame.
 #' @param params Circuit parameters learned via \code{\link{forde}}.
+#' @param round Round continuous variables to their respective maximum precision in the real data set?
 #' 
 #' @import data.table
 #' @keywords internal
 
-post_x <- function(x, params) {
+post_x <- function(x, params, round = TRUE) {
   
   # To avoid data.table check issues
   variable <- val <- NULL
@@ -150,7 +151,7 @@ post_x <- function(x, params) {
   idx_integer <- meta_tmp[, which(class == 'integer')]
   
   # Recode
-  if (sum(idx_numeric) > 0L) {
+  if (sum(idx_numeric) > 0L & round) {
     x[, idx_numeric] <- lapply(idx_numeric, function(j) {
       round(as.numeric(x[[j]]), meta_tmp$decimals[j])
     })
@@ -171,7 +172,11 @@ post_x <- function(x, params) {
   if (sum(idx_integer) > 0L) {
     x[, idx_integer] <- lapply(idx_integer, function(j) {
       if (is.numeric(x[[j]])) {
-        as.integer(round(x[[j]]))
+         if (round) {
+           as.integer(round(x[[j]]))
+         } else {
+           x[[j]]
+         }
       } else {
         as.integer(as.character(x[[j]]))
       }
@@ -385,7 +390,7 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
     
     # Calculate updates for cat params matching cat conditions
     cat_new <- merge(merge(relevant_leaves, cat_conds, by = "c_idx", allow.cartesian = T), cat, by = c("f_idx","variable", "val")) 
-
+    
     # Ensure probabilities sum to 1
     cat_new[, cvg_factor := sum(prob), by = .(f_idx, c_idx, variable)]
     cat_new[, prob := prob/cvg_factor]
@@ -407,7 +412,7 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
   relevant_leaves <- updates_relevant_leaves$relevant_leaves[,`:=` (f_idx = .I, f_idx_uncond = f_idx)][]
   cnt_new <- setcolorder(merge(relevant_leaves, updates_relevant_leaves$cnt_new, by.x = c("c_idx", "f_idx_uncond"), by.y = c("c_idx", "f_idx"), sort = F), c("f_idx","c_idx","variable","min","max","val","cvg_factor"))[]
   cat_new <- setcolorder(merge(relevant_leaves, updates_relevant_leaves$cat_new, by.x = c("c_idx", "f_idx_uncond"), by.y = c("c_idx", "f_idx"), sort = F), c("f_idx","c_idx","variable","val","prob","cvg_factor"))[]
-
+  
   # Check for conditions with no matching leaves and handle this according to row_mode
   if (relevant_leaves[,uniqueN(c_idx)] < nconds_conditioned) {
     if (relevant_leaves[,uniqueN(c_idx)] == 0 & row_mode == "or") {
@@ -424,8 +429,8 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
   setnames(forest_new, "cvg", "cvg_arf")
   
   cvg_new <- unique(rbind(cat_new[, .(f_idx, c_idx, variable, cvg_factor)],
-               cnt_new[, .(f_idx, c_idx, variable, cvg_factor)]),
-         by = c("f_idx", "variable"))[,-"variable"]
+                          cnt_new[, .(f_idx, c_idx, variable, cvg_factor)]),
+                    by = c("f_idx", "variable"))[,-"variable"]
   
   if (nrow(cvg_new) > 0) {
     # Use log transformation to avoid overflow
@@ -480,7 +485,7 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
     forest_new_unconditioned[, `:=` (c_idx = rep(conds_unconditioned,each = nrow(forest)), f_idx_uncond = f_idx, cvg_arf = cvg)]
     forest_new <- rbind(forest_new, forest_new_unconditioned)
   }
-
+  
   setorder(setcolorder(forest_new,c("f_idx","c_idx","f_idx_uncond","tree","leaf","cvg_arf","cvg")), c_idx, f_idx, f_idx_uncond, tree, leaf)
   
   list(evidence_input = evidence, evidence_prepped = condition_long, cnt = cnt_new, cat = cat_new, forest = forest_new)
@@ -553,7 +558,7 @@ prep_cond <- function(evidence, params, row_mode) {
   
   # Interval syntax, e.g. (X,Inf)
   condition_long[(variable %in% cnt_cols) & str_detect(val, "\\("), 
-    c("val", "min", "max") := cbind(c(NA_real_, transpose(strsplit(substr(val, 2, nchar(val) - 1), split = ","))))]
+                 c("val", "min", "max") := cbind(c(NA_real_, transpose(strsplit(substr(val, 2, nchar(val) - 1), split = ","))))]
   
   # >, < syntax
   condition_long[(variable %in% cnt_cols) & str_detect(val, "<"), 

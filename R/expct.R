@@ -16,6 +16,7 @@
 #' @param evidence_row_mode Interpretation of rows in multi-row evidence. If \code{'separate'},
 #'   each row in \code{evidence} is a separate conditioning event for which \code{n_synth} synthetic samples
 #'   are generated. If \code{'or'}, the rows are combined with a logical or; see Examples.
+#' @param round Round continuous variables to their respective maximum precision in the real data set?
 #' @param stepsize Stepsize defining number of evidence rows handled in one for each step.
 #'   Defaults to nrow(evidence)/num_registered_workers for \code{parallel == TRUE}.
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
@@ -83,6 +84,7 @@ expct <- function(
     query = NULL, 
     evidence = NULL,
     evidence_row_mode = c("separate", "or"),
+    round = FALSE,
     stepsize = 0,
     parallel = TRUE) {
   
@@ -215,7 +217,7 @@ expct <- function(
     
     # Create dataset with expectations
     x_synth <- cbind(synth_cnt, synth_cat)
-    x_synth <- post_x(x_synth, params)
+    x_synth <- post_x(x_synth, params, round)
     
     x_synth
   }
@@ -227,5 +229,3 @@ expct <- function(
   
   return(x_synth_)
 }
-
-

@@ -4,12 +4,14 @@
 \alias{post_x}
 \title{Post-process data}
 \usage{
-post_x(x, params)
+post_x(x, params, round = TRUE)
 }
 \arguments{
 \item{x}{Input data.frame.}
 
 \item{params}{Circuit parameters learned via \code{\link{forde}}.}
+
+\item{round}{Round continuous variables to their respective maximum precision in the real data set?}
 }
 \description{
 This function prepares output data for forge.
