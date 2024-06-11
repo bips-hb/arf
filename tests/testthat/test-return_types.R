@@ -90,7 +90,7 @@ test_that("FORGE returns correct column types", {
   classes_synth <- sapply(x_synth, class)
   expect_equal(classes[-3], classes_synth[-3])
   # Output integer_numeric as numeric
-  expect_true(classes_synth[3], "numeric")
+  expect_true(classes_synth[3] == "numeric")
 })
 
 test_that("FORGE does not round to real data set precision if 'round == FALSE'", {
