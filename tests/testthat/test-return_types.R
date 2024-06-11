@@ -63,7 +63,7 @@ test_that("FORGE returns correct column types", {
   n <- 50
   dat <- data.frame(numeric = rnorm(n), 
                     integer_factor = sample(1L:5L, n, replace = TRUE),
-                    integer_numeric = sample(1L:50L, n, replace = TRUE), 
+                    integer_numeric = sample(1L:50L, n, replace = FALSE), 
                     character = sample(letters[1:5], n, replace = TRUE), 
                     factor = factor(sample(letters[1:5], n, replace = TRUE)), 
                     logical = (sample(0:1, n, replace = TRUE) == 1))
