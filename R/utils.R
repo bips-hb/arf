@@ -171,8 +171,12 @@ post_x <- function(x, params, round = TRUE) {
   }
   if (sum(idx_integer) > 0L) {
     x[, idx_integer] <- lapply(idx_integer, function(j) {
-      if (is.numeric(x[[j]]) & round) {
-        as.integer(round(x[[j]]))
+      if (is.numeric(x[[j]])) {
+         if (round) {
+           as.integer(round(x[[j]]))
+         } else {
+           x[[j]]
+         }
       } else {
         as.integer(as.character(x[[j]]))
       }
