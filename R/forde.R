@@ -155,11 +155,11 @@ forde <- function(
   if (any(factor_cols)) {
     # Store levels used in rf (used for internal calculations with all-NA leaves)
     lvls_rf <- arf$forest$covariate.levels[factor_cols]
-    lvl_df_rf <- data.table(variable = names(lvls_rf), val = lvls_rf)[
-      , .(val = unlist(val), levels = seq_len(length(unlist(val)))), by = variable]
+    lvl_df_rf <- data.table(variable = colnames_x[factor_cols], val = lvls_rf)[
+      , .(val = unlist(val), level = seq_len(length(unlist(val)))), by = variable]
     # Store levels used in data (used for forde output to post-process synthetic data)
-    lvl_df_data <- data.table(x)[, .(variable = names(.SD), val = lapply(.SD, levels)) ,.SDcols = factor_cols][
-      , .(val = unlist(val), levels = seq_len(length(unlist(val)))), by = variable]
+    lvl_df_data <- data.table(x)[, .(variable = colnames_x[factor_cols], val = lapply(.SD, levels)) ,.SDcols = factor_cols][
+      , .(val = unlist(val)), by = variable]
   } else {
     lvl_df_rf <- lvl_df_data <- data.table()
   }
@@ -329,13 +329,7 @@ forde <- function(
         all_na[!grepl('\\.5', min), min := min + 0.5]
         all_na[!grepl('\\.5', max), max := max + 0.5]
         all_na[, min := min + 0.5][, max := max - 0.5]
-        all_na <- rbindlist(lapply(seq_len(nrow(all_na)), function(i) {
-          data.table(
-            leaf = all_na[i, leaf], variable = all_na[i, variable],
-            level = all_na[i, seq(min, max)],
-            NA_share = all_na[i, NA_share]
-          )
-        }))
+        all_na <- all_na[, .(level = seq(min, max), NA_share), by = .(leaf, variable)]
         all_na <- merge(all_na, lvl_df_rf, by = c('variable', 'level'))
         all_na[, level := NULL][, tree := tree]
         setcolorder(all_na, colnames(dt))
