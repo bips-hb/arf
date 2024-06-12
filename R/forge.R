@@ -13,6 +13,10 @@
 #'   are generated. If \code{'or'}, the rows are combined with a logical or; see Examples.
 #' @param round Round continuous variables to their respective maximum precision in the real data set?
 #' @param sample_NAs Sample NAs respecting the probability for missing values in the original data.
+#' @param nomatch What to do if no leaf matches a condition in \code{evidence}?
+#'   Options are to force sampling from a random leaf, either with a warning (\code{"force_warning"})
+#'   or without a warning (\code{"force"}), or to return \code{NA}, also with a warning 
+#'   (\code{"na_warning"}) or without a warning (\code{"na"}). The default is \code{"force_warning"}.
 #' @param stepsize Stepsize defining number of evidence rows handled in one for each step.
 #'   Defaults to nrow(evidence)/num_registered_workers for \code{parallel == TRUE}.
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
@@ -102,6 +106,7 @@ forge <- function(
     evidence_row_mode = c("separate", "or"),
     round = TRUE,
     sample_NAs = FALSE,
+    nomatch = c("force_warning", "force", "na_warning", "na"),
     stepsize = 0,
     parallel = TRUE) {
   
@@ -153,7 +158,7 @@ forge <- function(
       index_start <- (step_-1)*stepsize + 1
       index_end <- min(step_*stepsize, nrow(evidence))
       evidence_part <- evidence[index_start:index_end,]
-      cparams <- cforde(params, evidence_part, evidence_row_mode, stepsize_cforde, parallel_cforde)
+      cparams <- cforde(params, evidence_part, evidence_row_mode, nomatch, stepsize_cforde, parallel_cforde)
       if (is.null(cparams)) {
         n_synth <- n_synth * nrow(evidence_part)
       }

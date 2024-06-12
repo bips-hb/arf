@@ -200,6 +200,10 @@ post_x <- function(x, params, round = TRUE) {
 #' @param params Circuit parameters learned via \code{\link{forde}}.
 #' @param evidence Data frame of conditioning event(s).
 #' @param row_mode Interpretation of rows in multi-row conditions.
+#' @param nomatch What to do if no leaf matches a condition in \code{evidence}?
+#'   Options are to force sampling from a random leaf, either with a warning (\code{"force_warning"})
+#'   or without a warning (\code{"force"}), or to return \code{NA}, also with a warning 
+#'   (\code{"na_warning"}) or without a warning (\code{"na"}). The default is \code{"force_warning"}.
 #' @param stepsize Stepsize defining number of condition rows handled in one for each step.
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
 #'   via \code{doParallel}.
@@ -214,7 +218,12 @@ post_x <- function(x, params, round = TRUE) {
 #' @importFrom stats dunif punif
 #' @keywords internal
 
-cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 0, parallel = TRUE) {
+cforde <- function(params, 
+                   evidence, 
+                   row_mode = c("separate", "or"), 
+                   nomatch = c("force_warning", "force", "na_warning", "na"),
+                   stepsize = 0, 
+                   parallel = TRUE) {
   
   row_mode <- match.arg(row_mode)
   
@@ -416,9 +425,11 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
   # Check for conditions with no matching leaves and handle this according to row_mode
   if (relevant_leaves[,uniqueN(c_idx)] < nconds_conditioned) {
     if (relevant_leaves[,uniqueN(c_idx)] == 0 & row_mode == "or") {
-      stop("For all entered evidence rows, no matching leaves could be found. This is probably because evidence lies outside of the distribution calculated by FORDE. For continuous data, consider setting epsilon>0 or finite_bounds='no' in forde(). For categorical data, consider setting alpha>0 in forde()")
+      stop("For all entered evidence rows, no matching leaves could be found. This is probably because evidence lies outside of the distribution calculated by FORDE. For continuous data, consider setting epsilon>0 or finite_bounds='no' in forde(). For categorical data, consider setting alpha>0 in forde().")
     } else {
-      warning("For some entered evidence rows, no matching leaves could be found. This is probably because evidence lies outside of the distribution calculated by FORDE. For continuous data, consider setting epsilon>0 or finite_bounds='no' in forde(). For categorical data, consider setting alpha>0 in forde()")
+      if (grepl("warning$", nomatch)) {
+        warning("For some entered evidence rows, no matching leaves could be found. This is probably because evidence lies outside of the distribution calculated by FORDE. For continuous data, consider setting epsilon>0 or finite_bounds='no' in forde(). For categorical data, consider setting alpha>0 in forde().")
+      }
       conds_impossible <- conds_conditioned[!(conds_conditioned %in% relevant_leaves[,unique(c_idx)])]
       relevant_leaves <- setorder(rbind(relevant_leaves, data.table(c_idx = conds_impossible, f_idx = NA_integer_, f_idx_uncond = NA_integer_)))
     }
@@ -442,8 +453,14 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
     # Re-calculate weights and transform back from log scale, handle (numerically) impossible cases
     if (row_mode == "or") {
       if (cvg_new[,all(cvg == -Inf)]) {
-        warning("All leaves have zero likelihood. This is probably because evidence contains an (almost) impossible combination.")
-        cvg_new[, cvg := 1/.N]
+        if (grepl("^force", nomatch)) {
+          cvg_new[, cvg := 1/.N]
+        } else {
+          cvg_new[, cvg := NA]
+        }
+        if (grepl("warning$", nomatch)) {
+          warning("All leaves have zero likelihood. This is probably because evidence contains an (almost) impossible combination. Sampling from all leaves with equal probability.")
+        }
       } else {
         cvg_new[, cvg := exp(cvg - max(cvg))]
         cvg_new <- cvg_new[, cvg := cvg / sum(cvg)]
@@ -451,14 +468,23 @@ cforde <- function(params, evidence, row_mode = c("separate", "or"), stepsize = 
     } else {
       cvg_new[, leaf_zero_lik := all(cvg == -Inf), by = c_idx]
       if (any(cvg_new[, leaf_zero_lik])) {
-        warning("All leaves have zero likelihood for some entered evidence rows. This is probably because evidence contains an (almost) impossible combination.")
-        cvg_new[leaf_zero_lik == TRUE, cvg := 1/.N, by = c_idx]
+        if (grepl("^force", nomatch)) {
+          cvg_new[leaf_zero_lik == TRUE, cvg := 1/.N, by = c_idx]
+        } else {
+          cvg_new <- cvg_new[leaf_zero_lik == FALSE, ]
+        }
+        if (grepl("warning$", nomatch)) {
+          warning("All leaves have zero likelihood for some entered evidence rows. This is probably because evidence contains an (almost) impossible combination. Sampling from all leaves with equal probability.")
+        }
       }
-      cvg_new[leaf_zero_lik == FALSE, scale := max(cvg), by = c_idx]
-      cvg_new[leaf_zero_lik == FALSE, cvg := exp(cvg - scale)]
-      cvg_new[leaf_zero_lik == FALSE, scale := sum(cvg), by = c_idx]
-      cvg_new[leaf_zero_lik == FALSE, cvg := cvg / scale]
-      cvg_new[, `:=` (leaf_zero_lik = NULL, scale = NULL)]
+      if (any(cvg_new[, !leaf_zero_lik])) {
+        cvg_new[leaf_zero_lik == FALSE, scale := max(cvg), by = c_idx]
+        cvg_new[leaf_zero_lik == FALSE, cvg := exp(cvg - scale)]
+        cvg_new[leaf_zero_lik == FALSE, scale := sum(cvg), by = c_idx]
+        cvg_new[leaf_zero_lik == FALSE, cvg := cvg / scale]
+        cvg_new[, scale := NULL]
+      }
+      cvg_new[, leaf_zero_lik := NULL]
     }
   }
   
