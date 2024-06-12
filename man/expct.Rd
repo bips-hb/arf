@@ -58,6 +58,9 @@ provide a data frame with condition events. This supports inequalities and inter
 Alternatively, users may directly input a pre-calculated posterior
 distribution over leaves, with columns \code{f_idx} and \code{wt}. This may
 be preferable for complex constraints. See Examples.
+
+Please note that results for continuous features which are both included in \code{query} and in
+\code{evidence} with an interval condition are currently inconsistent.
 }
 \examples{
 # Train ARF and estimate leaf parameters
