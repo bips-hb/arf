@@ -25,7 +25,7 @@
 #'   data. The gap between lower and upper bounds is expanded by a factor of 
 #'   \code{1 + epsilon}. 
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
-#'   via \code{doParallel}.
+#'   via \code{doParallel} or \code{doFuture}; see examples.
 #'   
 #'   
 #' @details 
@@ -88,6 +88,15 @@
 #' # Expectation of Sepal.Length for class setosa
 #' evi <- data.frame(Species = "setosa")
 #' expct(psi, query = "Sepal.Length", evidence = evi)
+#' 
+#' \dontrun{
+#' # Parallelization with doParallel
+#' doParallel::registerDoParallel(cores = 4)
+#'
+#' # ... or with doFuture
+#' doFuture::registerDoFuture()
+#' future::plan("multisession", workers = 4)
+#' }
 #' 
 #' @seealso
 #' \code{\link{arf}}, \code{\link{adversarial_rf}}, \code{\link{forge}}, \code{\link{expct}}, \code{\link{lik}}

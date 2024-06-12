@@ -38,7 +38,7 @@ are generated. If \code{'or'}, the rows are combined with a logical or; see Exam
 Defaults to nrow(evidence)/num_registered_workers for \code{parallel == TRUE}.}
 
 \item{parallel}{Compute in parallel? Must register backend beforehand, e.g.
-via \code{doParallel}.}
+via \code{doParallel} or \code{doFuture}; see examples.}
 }
 \value{
 A dataset of \code{n_synth} synthetic samples.
@@ -100,6 +100,15 @@ x_synth <- forge(psi, n_synth = 1, evidence = evi)
 n_leaves <- nrow(psi$forest)
 evi <- data.frame(f_idx = psi$forest$f_idx, wt = rexp(n_leaves))
 x_synth <- forge(psi, n_synth = 100, evidence = evi)
+
+\dontrun{
+# Parallelization with doParallel
+doParallel::registerDoParallel(cores = 4)
+
+# ... or with doFuture
+doFuture::registerDoFuture()
+future::plan("multisession", workers = 4)
+}
 
 }
 \references{
