@@ -104,7 +104,19 @@ test_that("FORGE does not round to real data set precision if 'round == FALSE'",
   expect_equal(data.frame(lapply(x_synth[,1:4], round, 1)), x_synth_rounded[,1:4])
 })
 
+test_that("FORGE returns factors with same levels (and order of levels)", {
+  arf <- adversarial_rf(iris, num_trees = 2, verbose = FALSE, parallel = FALSE)
+  psi <- forde(arf, iris, parallel = FALSE)
+  x_synth <- forge(psi, n_synth = 10, parallel = FALSE)
+  expect_equal(levels(x_synth$Species), levels(iris$Species))
+})
 
+test_that("EXPCT returns factors with same levels (and order of levels)", {
+  arf <- adversarial_rf(iris, num_trees = 2, verbose = FALSE, parallel = FALSE)
+  psi <- forde(arf, iris, parallel = FALSE)
+  x_synth <- expct(psi, parallel = FALSE)
+  expect_equal(levels(x_synth$Species), levels(iris$Species))
+})
 
 # test_that("MAP returns proper column types", {
 #   n <- 50
