@@ -59,16 +59,19 @@ test_that("FORGE returns matrix when called with matrix", {
   expect_true(is.matrix(x_synth))
 })
 
-test_that("FORGE returns same column types", {
+test_that("FORGE returns correct column types", {
   n <- 50
   dat <- data.frame(numeric = rnorm(n), 
-                    integer = sample(1L:5L, n, replace = TRUE), 
+                    integer_factor = sample(1L:5L, n, replace = TRUE),
+                    integer_numeric = sample(1L:50L, n, replace = FALSE), 
                     character = sample(letters[1:5], n, replace = TRUE), 
                     factor = factor(sample(letters[1:5], n, replace = TRUE)), 
                     logical = (sample(0:1, n, replace = TRUE) == 1))
   
   expect_warning(arf <- adversarial_rf(dat, num_trees = 2, verbose = FALSE, parallel = FALSE))
   psi <- forde(arf, dat, parallel = FALSE)
+  
+  # with round = TRUE
   x_synth <- forge(psi, n_synth = 20, parallel = FALSE)
   
   # No NAs
@@ -78,6 +81,27 @@ test_that("FORGE returns same column types", {
   classes <- sapply(dat, class)
   classes_synth <- sapply(x_synth, class)
   expect_equal(classes, classes_synth)
+  
+  # with round = FALSE
+  x_synth <- forge(psi, n_synth = 20, round = FALSE, parallel = FALSE)
+  
+  # Keep non-integer_numeric column types
+  classes <- sapply(dat, class)
+  classes_synth <- sapply(x_synth, class)
+  expect_equal(classes[-3], classes_synth[-3])
+  # Output integer_numeric as numeric
+  expect_true(classes_synth[3] == "numeric")
+})
+
+test_that("FORGE does not round to real data set precision if 'round == FALSE'", {
+  arf <- adversarial_rf(iris, num_trees = 2, verbose = FALSE, parallel = FALSE)
+  psi <- forde(arf, iris, parallel = FALSE)
+  x_synth <- forge(psi, n_synth = 20, round = FALSE, parallel = FALSE)
+  x_synth_rounded <- arf:::post_x(x_synth, psi, round = TRUE)
+  
+  # Check if continuous variables were not rounded
+  expect_false(all(x_synth[,1:4] == x_synth_rounded[,1:4]))
+  expect_equal(data.frame(lapply(x_synth[,1:4], round, 1)), x_synth_rounded[,1:4])
 })
 
 test_that("FORGE returns factors with same levels (and order of levels)", {

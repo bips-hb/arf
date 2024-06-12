@@ -9,6 +9,7 @@ forge(
   n_synth,
   evidence = NULL,
   evidence_row_mode = c("separate", "or"),
+  round = TRUE,
   sample_NAs = FALSE,
   stepsize = 0,
   parallel = TRUE
@@ -28,6 +29,8 @@ see Details and Examples.}
 \item{evidence_row_mode}{Interpretation of rows in multi-row evidence. If \code{'separate'},
 each row in \code{evidence} is a separate conditioning event for which \code{n_synth} synthetic samples
 are generated. If \code{'or'}, the rows are combined with a logical or; see Examples.}
+
+\item{round}{Round continuous variables to their respective maximum precision in the real data set?}
 
 \item{sample_NAs}{Sample NAs respecting the probability for missing values in the original data.}
 
