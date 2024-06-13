@@ -226,6 +226,7 @@ cforde <- function(params,
                    parallel = TRUE) {
   
   row_mode <- match.arg(row_mode)
+  nomatch <- match.arg(nomatch)
   
   # To avoid data.table check issues
   . <- c_idx <- cvg <- cvg_arf <- cvg_factor <- f_idx <- f_idx_uncond <- i.max <-
