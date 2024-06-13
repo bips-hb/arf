@@ -436,7 +436,15 @@ cforde <- function(params,
         }
       }
       conds_impossible <- conds_conditioned[!(conds_conditioned %in% relevant_leaves[,unique(c_idx)])]
-      relevant_leaves <- setorder(rbind(relevant_leaves, data.table(c_idx = conds_impossible, f_idx = NA_integer_, f_idx_uncond = NA_integer_)))
+
+      if (grepl("^force", nomatch)) {
+        # All leaves 
+        impossible_leaves <- data.table(c_idx = conds_impossible, f_idx = forest$f_idx, f_idx_uncond = forest$f_idx)
+      } else {
+        # Set to NA -> no leaves -> Sample NA
+        impossible_leaves <- data.table(c_idx = conds_impossible, f_idx = NA_integer_, f_idx_uncond = NA_integer_)
+      }
+      relevant_leaves <- setorder(rbind(relevant_leaves, impossible_leaves))
     }
   }
   
