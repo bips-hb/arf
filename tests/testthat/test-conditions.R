@@ -30,14 +30,14 @@ test_that("if nomatch='force_warning', run through with a warning", {
   psi_no <- forde(arf, iris, finite_bounds = "no", parallel = FALSE)
   expect_warning(x_synth <- forge(psi_no, evidence = data.frame(Sepal.Length = 100), 
                                   nomatch = "force_warning", n_synth = 10, parallel = FALSE), 
-      "All leaves have zero likelihood for some entered evidence rows\\. This is probably because evidence contains an \\(almost\\) impossible combination\\. Sampling from all leaves with equal probability\\.")
+      "All leaves have zero likelihood for some entered evidence rows\\. This is probably because evidence contains an \\(almost\\) impossible combination\\. Sampling from all possible leaves with equal probability \\(can be changed with 'nomatch' argument\\)\\.")
   expect_true(all(!is.na(x_synth)))
   
   # No matching leaf case (finite bounds)
   psi_global <- forde(arf, iris, finite_bounds = "global", parallel = FALSE)
   expect_warning(x_synth <- forge(psi_global, evidence = data.frame(Sepal.Length = 100), 
                                   nomatch = "force_warning", n_synth = 10, parallel = FALSE), 
-                 "For some entered evidence rows, no matching leaves could be found\\. This is probably because evidence lies outside of the distribution calculated by FORDE\\. For continuous data, consider setting epsilon>0 or finite_bounds='no' in forde\\(\\)\\. For categorical data, consider setting alpha>0 in forde\\(\\)\\.")
+                 "For some entered evidence rows, no matching leaves could be found\\. This is probably because evidence lies outside of the distribution calculated by FORDE\\. For continuous data, consider setting epsilon>0 or finite_bounds='no' in forde\\(\\)\\. For categorical data, consider setting alpha>0 in forde\\(\\)\\. Sampling from all leaves with equal probability \\(can be changed with 'nomatch' argument\\)\\.")
   expect_true(all(!is.na(x_synth)))
 })
 
@@ -60,14 +60,14 @@ test_that("if nomatch='na_warning', run through with a warning and return NA", {
   psi_no <- forde(arf, iris, finite_bounds = "no", parallel = FALSE)
   expect_warning(x_synth <- forge(psi_no, evidence = data.frame(Sepal.Length = 100), 
                                   nomatch = "na_warning", n_synth = 10, parallel = FALSE), 
-                 "All leaves have zero likelihood for some entered evidence rows\\. This is probably because evidence contains an \\(almost\\) impossible combination\\. Sampling from all leaves with equal probability\\.")
+                 "All leaves have zero likelihood for some entered evidence rows\\. This is probably because evidence contains an \\(almost\\) impossible combination\\. Returning NA for those rows \\(can be changed with 'nomatch' argument\\)\\.")
   expect_true(all(is.na(x_synth[, -1])))
   
   # No matching leaf case (finite bounds)
   psi_global <- forde(arf, iris, finite_bounds = "global", parallel = FALSE)
   expect_warning(x_synth <- forge(psi_global, evidence = data.frame(Sepal.Length = 100), 
                                   nomatch = "na_warning", n_synth = 10, parallel = FALSE), 
-                 "For some entered evidence rows, no matching leaves could be found\\. This is probably because evidence lies outside of the distribution calculated by FORDE\\. For continuous data, consider setting epsilon>0 or finite_bounds='no' in forde\\(\\)\\. For categorical data, consider setting alpha>0 in forde\\(\\)\\.")
+                 "For some entered evidence rows, no matching leaves could be found\\. This is probably because evidence lies outside of the distribution calculated by FORDE\\. For continuous data, consider setting epsilon>0 or finite_bounds='no' in forde\\(\\)\\. For categorical data, consider setting alpha>0 in forde\\(\\)\\. Returning NA for those rows \\(can be changed with 'nomatch' argument\\)\\.")
   expect_true(all(is.na(x_synth[, -1])))
 })
 

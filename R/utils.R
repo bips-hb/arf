@@ -428,7 +428,12 @@ cforde <- function(params,
       stop("For all entered evidence rows, no matching leaves could be found. This is probably because evidence lies outside of the distribution calculated by FORDE. For continuous data, consider setting epsilon>0 or finite_bounds='no' in forde(). For categorical data, consider setting alpha>0 in forde().")
     } else {
       if (grepl("warning$", nomatch)) {
-        warning("For some entered evidence rows, no matching leaves could be found. This is probably because evidence lies outside of the distribution calculated by FORDE. For continuous data, consider setting epsilon>0 or finite_bounds='no' in forde(). For categorical data, consider setting alpha>0 in forde().")
+        wrn <- "For some entered evidence rows, no matching leaves could be found. This is probably because evidence lies outside of the distribution calculated by FORDE. For continuous data, consider setting epsilon>0 or finite_bounds='no' in forde(). For categorical data, consider setting alpha>0 in forde()."
+        if (grepl("^force", nomatch)) {
+          warning(paste(wrn, "Sampling from all leaves with equal probability (can be changed with 'nomatch' argument)."))
+        } else {
+          warning(paste(wrn, "Returning NA for those rows (can be changed with 'nomatch' argument)."))
+        }
       }
       conds_impossible <- conds_conditioned[!(conds_conditioned %in% relevant_leaves[,unique(c_idx)])]
       relevant_leaves <- setorder(rbind(relevant_leaves, data.table(c_idx = conds_impossible, f_idx = NA_integer_, f_idx_uncond = NA_integer_)))
@@ -459,7 +464,12 @@ cforde <- function(params,
           cvg_new[, cvg := NA]
         }
         if (grepl("warning$", nomatch)) {
-          warning("All leaves have zero likelihood. This is probably because evidence contains an (almost) impossible combination. Sampling from all leaves with equal probability.")
+          wrn <- "All leaves have zero likelihood. This is probably because evidence contains an (almost) impossible combination."
+          if (grepl("^force", nomatch)) {
+            warning(paste(wrn, "Sampling from all possible leaves with equal probability."))
+          } else {
+            warning(paste(wrn, "Returning NA."))
+          }
         }
       } else {
         cvg_new[, cvg := exp(cvg - max(cvg))]
@@ -474,7 +484,12 @@ cforde <- function(params,
           cvg_new <- cvg_new[leaf_zero_lik == FALSE, ]
         }
         if (grepl("warning$", nomatch)) {
-          warning("All leaves have zero likelihood for some entered evidence rows. This is probably because evidence contains an (almost) impossible combination. Sampling from all leaves with equal probability.")
+          wrn <- "All leaves have zero likelihood for some entered evidence rows. This is probably because evidence contains an (almost) impossible combination."
+          if (grepl("^force", nomatch)) {
+            warning(paste(wrn, "Sampling from all possible leaves with equal probability (can be changed with 'nomatch' argument)."))
+          } else {
+            warning(paste(wrn, "Returning NA for those rows (can be changed with 'nomatch' argument)."))
+          }
         }
       }
       if (any(cvg_new[, !leaf_zero_lik])) {
