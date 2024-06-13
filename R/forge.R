@@ -111,6 +111,7 @@ forge <- function(
     parallel = TRUE) {
   
   evidence_row_mode <- match.arg(evidence_row_mode)
+  nomatch <- match.arg(nomatch)
   
   # To avoid data.table check issues
   tree <- cvg <- leaf <- idx <- family <- mu <- sigma <- prob <- dat <- 
@@ -180,15 +181,6 @@ forge <- function(
       omega <- cparams$forest[, .(c_idx, f_idx, f_idx_uncond, wt = cvg)]
     } 
     omega <- omega[wt > 0, ]
-    
-    # Use random leaves if NA (no matching leaves found)
-    if (omega[, any(is.na(f_idx))] & omega[, any(!is.na(f_idx))]) {
-      row_idx <- sample(nrow(omega[!is.na(f_idx), ]), omega[, sum(is.na(f_idx))], replace = TRUE)
-      temp <- omega[!is.na(f_idx), ][row_idx, .(f_idx, f_idx_uncond)]
-      omega[is.na(f_idx), f_idx_uncond := temp[, f_idx_uncond]]
-      omega[is.na(f_idx), f_idx := temp[, f_idx]]
-    }
-    
     
     # For each synthetic sample and condition, draw a leaf according to the leaf weights
     if (nrow(omega) == 1) {

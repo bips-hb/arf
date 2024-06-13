@@ -423,6 +423,7 @@ cforde <- function(params,
   cat_new <- setcolorder(merge(relevant_leaves, updates_relevant_leaves$cat_new, by.x = c("c_idx", "f_idx_uncond"), by.y = c("c_idx", "f_idx"), sort = F), c("f_idx","c_idx","variable","val","prob","cvg_factor"))[]
   
   # Check for conditions with no matching leaves and handle this according to row_mode
+  conds_impossible <- conds_conditioned[!(conds_conditioned %in% relevant_leaves[,unique(c_idx)])]
   if (relevant_leaves[,uniqueN(c_idx)] < nconds_conditioned) {
     if (relevant_leaves[,uniqueN(c_idx)] == 0 & row_mode == "or") {
       stop("For all entered evidence rows, no matching leaves could be found. This is probably because evidence lies outside of the distribution calculated by FORDE. For continuous data, consider setting epsilon>0 or finite_bounds='no' in forde(). For categorical data, consider setting alpha>0 in forde().")
@@ -435,15 +436,7 @@ cforde <- function(params,
           warning(paste(wrn, "Returning NA for those rows (can be changed with 'nomatch' argument)."))
         }
       }
-      conds_impossible <- conds_conditioned[!(conds_conditioned %in% relevant_leaves[,unique(c_idx)])]
-
-      if (grepl("^force", nomatch)) {
-        # All leaves 
-        impossible_leaves <- data.table(c_idx = conds_impossible, f_idx = forest$f_idx, f_idx_uncond = forest$f_idx)
-      } else {
-        # Set to NA -> no leaves -> Sample NA
-        impossible_leaves <- data.table(c_idx = conds_impossible, f_idx = NA_integer_, f_idx_uncond = NA_integer_)
-      }
+      impossible_leaves <- data.table(c_idx = conds_impossible, f_idx = NA_integer_, f_idx_uncond = NA_integer_)
       relevant_leaves <- setorder(rbind(relevant_leaves, impossible_leaves))
     }
   }
@@ -527,12 +520,12 @@ cforde <- function(params,
   }
   
   # Add all leaves for all-NA conditions to forest
-  if (row_mode == "separate" & (nconds != nconds_conditioned)) {
-    conds_unconditioned <- (1:nconds)[!(1:nconds) %in% conds_conditioned]
+  if ((grepl("^force", nomatch) & length(conds_impossible) > 0) | (row_mode == "separate" & nconds != nconds_conditioned)) {
+    conds_unconditioned <- c(conds_impossible, (1:nconds)[!(1:nconds) %in% conds_conditioned])
     forest_new_unconditioned <- copy(forest)
     forest_new_unconditioned <- rbindlist(replicate(length(conds_unconditioned), forest, simplify = F))
     forest_new_unconditioned[, `:=` (c_idx = rep(conds_unconditioned,each = nrow(forest)), f_idx_uncond = f_idx, cvg_arf = cvg)]
-    forest_new <- rbind(forest_new, forest_new_unconditioned)
+    forest_new <- rbind(forest_new, forest_new_unconditioned)[!is.na(f_idx), ]
   }
   
   setorder(setcolorder(forest_new,c("f_idx","c_idx","f_idx_uncond","tree","leaf","cvg_arf","cvg")), c_idx, f_idx, f_idx_uncond, tree, leaf)

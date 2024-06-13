@@ -94,6 +94,7 @@ expct <- function(
     parallel = TRUE) {
   
   evidence_row_mode <- match.arg(evidence_row_mode)
+  nomatch <- match.arg(nomatch)
   
   # To avoid data.table check issues
   variable <- tree <- f_idx <- cvg <- wt <- V1 <- value <- val <- family <-
