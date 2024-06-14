@@ -22,7 +22,7 @@
 #'   However, with large samples or many trees, it can be more memory efficient 
 #'   to split the data into batches. This has no impact on results.
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
-#'   via \code{doParallel}.
+#'   via \code{doParallel} or \code{doFuture}; see examples.
 #'   
 #'   
 #' @details 
@@ -75,6 +75,15 @@
 #' evi <- data.frame(Species = "setosa", 
 #'                   Petal.Width = ">0.3")
 #' lik(psi, query = iris[1, 1:3], evidence = evi)
+#' 
+#' \dontrun{
+#' # Parallelization with doParallel
+#' doParallel::registerDoParallel(cores = 4)
+#'
+#' # ... or with doFuture
+#' doFuture::registerDoFuture()
+#' future::plan("multisession", workers = 4)
+#' }
 #' 
 #' @seealso
 #' \code{\link{arf}}, \code{\link{adversarial_rf}}, \code{\link{forde}}, \code{\link{forge}}, \code{\link{expct}}

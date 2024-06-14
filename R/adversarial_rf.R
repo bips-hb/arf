@@ -16,7 +16,7 @@
 #' @param prune Impose \code{min_node_size} by pruning? 
 #' @param verbose Print discriminator accuracy after each round?
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
-#'   via \code{doParallel}.
+#'   via \code{doParallel} or \code{doFuture}; see examples.
 #' @param ... Extra parameters to be passed to \code{ranger}.
 #' 
 #' @details 
@@ -82,6 +82,15 @@
 #' # Expectation of Sepal.Length for class setosa
 #' evi <- data.frame(Species = "setosa")
 #' expct(psi, query = "Sepal.Length", evidence = evi)
+#' 
+#' \dontrun{
+#' # Parallelization with doParallel
+#' doParallel::registerDoParallel(cores = 4)
+#'
+#' # ... or with doFuture
+#' doFuture::registerDoFuture()
+#' future::plan("multisession", workers = 4)
+#' }
 #' 
 #' @seealso
 #' \code{\link{arf}}, \code{\link{forde}}, \code{\link{forge}}, \code{\link{expct}}, \code{\link{lik}}

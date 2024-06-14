@@ -20,7 +20,7 @@
 #' @param stepsize Stepsize defining number of evidence rows handled in one for each step.
 #'   Defaults to nrow(evidence)/num_registered_workers for \code{parallel == TRUE}.
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
-#'   via \code{doParallel}.
+#'   via \code{doParallel} or \code{doFuture}; see examples.
 #' @param n_synth Number of synthetic samples to generate.
 #'
 #' @details  
@@ -88,6 +88,15 @@
 #' n_leaves <- nrow(psi$forest)
 #' evi <- data.frame(f_idx = psi$forest$f_idx, wt = rexp(n_leaves))
 #' x_synth <- forge(psi, n_synth = 100, evidence = evi)
+#' 
+#' \dontrun{
+#' # Parallelization with doParallel
+#' doParallel::registerDoParallel(cores = 4)
+#'
+#' # ... or with doFuture
+#' doFuture::registerDoFuture()
+#' future::plan("multisession", workers = 4)
+#' }
 #'
 #' @seealso
 #' \code{\link{arf}}, \code{\link{adversarial_rf}}, \code{\link{forde}}, \code{\link{expct}}, \code{\link{lik}}

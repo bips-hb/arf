@@ -27,6 +27,15 @@
 #' # Expectation of Sepal.Length for class setosa
 #' evi <- data.frame(Species = "setosa")
 #' expct(psi, query = "Sepal.Length", evidence = evi)
+#' 
+#' \dontrun{
+#' # Parallelization with doParallel
+#' doParallel::registerDoParallel(cores = 4)
+#'
+#' # ... or with doFuture
+#' doFuture::registerDoFuture()
+#' future::plan("multisession", workers = 4)
+#' }
 "_PACKAGE"
 
 ## usethis namespace: start

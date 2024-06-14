@@ -24,7 +24,7 @@
 #' @param stepsize Stepsize defining number of evidence rows handled in one for each step.
 #'   Defaults to nrow(evidence)/num_registered_workers for \code{parallel == TRUE}.
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
-#'   via \code{doParallel}.
+#'   via \code{doParallel} or \code{doFuture}; see examples.
 #'   
 #' @details 
 #' This function computes expected values for any subset of features, optionally 
@@ -73,6 +73,15 @@
 #' evi[1, 5] <- NA_character_
 #' evi[2, 2] <- NA_real_
 #' x_synth <- expct(psi, evidence = evi)
+#' 
+#' \dontrun{
+#' # Parallelization with doParallel
+#' doParallel::registerDoParallel(cores = 4)
+#'
+#' # ... or with doFuture
+#' doFuture::registerDoFuture()
+#' future::plan("multisession", workers = 4)
+#' }
 #' 
 #' @seealso
 #' \code{\link{arf}}, \code{\link{adversarial_rf}}, \code{\link{forde}}, \code{\link{forge}}, \code{\link{lik}}
