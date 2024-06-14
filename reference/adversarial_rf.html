@@ -109,7 +109,7 @@ round to the next?</p></dd>
 
 <dt>parallel</dt>
 <dd><p>Compute in parallel? Must register backend beforehand, e.g.
-via <code>doParallel</code>.</p></dd>
+via <code>doParallel</code> or <code>doFuture</code>; see examples.</p></dd>
 
 
 <dt>...</dt>
@@ -190,6 +190,15 @@ Statistics</em>, pp. 5357-5375.</p>
 <span class="r-in"><span><span class="fu"><a href="expct.html">expct</a></span><span class="op">(</span><span class="va">psi</span>, query <span class="op">=</span> <span class="st">"Sepal.Length"</span>, evidence <span class="op">=</span> <span class="va">evi</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   Sepal.Length</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1      5.01579</span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span></span></span>
+<span class="r-in"><span><span class="co"># Parallelization with doParallel</span></span></span>
+<span class="r-in"><span><span class="fu">doParallel</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/doParallel/man/registerDoParallel.html" class="external-link">registerDoParallel</a></span><span class="op">(</span>cores <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># ... or with doFuture</span></span></span>
+<span class="r-in"><span><span class="fu">doFuture</span><span class="fu">::</span><span class="fu"><a href="https://doFuture.futureverse.org/reference/registerDoFuture.html" class="external-link">registerDoFuture</a></span><span class="op">(</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu">future</span><span class="fu">::</span><span class="fu"><a href="https://future.futureverse.org/reference/plan.html" class="external-link">plan</a></span><span class="op">(</span><span class="st">"multisession"</span>, workers <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">}</span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
     </div>
