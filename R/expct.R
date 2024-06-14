@@ -17,6 +17,10 @@
 #'   each row in \code{evidence} is a separate conditioning event for which \code{n_synth} synthetic samples
 #'   are generated. If \code{'or'}, the rows are combined with a logical or; see Examples.
 #' @param round Round continuous variables to their respective maximum precision in the real data set?
+#' @param nomatch What to do if no leaf matches a condition in \code{evidence}?
+#'   Options are to force sampling from a random leaf, either with a warning (\code{"force_warning"})
+#'   or without a warning (\code{"force"}), or to return \code{NA}, also with a warning 
+#'   (\code{"na_warning"}) or without a warning (\code{"na"}). The default is \code{"force_warning"}.
 #' @param stepsize Stepsize defining number of evidence rows handled in one for each step.
 #'   Defaults to nrow(evidence)/num_registered_workers for \code{parallel == TRUE}.
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
@@ -94,10 +98,12 @@ expct <- function(
     evidence = NULL,
     evidence_row_mode = c("separate", "or"),
     round = FALSE,
+    nomatch = c("force_warning", "force", "na_warning", "na"),
     stepsize = 0,
     parallel = TRUE) {
   
   evidence_row_mode <- match.arg(evidence_row_mode)
+  nomatch <- match.arg(nomatch)
   
   # To avoid data.table check issues
   variable <- tree <- f_idx <- cvg <- wt <- V1 <- value <- val <- family <-
@@ -158,7 +164,7 @@ expct <- function(
       index_start <- (step_-1)*stepsize + 1
       index_end <- min(step_*stepsize, nrow(evidence))
       evidence_part <- evidence[index_start:index_end,]
-      cparams <- cforde(params, evidence_part, evidence_row_mode, stepsize_cforde, parallel_cforde)
+      cparams <- cforde(params, evidence_part, evidence_row_mode, nomatch, stepsize_cforde, parallel_cforde)
     } 
     
     # omega contains the weight (wt) for each leaf (f_idx) for each condition (c_idx)
