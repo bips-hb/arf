@@ -22,7 +22,7 @@ cforde(
 \item{stepsize}{Stepsize defining number of condition rows handled in one for each step.}
 
 \item{parallel}{Compute in parallel? Must register backend beforehand, e.g.
-via \code{doParallel}.}
+via \code{doParallel} or \code{doFuture}; see examples.}
 }
 \value{
 List with conditions (\code{evidence_input}), prepared conditions (\code{evidence_prepped})

@@ -202,7 +202,7 @@ post_x <- function(x, params, round = TRUE) {
 #' @param row_mode Interpretation of rows in multi-row conditions.
 #' @param stepsize Stepsize defining number of condition rows handled in one for each step.
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
-#'   via \code{doParallel}.
+#'   via \code{doParallel} or \code{doFuture}; see examples.
 #'   
 #' @return List with conditions (\code{evidence_input}), prepared conditions (\code{evidence_prepped})
 #'   and leaves that match the conditions in evidence with continuous data (\code{cnt}) 

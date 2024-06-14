@@ -43,7 +43,7 @@ However, with large samples or many trees, it can be more memory efficient
 to split the data into batches. This has no impact on results.}
 
 \item{parallel}{Compute in parallel? Must register backend beforehand, e.g.
-via \code{doParallel}.}
+via \code{doParallel} or \code{doFuture}; see examples.}
 }
 \value{
 A vector of likelihoods, optionally on the log scale.
@@ -89,6 +89,15 @@ lik(psi, query = iris[1, 1:3], evidence = evi)
 evi <- data.frame(Species = "setosa", 
                   Petal.Width = ">0.3")
 lik(psi, query = iris[1, 1:3], evidence = evi)
+
+\dontrun{
+# Parallelization with doParallel
+doParallel::registerDoParallel(cores = 4)
+
+# ... or with doFuture
+doFuture::registerDoFuture()
+future::plan("multisession", workers = 4)
+}
 
 }
 \references{

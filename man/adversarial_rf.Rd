@@ -40,7 +40,7 @@ round to the next?}
 \item{verbose}{Print discriminator accuracy after each round?}
 
 \item{parallel}{Compute in parallel? Must register backend beforehand, e.g.
-via \code{doParallel}.}
+via \code{doParallel} or \code{doFuture}; see examples.}
 
 \item{...}{Extra parameters to be passed to \code{ranger}.}
 }
@@ -101,6 +101,15 @@ mean(ll)
 # Expectation of Sepal.Length for class setosa
 evi <- data.frame(Species = "setosa")
 expct(psi, query = "Sepal.Length", evidence = evi)
+
+\dontrun{
+# Parallelization with doParallel
+doParallel::registerDoParallel(cores = 4)
+
+# ... or with doFuture
+doFuture::registerDoFuture()
+future::plan("multisession", workers = 4)
+}
 
 }
 \references{
