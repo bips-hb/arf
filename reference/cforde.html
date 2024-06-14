@@ -58,6 +58,7 @@
 <span>  <span class="va">params</span>,</span>
 <span>  <span class="va">evidence</span>,</span>
 <span>  row_mode <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"separate"</span>, <span class="st">"or"</span><span class="op">)</span>,</span>
+<span>  nomatch <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"force_warning"</span>, <span class="st">"force"</span>, <span class="st">"na_warning"</span>, <span class="st">"na"</span><span class="op">)</span>,</span>
 <span>  stepsize <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  parallel <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -75,6 +76,13 @@
 
 <dt>row_mode</dt>
 <dd><p>Interpretation of rows in multi-row conditions.</p></dd>
+
+
+<dt>nomatch</dt>
+<dd><p>What to do if no leaf matches a condition in <code>evidence</code>?
+Options are to force sampling from a random leaf, either with a warning (<code>"force_warning"</code>)
+or without a warning (<code>"force"</code>), or to return <code>NA</code>, also with a warning
+(<code>"na_warning"</code>) or without a warning (<code>"na"</code>). The default is <code>"force_warning"</code>.</p></dd>
 
 
 <dt>stepsize</dt>
