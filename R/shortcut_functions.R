@@ -6,6 +6,8 @@
 #' 
 #' @param x Input data. Integer variables are recoded as ordered factors with
 #'   a warning. See Details.
+#' @param query Data frame of samples, optionally comprising just a subset of 
+#'   training features. See Details of \code{lik}. Is set to \code{x} if \code{zero}. 
 #' @param ... Extra parameters to be passed to \code{adversarial_rf}, \code{forde}
 #'   and \code{lik}.
 #'   
@@ -71,6 +73,8 @@ darf <- function(x, query = NULL, ...) {
 #' 
 #' @param x Input data. Integer variables are recoded as ordered factors with
 #'   a warning. See Details.
+#' @param n_synth Number of synthetic samples to generate. Is set to \code{nrow(x)} if
+#' \code{NULL}.
 #' @param ... Extra parameters to be passed to \code{adversarial_rf}, \code{forde}
 #'   and \code{forge}.
 #'   
@@ -165,7 +169,7 @@ rarf <- function(x, n_synth = NULL, ...) {
 #' @export
 #' 
 
-earf <- function(x, query = NULL, ...) {
+earf <- function(x, ...) {
   arg_names <- list(arf = names(as.list(args(adversarial_rf))), 
                     forde = names(as.list(args(forde))), 
                     expct = names(as.list(args(expct))))
@@ -180,9 +184,7 @@ earf <- function(x, query = NULL, ...) {
   
   if (!("params" %in% names(forde_args))) params <- do.call(forde, c(arf = list(arf), x = list(x), forde_args))
   
-  if (is.null(query)) query <- names(x)
   do.call(expct, c(params = list(params),
-                   query = list(query),
                    expct_args))
   
 }
