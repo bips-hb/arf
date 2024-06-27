@@ -26,10 +26,10 @@ and \code{forde} and pass them via \code{...} or directly use \code{expct}.
 earf(iris)
 
 #' # What is the expected values of Sepal.Length?
-earf(iris, "Sepal.Length")
+earf(iris, query = "Sepal.Length")
 
 # What if we condition on Species = "setosa"?
-earf(iris, "Sepal.Length", evidence = data.frame(Species = "setosa"))
+earf(iris, query = "Sepal.Length", evidence = data.frame(Species = "setosa"))
 
 
 }

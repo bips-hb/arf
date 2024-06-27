@@ -97,7 +97,7 @@ darf <- function(x, query = NULL, ...) {
 #' # Generate 100 synthetic samples from the iris dataset
 #' x_synth <- rarf(iris, n_synth = 100)
 #' 
-#' Condition on Species = "setosa"
+#' # Condition on Species = "setosa"
 #' x_synth <- rarf(iris, evidence = data.frame(Species = "setosa"))
 #' 
 #' @seealso
@@ -156,10 +156,10 @@ rarf <- function(x, n_synth = NULL, ...) {
 #' earf(iris)
 #' 
 #' #' # What is the expected values of Sepal.Length?
-#' earf(iris, "Sepal.Length")
+#' earf(iris, query = "Sepal.Length")
 #' 
 #' # What if we condition on Species = "setosa"?
-#' earf(iris, "Sepal.Length", evidence = data.frame(Species = "setosa"))
+#' earf(iris, query = "Sepal.Length", evidence = data.frame(Species = "setosa"))
 #' 
 #' 
 #' @seealso

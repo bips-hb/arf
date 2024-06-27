@@ -32,7 +32,7 @@ x_synth <- rarf(iris)
 # Generate 100 synthetic samples from the iris dataset
 x_synth <- rarf(iris, n_synth = 100)
 
-Condition on Species = "setosa"
+# Condition on Species = "setosa"
 x_synth <- rarf(iris, evidence = data.frame(Species = "setosa"))
 
 }
