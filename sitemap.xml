@@ -37,6 +37,12 @@
     <loc>https://bips-hb.github.io/arf/reference/col_rename_all.html</loc>
   </url>
   <url>
+    <loc>https://bips-hb.github.io/arf/reference/darf.html</loc>
+  </url>
+  <url>
+    <loc>https://bips-hb.github.io/arf/reference/earf.html</loc>
+  </url>
+  <url>
     <loc>https://bips-hb.github.io/arf/reference/expct.html</loc>
   </url>
   <url>
@@ -59,6 +65,9 @@
   </url>
   <url>
     <loc>https://bips-hb.github.io/arf/reference/prep_x.html</loc>
+  </url>
+  <url>
+    <loc>https://bips-hb.github.io/arf/reference/rarf.html</loc>
   </url>
   <url>
     <loc>https://bips-hb.github.io/arf/reference/resample.html</loc>
