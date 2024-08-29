@@ -142,8 +142,8 @@ post_x <- function(x, params, round = TRUE) {
   
   # Order, classify features
   meta_tmp <- params$meta[variable %in% colnames(x)]
-  setcolorder(x, match(meta_tmp$variable, colnames(x)))
-  setDF(x)
+  x_post <- as.data.table(x)
+  setcolorder(x_post, match(meta_tmp$variable, colnames(x_post)))
   idx_numeric <- meta_tmp[, which(class == 'numeric')]
   idx_factor <- meta_tmp[, which(class == 'factor')]
   idx_ordered <- meta_tmp[, which(grepl('ordered', class))]
@@ -151,47 +151,52 @@ post_x <- function(x, params, round = TRUE) {
   idx_integer <- meta_tmp[, which(class == 'integer')]
   
   # Recode
-  if (sum(idx_numeric) > 0L & round) {
-    x[, idx_numeric] <- lapply(idx_numeric, function(j) {
-      round(as.numeric(x[[j]]), meta_tmp$decimals[j])
-    })
+  if (sum(idx_numeric) > 0L) {
+    x_post[, (idx_numeric) := lapply(idx_numeric, function(j) {
+      x_j <- as.numeric(x_post[[j]])
+      if (round) {
+        x_j <- round(x_j, meta_tmp$decimals[j])
+      }
+      x_j
+    })]
   }
+
   if (sum(idx_factor) > 0L) {
-    x[, idx_factor] <- lapply(idx_factor, function(j) {
-      factor(x[[j]], levels = params$levels[variable == colnames(x)[j], val])
-    })
+    x_post[, (idx_factor) := lapply(idx_factor, function(j) {
+      factor(x_post[[j]], levels = params$levels[variable == colnames(x_post)[j], val])
+    })]
   }
   if (sum(idx_ordered) > 0L) {
-    x[, idx_ordered] <- lapply(idx_ordered, function(j) {
-      factor(x[[j]], levels = params$levels[variable == colnames(x)[j], val], ordered = TRUE)
-    })
+    x_post[, (idx_ordered) := lapply(idx_ordered, function(j) {
+      factor(x_post[[j]], levels = params$levels[variable == colnames(x_post)[j], val], ordered = TRUE)
+    })]
   }
   if (sum(idx_logical) > 0L) {
-    x[, idx_logical] <- lapply(x[, idx_logical, drop = FALSE], as.logical)
+    x_post[, (idx_logical) := lapply(.SD, as.logical), .SDcols = idx_logical]
   }
   if (sum(idx_integer) > 0L) {
-    x[, idx_integer] <- lapply(idx_integer, function(j) {
-      if (is.numeric(x[[j]])) {
+    x_post[, (idx_integer) := lapply(idx_integer, function(j) {
+      if (is.numeric(x_post[[j]])) {
          if (round) {
-           as.integer(round(x[[j]]))
+           as.integer(round(x_post[[j]]))
          } else {
-           x[[j]]
+           x_post[[j]]
          }
       } else {
-        as.integer(as.character(x[[j]]))
+        as.integer(as.character(x_post[[j]]))
       }
-    }) 
+    })] 
   }
   
   # Export
-  if ('data.table' %in% params$input_class) {
-    setDT(x)[]
+  if (all(params$input_class == 'data.frame')) {
+    setDF(x_post)[]
   } else if ('tbl_df' %in% params$input_class & requireNamespace("tibble", quietly = TRUE)) {
-    x <- tibble::as_tibble(x)
+    x_post <- tibble::as_tibble(x_post)
   } else if ('matrix' %in% params$input_class) {
-    x <- as.matrix(x)
+    x_post <- as.matrix(x_post)
   }
-  return(x)
+  return(x_post)
 }
 
 
@@ -220,25 +225,28 @@ post_x <- function(x, params, round = TRUE) {
 
 cforde <- function(params, 
                    evidence, 
-                   row_mode = c("separate", "or"), 
+                   row_mode = c("separate", "or"),
+                   output = c("cparams", "params", "p"),
                    nomatch = c("force_warning", "force", "na_warning", "na"),
                    stepsize = 0, 
                    parallel = TRUE) {
   
   row_mode <- match.arg(row_mode)
+  output <- match.arg(output)
   nomatch <- match.arg(nomatch)
   
   # To avoid data.table check issues
-  . <- c_idx <- cvg <- cvg_arf <- cvg_factor <- f_idx <- f_idx_uncond <- i.max <-
-    i.min <- leaf <- max.x <- max.y <- min.x <- min.y <- mu <- prob <- sigma <-
-    step_ <-	tree <-	V1 <- val <- variable <- leaf_zero_lik <- step <- NULL
+  . <- c_idx <- cvg <- cvg_arf <- cvg_factor <- f_idx <- f_idx_cat <-
+    f_idx_uncond <- i.max <- i.min <- leaf <- max.x <- max.y <- min.x <- min.y <-
+    mu <- p <- prob <- sigma <- step_ <-	tree <-	V1 <- val <- variable <-
+    leaf_zero_lik <- step <- NULL
   
   # Store informations of params as variables
-  meta <- params$meta
+  meta <- copy(params$meta)
   family <- meta[family != "multinom", unique(family)]
-  forest <- params$forest
-  cat <- params$cat
-  cnt <- params$cnt
+  forest <- copy(params$forest)
+  cat <- copy(params$cat)
+  cnt <- copy(params$cnt)
   cnt_cols <- meta[family != "multinom", variable]
   cat_cols <- meta[family == "multinom", variable]
   
@@ -256,7 +264,7 @@ cforde <- function(params,
     nconds <- nconds_conditioned <- condition_long[, max(c_idx)]
   } else {
     nconds <- condition_long[, max(c_idx)]
-    nconds_conditioned <- condition_long[,uniqueN(c_idx)]
+    nconds_conditioned <- condition_long[, uniqueN(c_idx)]
   }
   
   # Store set of condition (from evidence rows that do not consist of NA only)
@@ -278,7 +286,7 @@ cforde <- function(params,
     # Define subset of conditions for step_
     index_start <- conds_conditioned[(step_ - 1)*stepsize + 1]
     index_end <- conds_conditioned[min(step_ * stepsize, nconds_conditioned)]
-    condition_long_step <- condition_long[.(index_start:index_end),nomatch = NULL]
+    condition_long_step <- condition_long[.(index_start:index_end), nomatch = NULL]
     
     # Store cat and cnt conditions separately
     cat_conds <- condition_long_step[variable %in% cat_cols,c("c_idx","variable","val")][, variable := factor(variable)]
@@ -305,7 +313,7 @@ cforde <- function(params,
       conditions_unchanged_cat <- setdiff(condition_long_step[, c_idx], cat_conds[, c_idx])
       relevant_leaves_unchanged_cat <- data.table(c_idx = rep(conditions_unchanged_cat, each = nrow(forest) ), f_idx = rep(forest[,f_idx],length(conditions_unchanged_cat)))
       relevant_leaves_cat <- rbind(relevant_leaves_changed_cat, relevant_leaves_unchanged_cat, fill = T)
-      relevant_leaves_cat_list <- relevant_leaves_cat[,.(f_idx = .(f_idx)), by=c_idx]
+      relevant_leaves_cat_list <- relevant_leaves_cat[,.(f_idx = .(f_idx)), by = c_idx]
     } else {
       relevant_leaves_cat <- data.table(c_idx = integer(), f_idx = integer())
     }
@@ -314,7 +322,8 @@ cforde <- function(params,
     if (nrow(cnt_conds) != 0) {
       
       # Save min, max in cnt params in list columns grouped by variable and merge with cnt conditions
-      cnt_relevant <- cnt[, .(min = .(min), max = .(max)), by = variable]
+      if (!is.null(cnt$val)) cnt[!is.na(val), `:=` (min = NA, max = val)][, val := NULL]
+      cnt_relevant <- cnt[, .(f_idx = .(f_idx), min = .(min), max = .(max)), by = variable]
       cnt_conds_compact <- copy(cnt_conds)
       cnt_conds_compact[!is.na(val), `:=`(min = val, max = val)][, val := NULL]
       cnt_relevant <- cnt_conds_compact[cnt_relevant, on = .(variable), nomatch = NULL]
@@ -322,29 +331,30 @@ cforde <- function(params,
       
       # If cat conds exist, use only matching subset of potentially relevant leaves for cnt conditions
       if (nrow(cat_conds) != 0) {
-        cnt_relevant <- cnt_relevant[relevant_leaves_cat_list, on = .(c_idx)]
+        cnt_relevant <- cnt_relevant[relevant_leaves_cat_list[, .(c_idx, f_idx_cat = f_idx)], on = .(c_idx)]
       } else {
-        cnt_relevant[, f_idx := NA]
+        cnt_relevant[, f_idx_cat := NA]
       }
       
       # Determine matching leaves for cnt conditions per row
       cnt_relevant <- cnt_relevant[, .(
         c_idx,
         variable,
-        f_idx = Map(\(f_idx, min, max, i.min, i.max) {
-          if (!inherits(f_idx, "logical")) {
-            rel_cnt_min <- i.min[f_idx]
-            rel_cnt_max <- i.max[f_idx]
-            rel_min <- f_idx[which(max > rel_cnt_min)]
-            rel_max <- f_idx[which(min <= rel_cnt_max)]
+        f_idx = Map(\(f_idx, f_idx_cat, min, max, i.min, i.max) {
+          if (!inherits(f_idx_cat, "logical")) {
+            idx_rel <- which(f_idx %in% f_idx_cat)
+            rel_cnt_min <- i.min[idx_rel]
+            rel_cnt_max <- i.max[idx_rel]
+            rel_min <- f_idx[idx_rel[which(is.na(rel_cnt_min) | (max > rel_cnt_min))]]
+            rel_max <- f_idx[idx_rel[which(min <= rel_cnt_max)]]
           } else {
             rel_cnt_min <- i.min
             rel_cnt_max <- i.max
-            rel_min <- which(max > rel_cnt_min)
-            rel_max <- which(min <= rel_cnt_max)
+            rel_min <- f_idx[which(is.na(rel_cnt_min) | (max > rel_cnt_min))]
+            rel_max <- f_idx[which(min <= rel_cnt_max)]
           }
           intersect(rel_min,rel_max) 
-        }, f_idx = f_idx, min = min, max = max, i.min = i.min, i.max = i.max))]
+        }, f_idx = f_idx, f_idx_cat = f_idx_cat, min = min, max = max, i.min = i.min, i.max = i.max))]
       
       # or-combine different conditions on the same feature
       or_within_row_cnt <- uniqueN(cnt_relevant, by = c("c_idx", "variable")) != nrow(cnt_relevant)
@@ -360,27 +370,28 @@ cforde <- function(params,
       
       # Calculate updates for cnt params matching cnt conditions
       cnt_new <- merge(merge(relevant_leaves_cnt, cnt_conds, by = "c_idx", allow.cartesian = T, sort = F), cnt, by = c("f_idx", "variable"), all.x = T, allow.cartesian = T, sort = F)
+      cnt_new[is.na(min.y), min.y := max.y]
       cnt_new[!is.na(val),`:=` (min = min.y,
                                 max = max.y)]
       cnt_new[is.na(val),`:=` (min = pmax(min.x, min.y, na.rm = T),
                                max = pmin(max.x, max.y, na.rm = T))]
       cnt_new <- cnt_new[min <= max & sum(max.x, val, na.rm = T) != min.y, ]
-      cnt_new[, prob := NA_real_]
+      if(is.null(cnt_new$prob)) cnt_new[, prob := 1]
       if (family == "truncnorm") {
-        cnt_new[!is.na(val), prob := dtruncnorm(val, a=min.y, b=max.y, mean=mu, sd=sigma)*(val != min.y)]
-        cnt_new[is.na(val) & (min == min.y) & (max == max.y), prob := 1]
-        cnt_new[is.na(val) & is.na(prob), prob := ptruncnorm(max, a=min.y, b=max.y, mean=mu, sd=sigma) - ptruncnorm(min, a=min.y, max.y, mean=mu,sd=sigma)] 
+        cnt_new[!is.na(val) & !((min == val) & (max == val)), prob := dtruncnorm(val, a=min.y, b=max.y, mean=mu, sd=sigma)*(val != min.y)]
+        cnt_new[is.na(val) & !((min == min.y) & (max == max.y)), prob := prob * (ptruncnorm(max, a=min.y, b=max.y, mean=mu, sd=sigma) - ptruncnorm(min, a=min.y, max.y, mean=mu, sd=sigma))] 
       } else if (family == "unif") {
         cnt_new[!is.na(val), prob := dunif(val, min=min.y, max=max.y)*(val != min.y)]
-        cnt_new[is.na(val) & (min == min.y) & (max == max.y), prob := 1]
-        cnt_new[is.na(val) & is.na(prob), prob := punif(max, min=min.y, max=max.y) - punif(min, min=min.y, max.y)]  
+        cnt_new[is.na(val) & !((min == min.y) & (max == max.y)), prob := prob * (punif(max, min=min.y, max=max.y) - punif(min, min=min.y, max.y))]  
       }
       cnt_new[, c("min.x","max.x","min.y","max.y") := NULL]
+      cnt_new[min == max, val := min]
       
       # If or-combined cnt condition within rows exist, calculate likelihoods for ranges within leaves and norm to 1
       if (or_within_row_cnt) {
         cnt_new[, cvg_factor := sum(prob), by = .(f_idx, c_idx, variable)]
-        cnt_new[, prob := prob/cvg_factor]
+        cnt_new[cvg_factor != 0, prob := prob/cvg_factor]
+        cnt_new[cvg_factor == 0, prob := 0]
       } else {
         cnt_new[, `:=` (cvg_factor = prob, prob = 1)]
       }
@@ -395,7 +406,9 @@ cforde <- function(params,
       # If no cnt conditions exist, output empty update table cnt_new for cnt params
     } else {
       relevant_leaves <- relevant_leaves_cat[,.(c_idx, f_idx)]
-      cnt_new <- cbind(cnt[F,], data.table(cvg_factor = numeric(), c_idx = integer(), val = numeric(), prob = numeric()))
+      cnt_new <- cbind(cnt[F,], data.table(cvg_factor = numeric(), c_idx = integer(), val = numeric(), prob = numeric())[
+        , .SD, .SDcols = -intersect(c("val", "prob"), names(cnt))
+      ])
     }
     
     # Calculate updates for cat params matching cat conditions
@@ -450,88 +463,121 @@ cforde <- function(params,
                           cnt_new[, .(f_idx, c_idx, variable, cvg_factor)]),
                     by = c("f_idx", "variable"))[,-"variable"]
   
-  if (nrow(cvg_new) > 0) {
-    # Use log transformation to avoid overflow
-    cvg_new[, cvg_factor := log(cvg_factor)]
-    cvg_new <- cvg_new[, .(cvg_factor = sum(cvg_factor)), keyby = f_idx]
-    cvg_new <- cbind(cvg_new, forest_new[!is.na(cvg_arf), .(c_idx, cvg_arf = log(cvg_arf))])
-    cvg_new[,`:=` (cvg = cvg_factor + cvg_arf, cvg_factor = NULL, cvg_arf = NULL)]
-    
-    # Re-calculate weights and transform back from log scale, handle (numerically) impossible cases
-    if (row_mode == "or") {
-      if (cvg_new[,all(cvg == -Inf)]) {
-        if (grepl("^force", nomatch)) {
-          cvg_new[, cvg := 1/.N]
-        } else {
-          cvg_new[, cvg := NA]
-        }
-        if (grepl("warning$", nomatch)) {
-          wrn <- "All leaves have zero likelihood. This is probably because evidence contains an (almost) impossible combination."
+  if(output != "p") {
+  
+    if (nrow(cvg_new) > 0) {
+      # Use log transformation to avoid overflow
+      cvg_new[, cvg_factor := log(cvg_factor)]
+      cvg_new <- cvg_new[, .(cvg_factor = sum(cvg_factor)), keyby = f_idx]
+      cvg_new <- cbind(cvg_new, forest_new[!is.na(cvg_arf), .(c_idx, cvg_arf = log(cvg_arf))])
+      cvg_new[,`:=` (cvg = cvg_factor + cvg_arf, cvg_factor = NULL, cvg_arf = NULL)]
+      
+      # Re-calculate weights and transform back from log scale, handle (numerically) impossible cases
+      if (row_mode == "or") {
+        if (cvg_new[, all(cvg == -Inf)]) {
           if (grepl("^force", nomatch)) {
-            warning(paste(wrn, "Sampling from all possible leaves with equal probability."))
+            cvg_new[, cvg := 1/.N]
           } else {
-            warning(paste(wrn, "Returning NA."))
+            cvg_new[, cvg := NA]
           }
+          if (grepl("warning$", nomatch)) {
+            wrn <- "All leaves have zero likelihood. This is probably because evidence contains an (almost) impossible combination."
+            if (grepl("^force", nomatch)) {
+              warning(paste(wrn, "Sampling from all possible leaves with equal probability."))
+            } else {
+              warning(paste(wrn, "Returning NA."))
+            }
+          }
+        } else {
+          cvg_new[, cvg := exp(cvg - max(cvg))]
+          cvg_new <- cvg_new[, cvg := cvg / sum(cvg)]
         }
       } else {
-        cvg_new[, cvg := exp(cvg - max(cvg))]
-        cvg_new <- cvg_new[, cvg := cvg / sum(cvg)]
-      }
-    } else {
-      cvg_new[, leaf_zero_lik := all(cvg == -Inf), by = c_idx]
-      if (any(cvg_new[, leaf_zero_lik])) {
-        if (grepl("^force", nomatch)) {
-          cvg_new[leaf_zero_lik == TRUE, cvg := 1/.N, by = c_idx]
-        } else {
-          cvg_new <- cvg_new[leaf_zero_lik == FALSE, ]
-        }
-        if (grepl("warning$", nomatch)) {
-          wrn <- "All leaves have zero likelihood for some entered evidence rows. This is probably because evidence contains an (almost) impossible combination."
+        cvg_new[, leaf_zero_lik := all(cvg == -Inf), by = c_idx]
+        if (any(cvg_new[, leaf_zero_lik])) {
           if (grepl("^force", nomatch)) {
-            warning(paste(wrn, "Sampling from all possible leaves with equal probability (can be changed with 'nomatch' argument)."))
+            cvg_new[leaf_zero_lik == TRUE, cvg := 1/.N, by = c_idx]
           } else {
-            warning(paste(wrn, "Returning NA for those rows (can be changed with 'nomatch' argument)."))
+            cvg_new <- cvg_new[leaf_zero_lik == FALSE, ]
+          }
+          if (grepl("warning$", nomatch)) {
+            wrn <- "All leaves have zero likelihood for some entered evidence rows. This is probably because evidence contains an (almost) impossible combination."
+            if (grepl("^force", nomatch)) {
+              warning(paste(wrn, "Sampling from all possible leaves with equal probability (can be changed with 'nomatch' argument)."))
+            } else {
+              warning(paste(wrn, "Returning NA for those rows (can be changed with 'nomatch' argument)."))
+            }
           }
         }
+        if (any(cvg_new[, !leaf_zero_lik])) {
+          cvg_new[leaf_zero_lik == FALSE, scale := max(cvg), by = c_idx]
+          cvg_new[leaf_zero_lik == FALSE, cvg := exp(cvg - scale)]
+          cvg_new[leaf_zero_lik == FALSE, scale := sum(cvg), by = c_idx]
+          cvg_new[leaf_zero_lik == FALSE, cvg := cvg / scale]
+          cvg_new[, scale := NULL]
+        }
+        cvg_new[, leaf_zero_lik := NULL]
       }
-      if (any(cvg_new[, !leaf_zero_lik])) {
-        cvg_new[leaf_zero_lik == FALSE, scale := max(cvg), by = c_idx]
-        cvg_new[leaf_zero_lik == FALSE, cvg := exp(cvg - scale)]
-        cvg_new[leaf_zero_lik == FALSE, scale := sum(cvg), by = c_idx]
-        cvg_new[leaf_zero_lik == FALSE, cvg := cvg / scale]
-        cvg_new[, scale := NULL]
-      }
-      cvg_new[, leaf_zero_lik := NULL]
     }
-  }
-  
-  # Add conditions with no matching leaves to forest
-  forest_new_noleaf <- data.table(c_idx = setdiff(unique(forest_new[,c_idx]), unique(cvg_new[,c_idx])))[,f_idx := NA_integer_]
-  forest_new <- merge(forest_new, cvg_new[,.(f_idx, cvg)], by = "f_idx")
-  forest_new <- forest_new[cvg > 0,]
-  forest_new <- rbind(forest_new, forest_new_noleaf, fill = TRUE)
-  if (row_mode == "or") {
-    if (forest_new[,all(is.na(f_idx))]) {
-      forest_new[is.na(f_idx), cvg := 1/.N]
+    
+    # Add conditions with no matching leaves to forest
+    forest_new_noleaf <- data.table(c_idx = setdiff(unique(forest_new[,c_idx]), unique(cvg_new[,c_idx])))[,f_idx := NA_integer_]
+    forest_new <- merge(forest_new, cvg_new[,.(f_idx, cvg)], by = "f_idx")
+    forest_new <- forest_new[cvg > 0,]
+    forest_new <- rbind(forest_new, forest_new_noleaf, fill = TRUE)
+    if (row_mode == "or") {
+      if (forest_new[,all(is.na(f_idx))]) {
+        forest_new[is.na(f_idx), cvg := 1/.N]
+      } else {
+        forest_new[is.na(f_idx), cvg := 0]
+      }
     } else {
-      forest_new[is.na(f_idx), cvg := 0]
+      forest_new[is.na(f_idx), cvg := 1]
     }
+    
+    # Add all leaves for all-NA conditions to forest
+    if ((grepl("^force", nomatch) & length(conds_impossible) > 0) | (row_mode == "separate" & nconds != nconds_conditioned)) {
+      conds_unconditioned <- c(conds_impossible, (1:nconds)[!(1:nconds) %in% conds_conditioned])
+      forest_new_unconditioned <- copy(forest)
+      forest_new_unconditioned <- rbindlist(replicate(length(conds_unconditioned), forest, simplify = F))
+      forest_new_unconditioned[, `:=` (c_idx = rep(conds_unconditioned,each = nrow(forest)), f_idx_uncond = f_idx, cvg_arf = cvg)]
+      forest_new <- rbind(forest_new, forest_new_unconditioned)[!is.na(f_idx), ]
+    }
+    
+    setorder(setcolorder(forest_new,c("f_idx","c_idx","f_idx_uncond","tree","leaf","cvg_arf","cvg")), c_idx, f_idx, f_idx_uncond, tree, leaf)
+    out <- list(evidence_input = evidence, evidence_prepped = condition_long, cnt = cnt_new, cat = cat_new, forest = forest_new)
+    
+    if(output == "params") {
+      out <- cparams2params(params, out, parallel)
+    }
+    
   } else {
-    forest_new[is.na(f_idx), cvg := 1]
+    
+    if (nrow(cvg_new) > 0) {
+      
+      # Use log transformation to avoid overflow
+      num_trees <- forest[, round(sum(cvg))]
+      cvg_new[, cvg_factor := log(cvg_factor)]
+      cvg_new <- cvg_new[, .(cvg_factor = sum(cvg_factor)), keyby = f_idx]
+      cvg_new <- cbind(cvg_new, forest_new[!is.na(cvg_arf), .(c_idx, cvg_arf = log(cvg_arf) - log(num_trees))])
+      cvg_new[,`:=` (p = exp(cvg_factor + cvg_arf), cvg_factor = NULL, cvg_arf = NULL)]
+      if (row_mode == "or" | nconds == 1) {
+        out <- cvg_new[, sum(p)]
+      } else {
+        cvg_new <- cvg_new[, .(p = sum(p)), by = c_idx]
+        c_idx_nomatch <- setdiff(conds_conditioned, cvg_new[, c_idx])
+        c_idx_uncond <-setdiff(seq_len(nconds), conds_conditioned)
+        out <- setorder(rbind(cvg_new,
+                                  data.table(c_idx = c_idx_nomatch, p = 0),
+                                  data.table(c_idx = c_idx_uncond, p = 1)))[, p]
+      }
+    } else {
+      out <- 0
+    }
   }
+    
+  out
   
-  # Add all leaves for all-NA conditions to forest
-  if ((grepl("^force", nomatch) & length(conds_impossible) > 0) | (row_mode == "separate" & nconds != nconds_conditioned)) {
-    conds_unconditioned <- c(conds_impossible, (1:nconds)[!(1:nconds) %in% conds_conditioned])
-    forest_new_unconditioned <- copy(forest)
-    forest_new_unconditioned <- rbindlist(replicate(length(conds_unconditioned), forest, simplify = F))
-    forest_new_unconditioned[, `:=` (c_idx = rep(conds_unconditioned,each = nrow(forest)), f_idx_uncond = f_idx, cvg_arf = cvg)]
-    forest_new <- rbind(forest_new, forest_new_unconditioned)[!is.na(f_idx), ]
-  }
-  
-  setorder(setcolorder(forest_new,c("f_idx","c_idx","f_idx_uncond","tree","leaf","cvg_arf","cvg")), c_idx, f_idx, f_idx_uncond, tree, leaf)
-  
-  list(evidence_input = evidence, evidence_prepped = condition_long, cnt = cnt_new, cat = cat_new, forest = forest_new)
 }
 
 
@@ -614,4 +660,134 @@ prep_cond <- function(evidence, params, row_mode) {
   
   setorder(condition_long, c_idx)
   condition_long[]
+}
+
+
+#' Convert set of conditional delta params (\code{cparams}) to full \code{params}
+#' set
+#' 
+#' This function converts a set of conditional params (output of cforde with 
+#' \code{output = 'cparams'}) to a full set of circuit parameters
+#'
+#' @param params_base Circuit parameters learned via \code{\link{forde}}. 
+#' @param cparams Set of conditional delta parameters based on \code{params_base}.
+#' @param parallel Compute in parallel? Only relevant for \code{cparams} generated
+#'   with multi-row \code{evidence} and \code{row_mode = 'separate'}. Must
+#'   register backend beforehand, e.g. via \code{doParallel} or \code{doFuture};
+#'   see examples.
+#'   
+#' @return Full circuit parameters conforming to \code{forde}-output.
+#'   For \code{cparams} generated with multi-row \code{evidence} and
+#'   \code{row_mode = 'separate'}, outputs a list of full circuit parameters.
+#' 
+#' @import data.table
+#' @importFrom foreach foreach %dopar%
+#' @keywords internal
+
+cparams2params <- function(params_base, cparams = NULL, parallel = TRUE) {
+  
+  # To avoid data.table check issues
+  cvg <- c_idx <- c_idx_extract <- NULL
+  
+  if (is.null(cparams)) {
+    return(params_base)
+  } else if (nrow(cparams$forest) == 0) {
+    params_empty <- copy(params_base)
+    params_empty[c("cnt", "cat", "forest")] <- 
+      lapply(params_empty[c("cnt", "cat", "forest")], \(x) x[F, ])
+    return(params_empty)
+  }
+  
+  cparams2params_single <- function(params_base, cparams_single) {
+    
+    # To avoid data.table check issues
+    . <- f_idx <- f_idx_uncond <- tree <- leaf <- cvg <- variable <- val <- prob <-
+      NA_share <- mu <- sigma <- f_idx_new <- NULL
+    
+    if (!is.null(cparams_single)) {
+      leaves_matching <- cparams_single$forest[, .(f_idx, f_idx_uncond)]
+      
+      forest <- setorder(cparams_single$forest[, .(f_idx , tree, leaf, cvg)], tree, leaf)[]
+      
+      cat_uncond <- setnames(params_base$cat[!cparams_single$cat[,variable], on = .(variable), all = FALSE][
+        leaves_matching, on = .(f_idx = f_idx_uncond)][!is.na(variable), -"f_idx"], "i.f_idx", "f_idx")
+      
+      cnt_uncond <- setnames(params_base$cnt[!cparams_single$cnt[,variable], on = .(variable), all = FALSE][
+        leaves_matching, on = .(f_idx = f_idx_uncond)][!is.na(variable), -"f_idx"], "i.f_idx", "f_idx")
+      
+      if(is.null(cnt_uncond$prob)) cnt_uncond[, prob := 1]
+      
+      if (nrow(cparams_single$cat) > 0) {
+        cat_cond <- cparams_single$cat[, .(f_idx, variable, val, prob, NA_share)]
+        cat <- rbind(cat_cond, cat_uncond)
+        setkey(cat, f_idx)
+      } else {
+        cat <- copy(cat_uncond)
+      }
+      
+      if (nrow(cparams_single$cnt) > 0) {
+        cnt_cond <- cparams_single$cnt[, .(f_idx, variable, min, max, val, mu, sigma, prob, NA_share)]
+        cnt <- rbind(cnt_cond, cnt_uncond, fill = T)
+        cnt <- cnt[prob != 0, ]
+        setkey(cnt, f_idx)
+      } else {
+        cnt <- copy(cnt_uncond)
+      }
+      
+      re_index <- forest[, .(f_idx, f_idx_new = .I)]
+      forest <- forest[, f_idx := .I]
+      cat <- setorder(merge(cat, re_index, by = "f_idx")[, `:=` (f_idx = f_idx_new, f_idx_new = NULL)], f_idx)[]
+      cnt <- setorder(merge(cnt, re_index, by = "f_idx")[, `:=` (f_idx = f_idx_new, f_idx_new = NULL)], f_idx)[]
+      if (nrow(cat) + nrow(cnt) == 0) forest <- forest[F, ]
+      
+      cparams_single <- copy(params_base)
+      cparams_single$cnt <- copy(cnt)
+      cparams_single$cat <- copy(cat)
+      cparams_single$forest <- copy(forest)
+      
+    } else {
+      cparams_single <- copy(params_base)
+    }
+    
+    cparams_single
+    
+  }
+  cparams_extract_single <- function(cparams, c_idx_extract) {
+    
+    # To avoid data.table check issues
+    c_idx <- NULL
+    
+    cparams_single <- copy(cparams)
+    cparams_single$evidence_prepped <- copy(cparams_single$evidence_prepped[c_idx == c_idx_extract, ])
+    cparams_single$cnt <- copy(cparams_single$cnt[c_idx == c_idx_extract, ])
+    cparams_single$cat <- copy(cparams_single$cat[c_idx == c_idx_extract, ])
+    cparams_single$forest <- copy(cparams_single$forest[c_idx == c_idx_extract, ])
+    cparams_single
+  }
+  
+  if(cparams$forest[, round(sum(cvg))] == 1) {
+    c_idx_mode <- "or"
+  } else if(uniqueN(cparams$forest[, c_idx]) == cparams$forest[, round(sum(cvg))]) {
+    c_idx_mode <- "separate"
+  } else {
+    stop("Invalid cparams set.")
+  }
+  
+  if(c_idx_mode == "or") {
+    cparams_full <- cparams2params_single(params_base, cparams)
+  } else {
+    if(parallel) {
+      cparams_full <- foreach(c_idx_extract = cparams$forest[, unique(c_idx)]) %dopar% {
+        cparams_single <- cparams_extract_single(cparams, c_idx_extract)
+        cparams2params_single(params_base, cparams_single)
+      }
+    } else {
+      cparams_full <- foreach(c_idx_extract = cparams$forest[, unique(c_idx)]) %do% {
+        cparams_single <- cparams_extract_single(cparams, c_idx_extract)
+        cparams2params_single(params_base, cparams_single)
+      }
+    }
+  }
+  
+  cparams_full
 }

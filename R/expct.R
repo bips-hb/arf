@@ -164,9 +164,8 @@ expct <- function(
       index_start <- (step_-1)*stepsize + 1
       index_end <- min(step_*stepsize, nrow(evidence))
       evidence_part <- evidence[index_start:index_end,]
-      cparams <- cforde(params, evidence_part, evidence_row_mode, nomatch, stepsize_cforde, parallel_cforde)
+      cparams <- cforde(params, evidence_part, evidence_row_mode, "cparams", nomatch, stepsize_cforde, parallel_cforde)
     } 
-    
     # omega contains the weight (wt) for each leaf (f_idx) for each condition (c_idx)
     if (is.null(cparams)) {
       if (is.null(evidence)) {
@@ -201,10 +200,13 @@ expct <- function(
           psi_cond[, I := 1]
         }
         psi_cond[, prob := NULL]
-      } 
+      }
+      psi_uncond <- merge(omega, params$cnt[variable %in% query, ], by.x = 'f_idx_uncond', by.y = 'f_idx',
+                          sort = FALSE, allow.cartesian = TRUE)[, I := 1]
+      if (!("val" %in% names(psi_uncond))) psi_uncond[, val := NA_real_]
       psi <- unique(rbind(psi_cond,
-                          merge(omega, params$cnt[variable %in% query, ], by.x = 'f_idx_uncond', by.y = 'f_idx',
-                                sort = FALSE, allow.cartesian = TRUE)[,`:=` (val = NA_real_, I = 1)]), by = c("c_idx", "f_idx", "variable", "I"))[, I := NULL]
+                          psi_uncond),
+                    by = c("c_idx", "f_idx", "variable", "I"))[, I := NULL]
       psi[NA_share == 1, wt := 0]
       cnt <- psi[is.na(val), val := sum(wt * mu)/sum(wt), by = .(c_idx, variable)]
       cnt <- unique(cnt[, .(c_idx, variable, val)])

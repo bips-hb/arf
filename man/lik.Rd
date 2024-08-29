@@ -9,9 +9,8 @@ lik(
   query,
   evidence = NULL,
   arf = NULL,
-  oob = FALSE,
   log = TRUE,
-  batch = NULL,
+  stepsize = 0,
   parallel = TRUE
 )
 }
@@ -23,27 +22,24 @@ training features. Likelihoods will be computed for each sample. Missing
 features will be marginalized out. See Details.}
 
 \item{evidence}{Optional set of conditioning events. This can take one of
-three forms: (1) a partial sample, i.e. a single row of data with some but
-not all columns; (2) a data frame of conditioning events, which allows for
-inequalities; or (3) a posterior distribution over leaves. See Details.}
+three forms: (1) a partial sample, i.e. a single row of data with
+some but not all columns; (2) a data frame of conditioning events,
+which allows for inequalities and intervals, where multiple rows are
+combined by logical OR; or (3) a posterior distribution over leaves;
+see Details and Examples.}
 
 \item{arf}{Pre-trained \code{\link{adversarial_rf}} or other object of class
 \code{ranger}. This is not required but speeds up computation considerably
 for total evidence queries. (Ignored for partial evidence queries.)}
 
-\item{oob}{Only use out-of-bag leaves for likelihood estimation? If
-\code{TRUE}, \code{x} must be the same dataset used to train \code{arf}.
-Only applicable for total evidence queries.}
+\item{log}{Return likelihoods on log scale?}
 
-\item{log}{Return likelihoods on log scale? Recommended to prevent underflow.}
-
-\item{batch}{Batch size. The default is to compute densities for all of
-queries in one round, which is always the fastest option if memory allows.
-However, with large samples or many trees, it can be more memory efficient
-to split the data into batches. This has no impact on results.}
+\item{stepsize}{Stepsize defining number of query and evidence (if provided)
+rows handled in one for each step.
+Defaults to nrow(evidence)/num_registered_workers for \code{parallel == TRUE}.}
 
 \item{parallel}{Compute in parallel? Must register backend beforehand, e.g.
-via \code{doParallel} or \code{doFuture}; see examples.}
+via \code{doParallel}.}
 }
 \value{
 A vector of likelihoods, optionally on the log scale.
@@ -89,15 +85,6 @@ lik(psi, query = iris[1, 1:3], evidence = evi)
 evi <- data.frame(Species = "setosa", 
                   Petal.Width = ">0.3")
 lik(psi, query = iris[1, 1:3], evidence = evi)
-
-\dontrun{
-# Parallelization with doParallel
-doParallel::registerDoParallel(cores = 4)
-
-# ... or with doFuture
-doFuture::registerDoFuture()
-future::plan("multisession", workers = 4)
-}
 
 }
 \references{

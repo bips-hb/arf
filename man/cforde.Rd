@@ -8,6 +8,7 @@ cforde(
   params,
   evidence,
   row_mode = c("separate", "or"),
+  output = c("cparams", "params", "p"),
   nomatch = c("force_warning", "force", "na_warning", "na"),
   stepsize = 0,
   parallel = TRUE
