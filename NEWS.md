@@ -1,3 +1,7 @@
+# arf 0.2.3
+* Add impute() function for direct missing data imputation with ARF
+* Add one-line functions darf(), earf(), rarf()
+
 # arf 0.2.2
 * Faster and vectorized conditional sampling
 * Use min.bucket argument from ranger to avoid pruning if possible
