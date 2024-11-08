@@ -5,7 +5,7 @@
 #' Calls \code{adversarial_rf}, \code{forde} and \code{expct}/\code{forge}.
 #'
 #' @param x Input data.
-#' @param m Number of multiple imputations. 
+#' @param m Number of multiple imputations. The default is single imputation (\code{m=1}).
 #' @param expectation Return expected value instead of multiple imputations. By default, for single imputation (\code{m=1}), the expected value is returned.
 #' @param num_trees Number of trees in ARF.
 #' @param min_node_size Minimum node size in ARF.
@@ -35,7 +35,7 @@
 #' # Multiple imputation
 #' iris_imputed <- arf::impute(iris_na, m = 20)
 impute <- function(x, 
-                   m = 20, 
+                   m = 1, 
                    expectation = ifelse(m==1, TRUE, FALSE), 
                    num_trees = 100L, 
                    min_node_size = 10L, 

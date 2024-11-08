@@ -60,6 +60,10 @@ test_that("FORGE returns matrix when called with matrix", {
 })
 
 test_that("FORGE returns correct column types", {
+  if (utils::packageVersion("ranger") < "0.16.1") {
+    skip("can only test this with recent ranger version.")
+  }
+  
   n <- 50
   dat <- data.frame(numeric = rnorm(n), 
                     integer_factor = sample(1L:5L, n, replace = TRUE),

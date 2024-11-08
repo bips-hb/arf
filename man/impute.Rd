@@ -6,7 +6,7 @@
 \usage{
 impute(
   x,
-  m = 20,
+  m = 1,
   expectation = ifelse(m == 1, TRUE, FALSE),
   num_trees = 100L,
   min_node_size = 10L,
@@ -20,7 +20,7 @@ impute(
 \arguments{
 \item{x}{Input data.}
 
-\item{m}{Number of multiple imputations.}
+\item{m}{Number of multiple imputations. The default is single imputation (\code{m=1}).}
 
 \item{expectation}{Return expected value instead of multiple imputations. By default, for single imputation (\code{m=1}), the expected value is returned.}
 
