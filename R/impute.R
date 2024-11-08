@@ -55,6 +55,9 @@ impute <- function(x,
     message("No missing values found. Returning input data.")
     return(x)
   }
+  if (utils::packageVersion("ranger") < "0.16.4") {
+    stop("Imputation requires ranger >= 0.16.4. Consider updating the ranger package.")
+  } 
   
   # Separate ... arguments for each function
   arg_names <- list(arf = names(as.list(args(adversarial_rf))), 

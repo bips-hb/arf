@@ -11,6 +11,10 @@ test_that("impute returns same data with message if no missings", {
 })
 
 test_that("Imputation fills missing values", {
+  if (utils::packageVersion("ranger") < "0.16.4") {
+    skip("can only test this with recent ranger version.")
+  }
+  
   # Single imputation
   iris_imputed <- arf::impute(iris_na, m = 1, parallel = FALSE)
   expect_s3_class(iris_imputed, "data.frame")
