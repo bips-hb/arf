@@ -21,7 +21,7 @@ test_that("Imputation fills missing values", {
   expect_true(!anyNA(iris_imputed))
   
   # Multiple imputation
-  iris_imputed <- arf::impute(iris_na, parallel = FALSE)
+  iris_imputed <- arf::impute(iris_na, m = 20, parallel = FALSE)
   expect_type(iris_imputed, "list")
   expect_length(iris_imputed, 20)
   expect_true(all(sapply(iris_imputed, function(x) !anyNA(x))))  
