@@ -53,12 +53,18 @@ for (j in 1:ncol(iris)) {
   iris_na[sample(1:nrow(iris), 5), j] <- NA
 }
 
-# Parallelization with doParallel
-doParallel::registerDoParallel(cores = 2)
-
 # Single imputation
 iris_imputed <- arf::impute(iris_na, m = 1)
 
 # Multiple imputation
 iris_imputed <- arf::impute(iris_na, m = 20)
+
+\dontrun{
+# Parallelization with doParallel
+doParallel::registerDoParallel(cores = 4)
+
+# ... or with doFuture
+doFuture::registerDoFuture()
+future::plan("multisession", workers = 4)
+}
 }
