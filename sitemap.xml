@@ -1,78 +1,29 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>https://bips-hb.github.io/arf/404.html</loc>
-  </url>
-  <url>
-    <loc>https://bips-hb.github.io/arf/LICENSE-text.html</loc>
-  </url>
-  <url>
-    <loc>https://bips-hb.github.io/arf/articles/arf.html</loc>
-  </url>
-  <url>
-    <loc>https://bips-hb.github.io/arf/articles/index.html</loc>
-  </url>
-  <url>
-    <loc>https://bips-hb.github.io/arf/authors.html</loc>
-  </url>
-  <url>
-    <loc>https://bips-hb.github.io/arf/index.html</loc>
-  </url>
-  <url>
-    <loc>https://bips-hb.github.io/arf/news/index.html</loc>
-  </url>
-  <url>
-    <loc>https://bips-hb.github.io/arf/reference/adversarial_rf.html</loc>
-  </url>
-  <url>
-    <loc>https://bips-hb.github.io/arf/reference/arf-package.html</loc>
-  </url>
-  <url>
-    <loc>https://bips-hb.github.io/arf/reference/cforde.html</loc>
-  </url>
-  <url>
-    <loc>https://bips-hb.github.io/arf/reference/col_rename.html</loc>
-  </url>
-  <url>
-    <loc>https://bips-hb.github.io/arf/reference/col_rename_all.html</loc>
-  </url>
-  <url>
-    <loc>https://bips-hb.github.io/arf/reference/darf.html</loc>
-  </url>
-  <url>
-    <loc>https://bips-hb.github.io/arf/reference/earf.html</loc>
-  </url>
-  <url>
-    <loc>https://bips-hb.github.io/arf/reference/expct.html</loc>
-  </url>
-  <url>
-    <loc>https://bips-hb.github.io/arf/reference/forde.html</loc>
-  </url>
-  <url>
-    <loc>https://bips-hb.github.io/arf/reference/forge.html</loc>
-  </url>
-  <url>
-    <loc>https://bips-hb.github.io/arf/reference/index.html</loc>
-  </url>
-  <url>
-    <loc>https://bips-hb.github.io/arf/reference/lik.html</loc>
-  </url>
-  <url>
-    <loc>https://bips-hb.github.io/arf/reference/post_x.html</loc>
-  </url>
-  <url>
-    <loc>https://bips-hb.github.io/arf/reference/prep_cond.html</loc>
-  </url>
-  <url>
-    <loc>https://bips-hb.github.io/arf/reference/prep_x.html</loc>
-  </url>
-  <url>
-    <loc>https://bips-hb.github.io/arf/reference/rarf.html</loc>
-  </url>
-  <url>
-    <loc>https://bips-hb.github.io/arf/reference/resample.html</loc>
-  </url>
-  <url>
-    <loc>https://bips-hb.github.io/arf/reference/which.max.random.html</loc>
-  </url>
+<urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
+<url><loc>https://bips-hb.github.io/arf/404.html</loc></url>
+<url><loc>https://bips-hb.github.io/arf/LICENSE-text.html</loc></url>
+<url><loc>https://bips-hb.github.io/arf/articles/arf.html</loc></url>
+<url><loc>https://bips-hb.github.io/arf/articles/index.html</loc></url>
+<url><loc>https://bips-hb.github.io/arf/authors.html</loc></url>
+<url><loc>https://bips-hb.github.io/arf/index.html</loc></url>
+<url><loc>https://bips-hb.github.io/arf/news/index.html</loc></url>
+<url><loc>https://bips-hb.github.io/arf/reference/adversarial_rf.html</loc></url>
+<url><loc>https://bips-hb.github.io/arf/reference/arf-package.html</loc></url>
+<url><loc>https://bips-hb.github.io/arf/reference/cforde.html</loc></url>
+<url><loc>https://bips-hb.github.io/arf/reference/col_rename.html</loc></url>
+<url><loc>https://bips-hb.github.io/arf/reference/col_rename_all.html</loc></url>
+<url><loc>https://bips-hb.github.io/arf/reference/darf.html</loc></url>
+<url><loc>https://bips-hb.github.io/arf/reference/earf.html</loc></url>
+<url><loc>https://bips-hb.github.io/arf/reference/expct.html</loc></url>
+<url><loc>https://bips-hb.github.io/arf/reference/forde.html</loc></url>
+<url><loc>https://bips-hb.github.io/arf/reference/forge.html</loc></url>
+<url><loc>https://bips-hb.github.io/arf/reference/impute.html</loc></url>
+<url><loc>https://bips-hb.github.io/arf/reference/index.html</loc></url>
+<url><loc>https://bips-hb.github.io/arf/reference/lik.html</loc></url>
+<url><loc>https://bips-hb.github.io/arf/reference/post_x.html</loc></url>
+<url><loc>https://bips-hb.github.io/arf/reference/prep_cond.html</loc></url>
+<url><loc>https://bips-hb.github.io/arf/reference/prep_x.html</loc></url>
+<url><loc>https://bips-hb.github.io/arf/reference/rarf.html</loc></url>
+<url><loc>https://bips-hb.github.io/arf/reference/resample.html</loc></url>
+<url><loc>https://bips-hb.github.io/arf/reference/which.max.random.html</loc></url>
 </urlset>
+

@@ -5,68 +5,43 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<meta name="description" content="arf">
 <title>Adversarial Random Forests • arf</title>
-<!-- favicons --><link rel="icon" type="image/png" sizes="16x16" href="../favicon-16x16.png">
-<link rel="icon" type="image/png" sizes="32x32" href="../favicon-32x32.png">
-<link rel="apple-touch-icon" type="image/png" sizes="180x180" href="../apple-touch-icon.png">
-<link rel="apple-touch-icon" type="image/png" sizes="120x120" href="../apple-touch-icon-120x120.png">
-<link rel="apple-touch-icon" type="image/png" sizes="76x76" href="../apple-touch-icon-76x76.png">
-<link rel="apple-touch-icon" type="image/png" sizes="60x60" href="../apple-touch-icon-60x60.png">
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="../deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
-<script src="../deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><!-- Font Awesome icons --><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/all.min.css" integrity="sha256-mmgLkCYLUQbXn0B1SRqzHar6dCnv9oZFPEC1g1cwlkk=" crossorigin="anonymous">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/v4-shims.min.css" integrity="sha256-wZjR52fzng1pJHwx4aV2AO3yyTOXrcDW7jBpJtTwVxw=" crossorigin="anonymous">
-<!-- bootstrap-toc --><script src="https://cdn.jsdelivr.net/gh/afeld/bootstrap-toc@v1.0.1/dist/bootstrap-toc.min.js" integrity="sha256-4veVQbu7//Lk5TSmc7YV48MxtMy98e26cf5MrgZYnwo=" crossorigin="anonymous"></script><!-- headroom.js --><script src="https://cdnjs.cloudflare.com/ajax/libs/headroom/0.11.0/headroom.min.js" integrity="sha256-AsUX4SJE1+yuDu5+mAVzJbuYNPHj/WroHuZ8Ir/CkE0=" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/headroom/0.11.0/jQuery.headroom.min.js" integrity="sha256-ZX/yNShbjqsohH1k95liqY9Gd8uOiE1S4vZc+9KQ1K4=" crossorigin="anonymous"></script><!-- clipboard.js --><script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.11/clipboard.min.js" integrity="sha512-7O5pXpc0oCRrxk8RUfDYFgn0nO1t+jLuIOQdOMRp4APB7uZ4vSjspzp5y6YDtDs4VzUSTbWzBFZ/LKJhnyFOKw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script><!-- search --><script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/6.4.6/fuse.js" integrity="sha512-zv6Ywkjyktsohkbp9bb45V6tEMoWhzFzXis+LrMehmJZZSys19Yxf1dopHx7WzIKxr5tK2dVcYmaCk2uqdjF4A==" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/autocomplete.js/0.38.0/autocomplete.jquery.min.js" integrity="sha512-GU9ayf+66Xx2TmpxqJpliWbT5PiGYxpaG8rfnBEk1LL8l1KGkRShhngwdXK1UgqhAzWpZHSiYPc09/NwDQIGyg==" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/mark.js/8.11.1/mark.min.js" integrity="sha512-5CYOlHXGh6QpOFA/TeTylKLWfB3ftPsde7AnmhuitiTX4K5SqCLBeKro6sPS8ilsz1Q4NRx3v8Ko2IBiszzdww==" crossorigin="anonymous"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Adversarial Random Forests">
-<meta property="og:description" content="arf">
-<meta property="og:image" content="https://bips-hb.github.io/arf/logo.png">
-<!-- mathjax --><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js" integrity="sha256-nvJJv9wWKEm88qvoQl9ekL2J+k/RWIsaSScxxlsrv8k=" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/config/TeX-AMS-MML_HTMLorMML.js" integrity="sha256-84DKXVJXs0/F8OTMzX4UR909+jtl4G7SPypPavF+GfA=" crossorigin="anonymous"></script><!--[if lt IE 9]>
-<script src="https://oss.maxcdn.com/html5shiv/3.7.3/html5shiv.min.js"></script>
-<script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
-<![endif]-->
+<script src="../deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.4.2/css/all.min.css" rel="stylesheet">
+<link href="../deps/font-awesome-6.4.2/css/v4-shims.min.css" rel="stylesheet">
+<script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Adversarial Random Forests">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
-    
 
-    <nav class="navbar fixed-top navbar-light navbar-expand-lg bg-light" data-bs-theme="light"><div class="container">
-    
+
+    <nav class="navbar navbar-expand-lg fixed-top bg-light" data-bs-theme="light" aria-label="Site navigation"><div class="container">
+
     <a class="navbar-brand me-2" href="../index.html">arf</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.2</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.3</small>
 
-    
+
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
-<li class="active nav-item">
-  <a class="nav-link" href="../articles/arf.html">Get started</a>
-</li>
-<li class="nav-item">
-  <a class="nav-link" href="../reference/index.html">Reference</a>
-</li>
-<li class="nav-item">
-  <a class="nav-link" href="../news/index.html">Changelog</a>
-</li>
+<li class="active nav-item"><a class="nav-link" href="../articles/arf.html">Get started</a></li>
+<li class="nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
+<li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul>
-<form class="form-inline my-2 my-lg-0" role="search">
-        <input type="search" class="form-control me-sm-2" aria-label="Toggle navigation" name="search-input" data-search-index="../search.json" id="search-input" placeholder="Search for" autocomplete="off">
-</form>
-
-      <ul class="navbar-nav">
-<li class="nav-item">
-  <a class="external-link nav-link" href="https://github.com/bips-hb/arf/" aria-label="github">
-    <span class="fab fa fab fa-github fa-lg"></span>
-     
-  </a>
-</li>
+<ul class="navbar-nav">
+<li class="nav-item"><form class="form-inline" role="search">
+ <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json">
+</form></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://github.com/bips-hb/arf/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
       </ul>
 </div>
 
-    
+
   </div>
 </nav><div class="container template-article">
 
@@ -78,7 +53,7 @@
       <img src="../logo.png" class="logo" alt=""><h1>Adversarial Random Forests</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/bips-hb/arf/blob/HEAD/vignettes/arf.Rmd" class="external-link"><code>vignettes/arf.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/bips-hb/arf/blob/main/vignettes/arf.Rmd" class="external-link"><code>vignettes/arf.Rmd</code></a></small>
       <div class="d-none name"><code>arf.Rmd</code></div>
     </div>
 
@@ -93,13 +68,14 @@ and data synthesis.</p>
 <p>The ARF algorithm is an iterative procedure. In the first instance,
 we generate synthetic data by independently sampling from the marginals
 of each feature and training a random forest (RF) to distinguish
-original from synthetic samples. If accuracy is greater than <span class="math inline">\(0.5 + \delta\)</span> (where <code>delta</code> is
-a user-controlled tolerance parameter, generally set to 0), we create a
-new dataset by sampling from the marginals within each leaf and training
-another RF classifier. The procedure repeats until original and
-synthetic samples cannot be reliably distinguished. With the default
-<code>verbose = TRUE</code>, the algorithm will print accuracy at each
-iteration.</p>
+original from synthetic samples. If accuracy is greater than
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>0.5</mn><mo>+</mo><mi>δ</mi></mrow><annotation encoding="application/x-tex">0.5 + \delta</annotation></semantics></math>
+(where <code>delta</code> is a user-controlled tolerance parameter,
+generally set to 0), we create a new dataset by sampling from the
+marginals within each leaf and training another RF classifier. The
+procedure repeats until original and synthetic samples cannot be
+reliably distinguished. With the default <code>verbose = TRUE</code>,
+the algorithm will print accuracy at each iteration.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Load libraries</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/bips-hb/arf" class="external-link">arf</a></span><span class="op">)</span></span>
@@ -111,8 +87,8 @@ iteration.</p>
 <span></span>
 <span><span class="co"># Train ARF</span></span>
 <span><span class="va">arf_iris</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">iris</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Iteration: 0, Accuracy: 85.52%</span></span>
-<span><span class="co">#&gt; Iteration: 1, Accuracy: 42.33%</span></span>
+<span><span class="co">#&gt; Iteration: 0, Accuracy: 76.09%</span></span>
+<span><span class="co">#&gt; Iteration: 1, Accuracy: 39.67%</span></span>
 <span><span class="co">#&gt; Warning: executing %dopar% sequentially: no parallel backend registered</span></span></code></pre></div>
 <p>The printouts can be turned off by setting
 <code>verbose = FALSE</code>. Accuracy is still stored within the
@@ -136,9 +112,11 @@ setting <code>parallel = FALSE</code> or registering a parallel backend
 as desired. If the ARF has converged, then resulting splits should form
 fully factorized leaves, i.e. subregions of the feature space where
 variables are locally independent.</p>
-<p>ARF convergence is asymptotically guaranteed as <span class="math inline">\(n \rightarrow \infty\)</span> (see <a href="https://proceedings.mlr.press/v206/watson23a.html" class="external-link">Watson et al.,
-2023</a>, Thm. 1). However, this has no implications for finite sample
-performance. In practice, we often find that adversarial training
+<p>ARF convergence is asymptotically guaranteed as
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>→</mo><mi>∞</mi></mrow><annotation encoding="application/x-tex">n \rightarrow \infty</annotation></semantics></math>
+(see <a href="https://proceedings.mlr.press/v206/watson23a.html" class="external-link">Watson
+et al., 2023</a>, Thm. 1). However, this has no implications for finite
+sample performance. In practice, we often find that adversarial training
 completes in just one or two rounds, but this may not hold for some
 datasets. To avoid infinite loops, users can increase the slack
 parameter <code>delta</code> or set the <code>max_iters</code> argument
@@ -173,8 +151,8 @@ works on Unix machines.</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Rerun ARF, now in parallel and with more trees</span></span>
 <span><span class="va">arf_iris</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">iris</span>, num_trees <span class="op">=</span> <span class="fl">100</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Iteration: 0, Accuracy: 91.33%</span></span>
-<span><span class="co">#&gt; Iteration: 1, Accuracy: 33%</span></span></code></pre></div>
+<span><span class="co">#&gt; Iteration: 0, Accuracy: 85.67%</span></span>
+<span><span class="co">#&gt; Iteration: 1, Accuracy: 39.67%</span></span></code></pre></div>
 <p>The result is an object of class <code>ranger</code>, which we can
 input to downstream functions.</p>
 </div>
@@ -185,9 +163,16 @@ input to downstream functions.</p>
 forests for density estimation (FORDE). This function calculates the
 coverage, bounds, and pdf/pmf parameters for every variable in every
 leaf. This can be an expensive computation for large datasets, as it
-requires <span class="math inline">\(\mathcal{O}\big(B \cdot d \cdot n
-\cdot \log(n)\big)\)</span> operations, where <span class="math inline">\(B\)</span> is the number of trees, <span class="math inline">\(d\)</span> is the data dimensionality, and <span class="math inline">\(n\)</span> is the sample size. Once again, the
-process is parallelized by default.</p>
+requires
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>𝒪</mi><mo minsize="1.2" maxsize="1.2" stretchy="false" form="prefix">(</mo><mi>B</mi><mo>⋅</mo><mi>d</mi><mo>⋅</mo><mi>n</mi><mo>⋅</mo><mo>log</mo><mrow><mo stretchy="true" form="prefix">(</mo><mi>n</mi><mo stretchy="true" form="postfix">)</mo></mrow><mo minsize="1.2" maxsize="1.2" stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">\mathcal{O}\big(B \cdot d \cdot n \cdot \log(n)\big)</annotation></semantics></math>
+operations, where
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>B</mi><annotation encoding="application/x-tex">B</annotation></semantics></math>
+is the number of trees,
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>d</mi><annotation encoding="application/x-tex">d</annotation></semantics></math>
+is the data dimensionality, and
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>n</mi><annotation encoding="application/x-tex">n</annotation></semantics></math>
+is the sample size. Once again, the process is parallelized by
+default.</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Compute leaf and distribution parameters</span></span>
 <span><span class="va">params_iris</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/forde.html">forde</a></span><span class="op">(</span><span class="va">arf_iris</span>, <span class="va">iris</span><span class="op">)</span></span></code></pre></div>
@@ -219,11 +204,12 @@ assigned zero probability unless splits explicitly rule them out. In
 other words, we impose a flat Dirichlet prior and report posterior
 probabilities rather than maximum likelihood estimates. The latter is a
 slack parameter on empirical bounds that expands the estimated extrema
-for continuous features by a factor of <span class="math inline">\(1 +
-\epsilon\)</span>.</p>
+for continuous features by a factor of
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>1</mn><mo>+</mo><mi>ϵ</mi></mrow><annotation encoding="application/x-tex">1 + \epsilon</annotation></semantics></math>.</p>
 <p>Compare the results of our original probability estimates for the
 <code>Species</code> variable with those obtained by adding a
-pseudocount of <span class="math inline">\(\alpha = 0.1\)</span>.</p>
+pseudocount of
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>α</mi><mo>=</mo><mn>0.1</mn></mrow><annotation encoding="application/x-tex">\alpha = 0.1</annotation></semantics></math>.</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Recompute with additive smoothing</span></span>
 <span><span class="va">params_alpha</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/forde.html">forde</a></span><span class="op">(</span><span class="va">arf_iris</span>, <span class="va">iris</span>, alpha <span class="op">=</span> <span class="fl">0.1</span><span class="op">)</span></span>
@@ -234,90 +220,88 @@ pseudocount of <span class="math inline">\(\alpha = 0.1\)</span>.</p>
 <span><span class="co">#&gt;    f_idx variable       val  prob NA_share</span></span>
 <span><span class="co">#&gt;    &lt;int&gt;   &lt;char&gt;    &lt;char&gt; &lt;num&gt;    &lt;num&gt;</span></span>
 <span><span class="co">#&gt; 1:     1  Species virginica     1        0</span></span>
-<span><span class="co">#&gt; 2:     2  Species    setosa     1        0</span></span>
-<span><span class="co">#&gt; 3:     3  Species    setosa     1        0</span></span>
+<span><span class="co">#&gt; 2:     2  Species virginica     1        0</span></span>
+<span><span class="co">#&gt; 3:     3  Species virginica     1        0</span></span>
 <span><span class="co">#&gt; 4:     4  Species virginica     1        0</span></span>
 <span><span class="co">#&gt; 5:     5  Species    setosa     1        0</span></span>
-<span><span class="co">#&gt; 6:     6  Species    setosa     1        0</span></span></code></pre></div>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">params_alpha</span><span class="op">$</span><span class="va">cat</span><span class="op">)</span></span>
+<span><span class="co">#&gt; 6:     6  Species    setosa     1        0</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">params_alpha</span><span class="op">$</span><span class="va">cat</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Key: &lt;f_idx, variable&gt;</span></span>
 <span><span class="co">#&gt;    f_idx variable        val       prob NA_share</span></span>
 <span><span class="co">#&gt;    &lt;int&gt;   &lt;char&gt;     &lt;char&gt;      &lt;num&gt;    &lt;num&gt;</span></span>
 <span><span class="co">#&gt; 1:     1  Species  virginica 0.93939394        0</span></span>
 <span><span class="co">#&gt; 2:     1  Species     setosa 0.03030303        0</span></span>
 <span><span class="co">#&gt; 3:     1  Species versicolor 0.03030303        0</span></span>
-<span><span class="co">#&gt; 4:     2  Species  virginica 0.03030303        0</span></span>
-<span><span class="co">#&gt; 5:     2  Species     setosa 0.93939394        0</span></span>
-<span><span class="co">#&gt; 6:     2  Species versicolor 0.03030303        0</span></span></code></pre></div>
+<span><span class="co">#&gt; 4:     2  Species  virginica 0.91304348        0</span></span>
+<span><span class="co">#&gt; 5:     2  Species     setosa 0.04347826        0</span></span>
+<span><span class="co">#&gt; 6:     2  Species versicolor 0.04347826        0</span></span></code></pre></div>
 <p>Under Laplace smoothing, extreme probabilities only occur when the
 splits explicitly demand it. Otherwise, all values shrink toward a
 uniform prior. Note that these two data tables may not have exactly the
 same rows, as we omit zero probability events to conserve memory.
 However, we can verify that probabilities sum to unity for each
 leaf-variable combination.</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Sum probabilities</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">params_iris</span><span class="op">$</span><span class="va">cat</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">prob</span><span class="op">)</span>, by <span class="op">=</span> <span class="fu">.</span><span class="op">(</span><span class="va">f_idx</span>, <span class="va">variable</span><span class="op">)</span><span class="op">]</span><span class="op">$</span><span class="va">V1</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. </span></span>
-<span><span class="co">#&gt;       1       1       1       1       1       1</span></span></code></pre></div>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">params_alpha</span><span class="op">$</span><span class="va">cat</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">prob</span><span class="op">)</span>, by <span class="op">=</span> <span class="fu">.</span><span class="op">(</span><span class="va">f_idx</span>, <span class="va">variable</span><span class="op">)</span><span class="op">]</span><span class="op">$</span><span class="va">V1</span><span class="op">)</span></span>
+<span><span class="co">#&gt;       1       1       1       1       1       1</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">params_alpha</span><span class="op">$</span><span class="va">cat</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">prob</span><span class="op">)</span>, by <span class="op">=</span> <span class="fu">.</span><span class="op">(</span><span class="va">f_idx</span>, <span class="va">variable</span><span class="op">)</span><span class="op">]</span><span class="op">$</span><span class="va">V1</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. </span></span>
 <span><span class="co">#&gt;       1       1       1       1       1       1</span></span></code></pre></div>
 <p>The <code>forde</code> function outputs a list of length 6, with
 entries for (1) continuous features; (2) categorical features; (3) leaf
 parameters; (4) variable metadata; (5) factor levels; and (6) data input
 class.</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">params_iris</span></span>
 <span><span class="co">#&gt; $cnt</span></span>
 <span><span class="co">#&gt; Key: &lt;f_idx, variable&gt;</span></span>
-<span><span class="co">#&gt;       f_idx     variable   min   max       mu      sigma NA_share</span></span>
-<span><span class="co">#&gt;       &lt;int&gt;       &lt;char&gt; &lt;num&gt; &lt;num&gt;    &lt;num&gt;      &lt;num&gt;    &lt;num&gt;</span></span>
-<span><span class="co">#&gt;    1:     1 Petal.Length  -Inf   Inf 5.933333 0.20816660        0</span></span>
-<span><span class="co">#&gt;    2:     1  Petal.Width  2.45   Inf 2.500000 0.01041469        0</span></span>
-<span><span class="co">#&gt;    3:     1 Sepal.Length  -Inf   Inf 6.733333 0.45092498        0</span></span>
-<span><span class="co">#&gt;    4:     1  Sepal.Width  -Inf   Inf 3.400000 0.17320508        0</span></span>
-<span><span class="co">#&gt;    5:     2 Petal.Length  -Inf   Inf 1.466667 0.05773503        0</span></span>
-<span><span class="co">#&gt;   ---                                                            </span></span>
-<span><span class="co">#&gt; 8468:  2117  Sepal.Width  3.30  3.45 3.400000 0.02209289        0</span></span>
-<span><span class="co">#&gt; 8469:  2118 Petal.Length  1.35  1.45 1.400000 0.01803877        0</span></span>
-<span><span class="co">#&gt; 8470:  2118  Petal.Width  -Inf  0.50 0.200000 0.08164966        0</span></span>
-<span><span class="co">#&gt; 8471:  2118 Sepal.Length  4.65  5.30 4.875000 0.09574271        0</span></span>
-<span><span class="co">#&gt; 8472:  2118  Sepal.Width  2.45  3.30 3.075000 0.15000000        0</span></span>
+<span><span class="co">#&gt;        f_idx     variable   min   max       mu      sigma NA_share</span></span>
+<span><span class="co">#&gt;        &lt;int&gt;       &lt;char&gt; &lt;num&gt; &lt;num&gt;    &lt;num&gt;      &lt;num&gt;    &lt;num&gt;</span></span>
+<span><span class="co">#&gt;     1:     1 Petal.Length  -Inf   Inf 5.933333 0.20816660        0</span></span>
+<span><span class="co">#&gt;     2:     1  Petal.Width  2.45   Inf 2.500000 0.01041469        0</span></span>
+<span><span class="co">#&gt;     3:     1 Sepal.Length  -Inf   Inf 6.733333 0.45092498        0</span></span>
+<span><span class="co">#&gt;     4:     1  Sepal.Width  -Inf   Inf 3.400000 0.17320508        0</span></span>
+<span><span class="co">#&gt;     5:     2 Petal.Length  -Inf   Inf 5.250000 0.21213203        0</span></span>
+<span><span class="co">#&gt;    ---                                                            </span></span>
+<span><span class="co">#&gt; 10484:  2621  Sepal.Width  3.30  3.45 3.400000 0.02209289        0</span></span>
+<span><span class="co">#&gt; 10485:  2622 Petal.Length  -Inf  4.20 1.400000 0.10000000        0</span></span>
+<span><span class="co">#&gt; 10486:  2622  Petal.Width  -Inf  0.25 0.200000 0.03124407        0</span></span>
+<span><span class="co">#&gt; 10487:  2622 Sepal.Length  4.65  5.55 5.266667 0.20816660        0</span></span>
+<span><span class="co">#&gt; 10488:  2622  Sepal.Width  3.45  3.55 3.500000 0.02082938        0</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $cat</span></span>
 <span><span class="co">#&gt; Key: &lt;f_idx, variable&gt;</span></span>
-<span><span class="co">#&gt;       f_idx variable        val  prob NA_share</span></span>
-<span><span class="co">#&gt;       &lt;int&gt;   &lt;char&gt;     &lt;char&gt; &lt;num&gt;    &lt;num&gt;</span></span>
-<span><span class="co">#&gt;    1:     1  Species  virginica     1        0</span></span>
-<span><span class="co">#&gt;    2:     2  Species     setosa     1        0</span></span>
-<span><span class="co">#&gt;    3:     3  Species     setosa     1        0</span></span>
-<span><span class="co">#&gt;    4:     4  Species  virginica     1        0</span></span>
-<span><span class="co">#&gt;    5:     5  Species     setosa     1        0</span></span>
-<span><span class="co">#&gt;   ---                                         </span></span>
-<span><span class="co">#&gt; 2408:  2114  Species versicolor     1        0</span></span>
-<span><span class="co">#&gt; 2409:  2115  Species     setosa     1        0</span></span>
-<span><span class="co">#&gt; 2410:  2116  Species     setosa     1        0</span></span>
-<span><span class="co">#&gt; 2411:  2117  Species     setosa     1        0</span></span>
-<span><span class="co">#&gt; 2412:  2118  Species     setosa     1        0</span></span>
+<span><span class="co">#&gt;       f_idx variable        val      prob NA_share</span></span>
+<span><span class="co">#&gt;       &lt;int&gt;   &lt;char&gt;     &lt;char&gt;     &lt;num&gt;    &lt;num&gt;</span></span>
+<span><span class="co">#&gt;    1:     1  Species  virginica 1.0000000        0</span></span>
+<span><span class="co">#&gt;    2:     2  Species  virginica 1.0000000        0</span></span>
+<span><span class="co">#&gt;    3:     3  Species  virginica 1.0000000        0</span></span>
+<span><span class="co">#&gt;    4:     4  Species  virginica 1.0000000        0</span></span>
+<span><span class="co">#&gt;    5:     5  Species     setosa 1.0000000        0</span></span>
+<span><span class="co">#&gt;   ---                                             </span></span>
+<span><span class="co">#&gt; 2919:  2618  Species versicolor 0.4615385        0</span></span>
+<span><span class="co">#&gt; 2920:  2619  Species     setosa 1.0000000        0</span></span>
+<span><span class="co">#&gt; 2921:  2620  Species     setosa 1.0000000        0</span></span>
+<span><span class="co">#&gt; 2922:  2621  Species     setosa 1.0000000        0</span></span>
+<span><span class="co">#&gt; 2923:  2622  Species     setosa 1.0000000        0</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $forest</span></span>
 <span><span class="co">#&gt; Key: &lt;tree, leaf&gt;</span></span>
 <span><span class="co">#&gt;       f_idx  tree  leaf        cvg</span></span>
 <span><span class="co">#&gt;       &lt;int&gt; &lt;int&gt; &lt;int&gt;      &lt;num&gt;</span></span>
 <span><span class="co">#&gt;    1:     1     1     6 0.02000000</span></span>
-<span><span class="co">#&gt;    2:     2     1    11 0.02000000</span></span>
-<span><span class="co">#&gt;    3:     3     1    15 0.02000000</span></span>
-<span><span class="co">#&gt;    4:     4     1    25 0.05333333</span></span>
-<span><span class="co">#&gt;    5:     5     1    31 0.01333333</span></span>
+<span><span class="co">#&gt;    2:     2     1    10 0.01333333</span></span>
+<span><span class="co">#&gt;    3:     3     1    13 0.04000000</span></span>
+<span><span class="co">#&gt;    4:     4     1    16 0.03333333</span></span>
+<span><span class="co">#&gt;    5:     5     1    21 0.02000000</span></span>
 <span><span class="co">#&gt;   ---                             </span></span>
-<span><span class="co">#&gt; 2114:  2114   100    95 0.03333333</span></span>
-<span><span class="co">#&gt; 2115:  2115   100    97 0.01333333</span></span>
-<span><span class="co">#&gt; 2116:  2116   100   101 0.04000000</span></span>
-<span><span class="co">#&gt; 2117:  2117   100   103 0.04000000</span></span>
-<span><span class="co">#&gt; 2118:  2118   100   105 0.02666667</span></span>
+<span><span class="co">#&gt; 2618:  2618   100    49 0.08666667</span></span>
+<span><span class="co">#&gt; 2619:  2619   100    57 0.02000000</span></span>
+<span><span class="co">#&gt; 2620:  2620   100    58 0.04666667</span></span>
+<span><span class="co">#&gt; 2621:  2621   100    60 0.04000000</span></span>
+<span><span class="co">#&gt; 2622:  2622   100    61 0.02000000</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $meta</span></span>
 <span><span class="co">#&gt;        variable   class    family decimals</span></span>
@@ -348,24 +332,23 @@ as likelihood estimation and data synthesis.</p>
 to evaluate. For <em>total evidence</em> queries (i.e., those spanning
 all variables and no conditioning events), it is faster to also include
 <code>arf</code> in the function call.</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Compute likelihood under truncated normal and uniform distributions</span></span>
 <span><span class="va">ll</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/lik.html">lik</a></span><span class="op">(</span><span class="va">params_iris</span>, <span class="va">iris</span>, arf <span class="op">=</span> <span class="va">arf_iris</span><span class="op">)</span></span>
 <span><span class="va">ll_unif</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/lik.html">lik</a></span><span class="op">(</span><span class="va">params_unif</span>, <span class="va">iris</span>, arf <span class="op">=</span> <span class="va">arf_iris</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Compare average negative log-likelihood (lower is better)</span></span>
 <span><span class="op">-</span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">ll</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] 0.5255625</span></span></code></pre></div>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="op">-</span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">ll_unif</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] -4.363783</span></span></code></pre></div>
+<span><span class="co">#&gt; [1] 0.3196718</span></span>
+<span><span class="op">-</span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">ll_unif</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] -7.291452</span></span></code></pre></div>
 <p>Note that the piecewise constant estimator does considerably worse in
 this experiment.</p>
 <p>The <code>lik</code> function can also be used to compute the
 likelihood of some <em>partial state</em>, i.e. a setting in which some
 but not all variable values are specified. Let’s take a look at that
 iris dataset:</p>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">iris</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   Sepal.Length Sepal.Width Petal.Length Petal.Width Species</span></span>
 <span><span class="co">#&gt; 1          5.1         3.5          1.4         0.2  setosa</span></span>
@@ -378,7 +361,7 @@ iris dataset:</p>
 data. That is, we provide values for the first four variables but
 exclude the fifth. In this case, the model will have to marginalize over
 <code>Species</code>:</p>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Compute likelihoods after marginalizing over Species</span></span>
 <span><span class="va">iris_without_species</span> <span class="op">&lt;-</span> <span class="va">iris</span><span class="op">[</span>, <span class="op">-</span><span class="fl">5</span><span class="op">]</span></span>
 <span><span class="va">ll_cnt</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/lik.html">lik</a></span><span class="op">(</span><span class="va">params_iris</span>, <span class="va">iris_without_species</span><span class="op">)</span></span>
@@ -403,20 +386,22 @@ excluded from a given tree due to the bootstrapping subroutine of the RF
 classifier. Note that this only works when the dataset <code>x</code>
 passed to <code>forde</code> or <code>lik</code> is the same one used to
 train the <code>arf</code>. Recall that a sample’s probability of being
-excluded from a single tree is <span class="math inline">\(\exp(-1)
-\approx 0.368\)</span>. When using <code>oob = TRUE</code>, be sure to
-include enough trees so that every observation is likely to be OOB at
-least a few times.</p>
+excluded from a single tree is
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>exp</mo><mrow><mo stretchy="true" form="prefix">(</mo><mo>−</mo><mn>1</mn><mo stretchy="true" form="postfix">)</mo></mrow><mo>≈</mo><mn>0.368</mn></mrow><annotation encoding="application/x-tex">\exp(-1) \approx 0.368</annotation></semantics></math>.
+When using <code>oob = TRUE</code>, be sure to include enough trees so
+that every observation is likely to be OOB at least a few times.</p>
 </div>
 <div class="section level2">
 <h2 id="data-synthesis">Data Synthesis<a class="anchor" aria-label="anchor" href="#data-synthesis"></a>
 </h2>
 <p>For this experiment, we use the <code>smiley</code> simulation from
 the <code>mlbench</code> package, which allows for easy visual
-assessment. We draw a training set of <span class="math inline">\(n =
-1000\)</span> and simulate <span class="math inline">\(1000\)</span>
+assessment. We draw a training set of
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>1000</mn></mrow><annotation encoding="application/x-tex">n = 1000</annotation></semantics></math>
+and simulate
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mn>1000</mn><annotation encoding="application/x-tex">1000</annotation></semantics></math>
 synthetic datapoints. Resulting data are plotted side by side.</p>
-<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Simulate training data</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">mlbench</span><span class="op">)</span></span>
 <span><span class="va">x</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/mlbench/man/mlbench.smiley.html" class="external-link">mlbench.smiley</a></span><span class="op">(</span><span class="fl">1000</span><span class="op">)</span></span>
@@ -425,10 +410,9 @@ synthetic datapoints. Resulting data are plotted side by side.</p>
 <span></span>
 <span><span class="co"># Fit ARF</span></span>
 <span><span class="va">arf_smiley</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">x</span>, mtry <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Iteration: 0, Accuracy: 90.68%</span></span>
-<span><span class="co">#&gt; Iteration: 1, Accuracy: 38.64%</span></span></code></pre></div>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span></span>
+<span><span class="co">#&gt; Iteration: 0, Accuracy: 84.35%</span></span>
+<span><span class="co">#&gt; Iteration: 1, Accuracy: 42.29%</span></span>
+<span></span>
 <span><span class="co"># Estimate parameters</span></span>
 <span><span class="va">params_smiley</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/forde.html">forde</a></span><span class="op">(</span><span class="va">arf_smiley</span>, <span class="va">x</span><span class="op">)</span></span>
 <span></span>
@@ -440,15 +424,13 @@ synthetic datapoints. Resulting data are plotted side by side.</p>
 <span><span class="co">#&gt; 'data.frame':    1000 obs. of  3 variables:</span></span>
 <span><span class="co">#&gt;  $ X    : num  -0.841 -0.911 -0.91 -0.743 -0.863 ...</span></span>
 <span><span class="co">#&gt;  $ Y    : num  0.874 0.926 1.051 0.918 1.157 ...</span></span>
-<span><span class="co">#&gt;  $ Class: Factor w/ 4 levels "1","2","3","4": 1 1 1 1 1 1 1 1 1 1 ...</span></span></code></pre></div>
-<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">synth</span><span class="op">)</span></span>
+<span><span class="co">#&gt;  $ Class: Factor w/ 4 levels "1","2","3","4": 1 1 1 1 1 1 1 1 1 1 ...</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">synth</span><span class="op">)</span></span>
 <span><span class="co">#&gt; 'data.frame':    1000 obs. of  3 variables:</span></span>
-<span><span class="co">#&gt;  $ X    : num  0.779 -0.721 0.645 0.643 0.97 ...</span></span>
-<span><span class="co">#&gt;  $ Y    : num  -0.446 0.937 -0.529 -0.569 0.983 ...</span></span>
-<span><span class="co">#&gt;  $ Class: Factor w/ 4 levels "1","2","3","4": 4 1 4 4 2 4 1 3 3 4 ...</span></span></code></pre></div>
-<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span></span>
+<span><span class="co">#&gt;  $ X    : num  -0.3742 -0.0897 0.0322 0.0271 -0.8529 ...</span></span>
+<span><span class="co">#&gt;  $ Y    : num  -0.786 0.371 0.548 0.546 -0.247 ...</span></span>
+<span><span class="co">#&gt;  $ Class: Factor w/ 4 levels "1","2","3","4": 4 3 3 3 4 4 3 2 3 3 ...</span></span>
+<span></span>
 <span><span class="co"># Put it all together</span></span>
 <span><span class="va">x</span><span class="op">$</span><span class="va">Data</span> <span class="op">&lt;-</span> <span class="st">'Original'</span></span>
 <span><span class="va">synth</span><span class="op">$</span><span class="va">Data</span> <span class="op">&lt;-</span> <span class="st">'Synthetic'</span></span>
@@ -472,7 +454,7 @@ features. For instance, say we want to evaluate the likelihood of
 samples from the <code>iris</code> dataset under the condition that
 <code>Species = 'setosa'</code>. There are several ways to encode
 evidence, but the simplest is to pass a partial observation.</p>
-<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Compute conditional likelihoods</span></span>
 <span><span class="va">evi</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>Species <span class="op">=</span> <span class="st">'setosa'</span><span class="op">)</span></span>
 <span><span class="va">ll_conditional</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/lik.html">lik</a></span><span class="op">(</span><span class="va">params_iris</span>, query <span class="op">=</span> <span class="va">iris_without_species</span>, evidence <span class="op">=</span> <span class="va">evi</span><span class="op">)</span></span>
@@ -485,7 +467,7 @@ evidence, but the simplest is to pass a partial observation.</p>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_continuous.html" class="external-link">scale_y_log10</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> </span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ylab</a></span><span class="op">(</span><span class="st">'Negative Log-Likelihood'</span><span class="op">)</span> <span class="op">+</span> </span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span>legend.position <span class="op">=</span> <span class="st">'none'</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Warning: Removed 6 rows containing non-finite outside the scale range</span></span>
+<span><span class="co">#&gt; Warning: Removed 11 rows containing non-finite outside the scale range</span></span>
 <span><span class="co">#&gt; (`stat_boxplot()`).</span></span></code></pre></div>
 <p><img src="arf_files/figure-html/conditional-1.png" width="480"></p>
 <p>As expected, measurements for non-setosa samples appear much less
@@ -497,7 +479,7 @@ events, potentially including inequalities. For example, we may want to
 calculate the likelihood of samples given that
 <code>Species = 'setosa'</code> and
 <code>Petal.Width &gt; 0.3</code>.</p>
-<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Data frame of conditioning events</span></span>
 <span><span class="va">evi</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>Species <span class="op">=</span> <span class="st">"setosa"</span>, </span>
 <span>                  Petal.Width <span class="op">=</span> <span class="st">"&gt;0.3"</span><span class="op">)</span></span>
@@ -505,7 +487,7 @@ calculate the likelihood of samples given that
 <span><span class="co">#&gt;   Species Petal.Width</span></span>
 <span><span class="co">#&gt; 1  setosa        &gt;0.3</span></span></code></pre></div>
 <p>We can also define intervals:</p>
-<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">evi</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>Species <span class="op">=</span> <span class="st">"setosa"</span>, </span>
 <span>                  Petal.Width <span class="op">=</span> <span class="st">"(0.3,0.5)"</span><span class="op">)</span></span>
 <span><span class="va">evi</span></span>
@@ -513,7 +495,7 @@ calculate the likelihood of samples given that
 <span><span class="co">#&gt; 1  setosa   (0.3,0.5)</span></span></code></pre></div>
 <p>Resulting likelihoods will be computed on the condition that all
 queries are drawn from setosa flowers with petal width on the interval
-<span class="math inline">\((0.3, 0.5)\)</span>.</p>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="true" form="prefix">(</mo><mn>0.3</mn><mo>,</mo><mn>0.5</mn><mo stretchy="true" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">(0.3, 0.5)</annotation></semantics></math>.</p>
 <p>A final method for passing evidence is to directly compute a
 posterior distribution on leaves. This could be useful for particularly
 complex conditioning events for which there is currently no inbuilt
@@ -522,22 +504,22 @@ disjunctive normal form. In this case, we just require a data frame with
 columns for <code>f_idx</code> and <code>wt</code>. If the latter does
 not sum to unity, the distribution will be normalized with a
 warning.</p>
-<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Drawing random weights</span></span>
 <span><span class="va">evi</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>f_idx <span class="op">=</span> <span class="va">params_iris</span><span class="op">$</span><span class="va">forest</span><span class="op">$</span><span class="va">f_idx</span>,</span>
 <span>                  wt <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Exponential.html" class="external-link">rexp</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">params_iris</span><span class="op">$</span><span class="va">forest</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">evi</span><span class="op">$</span><span class="va">wt</span> <span class="op">&lt;-</span> <span class="va">evi</span><span class="op">$</span><span class="va">wt</span> <span class="op">/</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">evi</span><span class="op">$</span><span class="va">wt</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">evi</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   f_idx           wt</span></span>
-<span><span class="co">#&gt; 1     1 6.787756e-05</span></span>
-<span><span class="co">#&gt; 2     2 2.290688e-04</span></span>
-<span><span class="co">#&gt; 3     3 7.573631e-05</span></span>
-<span><span class="co">#&gt; 4     4 2.252819e-05</span></span>
-<span><span class="co">#&gt; 5     5 5.651368e-04</span></span>
-<span><span class="co">#&gt; 6     6 5.034869e-04</span></span></code></pre></div>
+<span><span class="co">#&gt; 1     1 4.483113e-04</span></span>
+<span><span class="co">#&gt; 2     2 3.997981e-05</span></span>
+<span><span class="co">#&gt; 3     3 2.888576e-05</span></span>
+<span><span class="co">#&gt; 4     4 8.726013e-04</span></span>
+<span><span class="co">#&gt; 5     5 4.433602e-04</span></span>
+<span><span class="co">#&gt; 6     6 3.536210e-05</span></span></code></pre></div>
 <p>Each of these methods can be used for conditional sampling as
 well.</p>
-<div class="sourceCode" id="cb25"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Simulate class-conditional data for smiley example</span></span>
 <span><span class="va">evi</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>Class <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span>
 <span><span class="va">synth2</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/forge.html">forge</a></span><span class="op">(</span><span class="va">params_smiley</span>, n_synth <span class="op">=</span> <span class="fl">250</span>, evidence <span class="op">=</span> <span class="va">evi</span><span class="op">)</span></span>
@@ -554,14 +536,15 @@ well.</p>
 <p>By conditioning on <code>Class = 4</code>, we restrict our sampling
 to the smile itself, rather than eyes or nose.</p>
 <p>Computing conditional expectations is similarly straightforward.</p>
-<div class="sourceCode" id="cb26"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/expct.html">expct</a></span><span class="op">(</span><span class="va">params_smiley</span>, evidence <span class="op">=</span> <span class="va">evi</span><span class="op">)</span></span>
 <span><span class="co">#&gt;             X          Y</span></span>
-<span><span class="co">#&gt; 1 -0.01207312 -0.6730464</span></span></code></pre></div>
-<p>These are the average <span class="math inline">\(X, Y\)</span>
+<span><span class="co">#&gt; 1 -0.01177414 -0.6728099</span></span></code></pre></div>
+<p>These are the average
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>X</mi><mo>,</mo><mi>Y</mi></mrow><annotation encoding="application/x-tex">X, Y</annotation></semantics></math>
 coordinates for the smile above.</p>
 </div>
-  </main><aside class="col-md-3"><nav id="toc"><h2>On this page</h2>
+  </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>
 </div>
 
@@ -572,15 +555,15 @@ coordinates for the smile above.</p>
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.0.9.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.1.</p>
 </div>
 
     </footer>
 </div>
 
-  
 
-  
+
+
 
   </body>
 </html>
