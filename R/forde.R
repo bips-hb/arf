@@ -6,7 +6,9 @@
 #'   object of class \code{ranger}.
 #' @param x Training data for estimating parameters.
 #' @param oob Only use out-of-bag samples for parameter estimation? If 
-#'   \code{TRUE}, \code{x} must be the same dataset used to train \code{arf}.
+#'   \code{TRUE}, \code{x} must be the same dataset used to train \code{arf}. 
+#'   Can also be "inbag" to only use in-bag samples. Default is \code{FALSE}, i.e.,
+#'   to use all observations
 #' @param family Distribution to use for density estimation of continuous 
 #'   features. Current options include truncated normal (the default
 #'   \code{family = "truncnorm"}) and uniform (\code{family = "unif"}). See 
@@ -240,6 +242,14 @@ forde <- function(
     keep <- unique(keep[, cnt := .N, by = .(tree, leaf)])
     keep[, n_oob := sum(oob), by = tree]
     keep[, cvg := cnt / n_oob][, c('oob', 'cnt', 'n_oob') := NULL]
+  } else if (oob == "inbag") {
+    keep[, inbag := as.vector(sapply(seq_len(num_trees), function(b) {
+      arf$inbag.counts[[b]][seq_len(n)] > 0L
+    }))]
+    keep <- keep[inbag == TRUE]
+    keep <- unique(keep[, cnt := .N, by = .(tree, leaf)])
+    keep[, n_inbag := sum(inbag), by = tree]
+    keep[, cvg := cnt / n_inbag][, c('inbag', 'cnt', 'n_inbag') := NULL]
   } else {
     keep <- unique(keep[, cnt := .N, by = .(tree, leaf)])
     keep[, cvg := cnt / n][, cnt := NULL]
@@ -257,6 +267,10 @@ forde <- function(
     psi_cnt_fn <- function(tree) {
       dt <- data.table(x[, !factor_cols, drop = FALSE], leaf = pred[, tree])
       if (isTRUE(oob)) {
+        dt <- dt[arf$inbag.counts[[tree]][1:n] == 0L, ]
+        dt <- dt[!is.na(leaf)]
+      } else if (oob == "inbag") {
+        dt <- dt[arf$inbag.counts[[tree]][1:n] > 0L, ]
         dt <- dt[!is.na(leaf)]
       }
       dt <- melt(dt, id.vars = 'leaf', variable.factor = FALSE)[, tree := tree]

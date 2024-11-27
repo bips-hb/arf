@@ -22,7 +22,9 @@ object of class \code{ranger}.}
 \item{x}{Training data for estimating parameters.}
 
 \item{oob}{Only use out-of-bag samples for parameter estimation? If
-\code{TRUE}, \code{x} must be the same dataset used to train \code{arf}.}
+\code{TRUE}, \code{x} must be the same dataset used to train \code{arf}.
+Can also be "inbag" to only use in-bag samples. Default is \code{FALSE}, i.e.,
+to use all observations}
 
 \item{family}{Distribution to use for density estimation of continuous
 features. Current options include truncated normal (the default
