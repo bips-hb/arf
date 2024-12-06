@@ -280,7 +280,7 @@ forde <- function(
         dt[NA_share == 1, c('min', 'max') := .(fifelse(is.infinite(min), min_emp, min),
                                                fifelse(is.infinite(max), max_emp, max))]
         dt[, c("min_emp", "max_emp") := NULL]
-        dt[NA_share == 1, mu := (max - min) / 2]
+        dt[NA_share == 1, mu := (max + min) / 2]
         dt[is.na(sigma), sigma := 0]
         if (any(dt[, sigma == 0])) {
           dt[, new_min := fifelse(!is.finite(min), min(value, na.rm = TRUE), min), by = variable]
