@@ -60,4 +60,9 @@ Authors:
   \item Jan Kapar (\href{https://orcid.org/0009-0000-6408-2840}{ORCID})
 }
 
+Other contributors:
+\itemize{
+  \item Leibniz Institute for Prevention Research and Epidemiology - BIPS \email{R@leibniz-bips.de} (02c22vc57) [copyright holder]
+}
+
 }
