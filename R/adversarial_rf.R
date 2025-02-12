@@ -118,7 +118,7 @@ adversarial_rf <- function(
   i <- b <- cnt <- obs <- tree <- leaf <- N <- . <- NULL
   
   # Prep data
-  x_real <- prep_x(x)
+  x_real <- prep_x(x, verbose)
   n <- nrow(x_real)
   d <- ncol(x_real)
   factor_cols <- sapply(x_real, is.factor)

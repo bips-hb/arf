@@ -72,7 +72,7 @@ test_that("FORGE returns correct column types", {
                     factor = factor(sample(letters[1:5], n, replace = TRUE)), 
                     logical = (sample(0:1, n, replace = TRUE) == 1))
   
-  expect_warning(arf <- adversarial_rf(dat, num_trees = 2, verbose = FALSE, parallel = FALSE))
+  arf <- adversarial_rf(dat, num_trees = 2, verbose = FALSE, parallel = FALSE)
   psi <- forde(arf, dat, parallel = FALSE)
   
   # with round = TRUE
