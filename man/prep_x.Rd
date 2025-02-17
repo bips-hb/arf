@@ -4,10 +4,12 @@
 \alias{prep_x}
 \title{Preprocess input data}
 \usage{
-prep_x(x)
+prep_x(x, verbose = TRUE)
 }
 \arguments{
 \item{x}{Input data.frame.}
+
+\item{verbose}{Show warning if recoding integers?}
 }
 \description{
 This function prepares input data for ARFs.

@@ -14,7 +14,7 @@
 #' @param early_stop Terminate loop if performance fails to improve from one 
 #'   round to the next? 
 #' @param prune Impose \code{min_node_size} by pruning? 
-#' @param verbose Print discriminator accuracy after each round?
+#' @param verbose Print discriminator accuracy after each round? Will also show additional warnings.
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
 #'   via \code{doParallel} or \code{doFuture}; see examples.
 #' @param ... Extra parameters to be passed to \code{ranger}.
@@ -118,7 +118,7 @@ adversarial_rf <- function(
   i <- b <- cnt <- obs <- tree <- leaf <- N <- . <- NULL
   
   # Prep data
-  x_real <- prep_x(x)
+  x_real <- prep_x(x, verbose)
   n <- nrow(x_real)
   d <- ncol(x_real)
   factor_cols <- sapply(x_real, is.factor)

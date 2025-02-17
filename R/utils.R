@@ -82,9 +82,10 @@ which.max.random <- function(x) {
 #' This function prepares input data for ARFs.
 #' 
 #' @param x Input data.frame.
+#' @param verbose Show warning if recoding integers?
 #' @keywords internal
 
-prep_x <- function(x) {
+prep_x <- function(x, verbose = TRUE) {
   # Reclass all non-numeric features as factors
   x <- as.data.frame(x)
   idx_char <- sapply(x, is.character)
@@ -102,16 +103,20 @@ prep_x <- function(x) {
       idx_integer[j] & length(unique(x[[j]])) > 5
     })
     if (any(to_numeric)) {
-      warning('Recoding integers with more than 5 unique values as numeric. ', 
+      if (verbose) {
+        warning('Recoding integers with more than 5 unique values as numeric. ', 
               'To override this behavior, explicitly code these variables as factors.')
+      }
       x[, to_numeric] <- lapply(x[, to_numeric, drop = FALSE], as.numeric)
     }
     to_factor <- sapply(seq_len(ncol(x)), function(j) {
       idx_integer[j] & length(unique(x[[j]])) < 6
     })
     if (any(to_factor)) {
-      warning('Recoding integers with fewer than 6 unique values as ordered factors. ', 
+      if (verbose) {
+        warning('Recoding integers with fewer than 6 unique values as ordered factors. ', 
               'To override this behavior, explicitly code these variables as numeric.')
+      }
       x[, to_factor] <- lapply(which(to_factor), function(j) {
         lvls <- sort(unique(x[[j]]))
         factor(x[[j]], levels = lvls, ordered = TRUE)
