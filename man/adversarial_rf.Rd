@@ -37,7 +37,7 @@ round to the next?}
 
 \item{prune}{Impose \code{min_node_size} by pruning?}
 
-\item{verbose}{Print discriminator accuracy after each round?}
+\item{verbose}{Print discriminator accuracy after each round? Will also show additional warnings.}
 
 \item{parallel}{Compute in parallel? Must register backend beforehand, e.g.
 via \code{doParallel} or \code{doFuture}; see examples.}
