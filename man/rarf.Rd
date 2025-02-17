@@ -10,8 +10,12 @@ rarf(x, n_synth = NULL, ...)
 \item{x}{Input data. Integer variables are recoded as ordered factors with
 a warning. See Details.}
 
-\item{n_synth}{Number of synthetic samples to generate. Is set to \code{nrow(x)} if
-\code{NULL}.}
+\item{n_synth}{Number of synthetic samples to generate for unconditional
+generation with no \code{evidence} given.
+Number of synthetic samples to generate per \code{evidence} row if \code{evidence}
+is provided.
+If \code{NULL}, defaults to \code{nrow(x)} if no \code{evidence} is provided and to
+\code{1} otherwise.}
 
 \item{...}{Extra parameters to be passed to \code{adversarial_rf}, \code{forde}
 and \code{forge}.}

@@ -73,8 +73,12 @@ darf <- function(x, query = NULL, ...) {
 #' 
 #' @param x Input data. Integer variables are recoded as ordered factors with
 #'   a warning. See Details.
-#' @param n_synth Number of synthetic samples to generate. Is set to \code{nrow(x)} if
-#' \code{NULL}.
+#' @param n_synth Number of synthetic samples to generate for unconditional
+#' generation with no \code{evidence} given.
+#' Number of synthetic samples to generate per \code{evidence} row if \code{evidence}
+#' is provided.
+#' If \code{NULL}, defaults to \code{nrow(x)} if no \code{evidence} is provided and to
+#' \code{1} otherwise.
 #' @param ... Extra parameters to be passed to \code{adversarial_rf}, \code{forde}
 #'   and \code{forge}.
 #'   
@@ -122,7 +126,14 @@ rarf <- function(x, n_synth = NULL, ...) {
   
   if (!("params" %in% names(forde_args))) params <- do.call(forde, c(arf = list(arf), x = list(x), forde_args))
   
-  if(is.null(n_synth)) n_synth <- nrow(x)
+  if(is.null(n_synth)) {
+    if (is.null(forge_args$evidence))
+      n_synth <- nrow(x)
+    else {
+      n_synth <- 1
+    }
+  }
+  
   do.call(forge, c(params = list(params), 
                    n_synth = list(n_synth),
                    forge_args))

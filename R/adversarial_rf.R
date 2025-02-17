@@ -155,16 +155,16 @@ adversarial_rf <- function(
       # Create synthetic data by sampling from intra-leaf marginals
       nodeIDs <- stats::predict(rf0, x_real, type = 'terminalNodes')$predictions
       tmp <- data.table('tree' = rep(seq_len(num_trees), each = n), 
-                        'leaf' = as.vector(nodeIDs))
-      x_real_dt <- do.call(rbind, lapply(seq_len(num_trees), function(b) {
-        cbind(x_real, tmp[tree == b])
+                        'leaf' = as.integer(nodeIDs))
+      tmp2 <- tmp[sample(.N, n, replace = TRUE)]
+      tmp2 <- unique(tmp2[, cnt := .N, by = .(tree, leaf)])
+      draw_from <- rbindlist(lapply(seq_len(num_trees), function(b) {
+        x_real_b <- cbind(x_real, tmp[tree == b])
+        x_real_b[, factor_cols] <- lapply(x_real_b[, factor_cols, drop = FALSE], as.numeric)
+        merge(tmp2, x_real_b, by = c('tree', 'leaf'), 
+              sort = FALSE)[, N := .N, by = .(tree, leaf)]
       }))
-      x_real_dt[, factor_cols] <- lapply(x_real_dt[, factor_cols, drop = FALSE], as.numeric)
-      tmp <- tmp[sample(.N, n, replace = TRUE)]
-      tmp <- unique(tmp[, cnt := .N, by = .(tree, leaf)])
-      draw_from <- merge(tmp, x_real_dt, by = c('tree', 'leaf'), 
-                         sort = FALSE)[, N := .N, by = .(tree, leaf)]
-      rm(nodeIDs, tmp, x_real_dt)
+      rm(nodeIDs, tmp, tmp2)
       draw_params_within <- unique(draw_from, by = c('tree','leaf'))[, .(cnt, N)]
       adj_absolut_col <- rep(c(0, draw_params_within[-.N, cumsum(N)]), 
                              times = draw_params_within$cnt)
