@@ -5,6 +5,7 @@
 #' @param x_real Data to sample from
 #' @param factor_cols Logical vector indicating which columns are factors (optional)
 #' @param lvls List of factor levels (optional)
+#' @param prep Whether to prepare the data before sampling
 #'
 #' @returns A data.table of synthetic data
 #' @export
@@ -13,6 +14,9 @@
 #' arf <- adversarial_rf(iris)
 #' sample_from_leaves(arf, iris)
 sample_from_leaves <- function(arf, x_real, factor_cols = NULL, lvls = NULL, prep = TRUE) {
+  # To avoid data.table check issues
+  i <- b <- cnt <- obs <- tree <- leaf <- N <- . <- NULL
+  # Prep data
   if (prep) {
     x_real <- prep_x(x_real, verbose = FALSE)
   }

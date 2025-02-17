@@ -14,6 +14,8 @@ sample_from_leaves(arf, x_real, factor_cols = NULL, lvls = NULL, prep = TRUE)
 \item{factor_cols}{Logical vector indicating which columns are factors (optional)}
 
 \item{lvls}{List of factor levels (optional)}
+
+\item{prep}{Whether to prepare the data before sampling}
 }
 \value{
 A data.table of synthetic data
