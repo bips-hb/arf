@@ -88,7 +88,7 @@ the algorithm will print accuracy at each iteration.</p>
 <span><span class="co"># Train ARF</span></span>
 <span><span class="va">arf_iris</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">iris</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Iteration: 0, Accuracy: 76.09%</span></span>
-<span><span class="co">#&gt; Iteration: 1, Accuracy: 39.67%</span></span>
+<span><span class="co">#&gt; Iteration: 1, Accuracy: 40.33%</span></span>
 <span><span class="co">#&gt; Warning: executing %dopar% sequentially: no parallel backend registered</span></span></code></pre></div>
 <p>The printouts can be turned off by setting
 <code>verbose = FALSE</code>. Accuracy is still stored within the
@@ -152,7 +152,7 @@ works on Unix machines.</p>
 <code class="sourceCode R"><span><span class="co"># Rerun ARF, now in parallel and with more trees</span></span>
 <span><span class="va">arf_iris</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">iris</span>, num_trees <span class="op">=</span> <span class="fl">100</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Iteration: 0, Accuracy: 85.67%</span></span>
-<span><span class="co">#&gt; Iteration: 1, Accuracy: 39.67%</span></span></code></pre></div>
+<span><span class="co">#&gt; Iteration: 1, Accuracy: 40.67%</span></span></code></pre></div>
 <p>The result is an object of class <code>ranger</code>, which we can
 input to downstream functions.</p>
 </div>
@@ -411,7 +411,7 @@ synthetic datapoints. Resulting data are plotted side by side.</p>
 <span><span class="co"># Fit ARF</span></span>
 <span><span class="va">arf_smiley</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">x</span>, mtry <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Iteration: 0, Accuracy: 84.35%</span></span>
-<span><span class="co">#&gt; Iteration: 1, Accuracy: 42.29%</span></span>
+<span><span class="co">#&gt; Iteration: 1, Accuracy: 39.5%</span></span>
 <span></span>
 <span><span class="co"># Estimate parameters</span></span>
 <span><span class="va">params_smiley</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/forde.html">forde</a></span><span class="op">(</span><span class="va">arf_smiley</span>, <span class="va">x</span><span class="op">)</span></span>
