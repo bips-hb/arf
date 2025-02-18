@@ -271,4 +271,38 @@ expct(params_smiley, evidence = evi)
 
 These are the average $X, Y$ coordinates for the smile above.
 
+# Data imputation
+
+ARFs can be used to impute missing values in datasets. This can be done either on a one-shot basis, in which case we plug in the (conditional) expectation of the feature(s) with missing values; or as a multiple imputation routine, in which case we sample values from the relevant (conditional) distribution. 
+
+For instance, consider the palmer penguins dataset, which includes several missing values. 
+
+```{r imp1}
+# Load palmer penguins dataset
+library(palmerpenguins)
+head(penguins)
+```
+
+We can fill in the NA's in row 4 with their expected value, conditional on the non-NA values (`species` and `island`) as follows:
+
+```{r imp2}
+# Single imputation
+penguins_imp <- impute(penguins)
+head(penguins_imp)
+```
+
+Alternatively, we can perform multiple imputation to get a better sense of the range of plausible values in these conditional distributions.
+
+```{r imp3, fig.height=6, fig.width=6}
+# Multiple imputation
+penguins_multiple_imp <- impute(penguins, m = 100)
+
+# Check the distribution of bill_length_mm for sample 4
+tmp <- sapply(penguins_multiple_imp, function(dat) dat$bill_length_mm[4])
+hist(tmp, breaks = 20)
+```
+
+
+
+
 
