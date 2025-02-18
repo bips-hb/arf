@@ -1,23 +1,27 @@
-
 #' Missing value imputation with ARF
 #' 
-#' Imputed a dataset with missing values using adversarial random forests (ARF).
-#' Calls \code{adversarial_rf}, \code{forde} and \code{expct}/\code{forge}.
+#' Perform single or multiple imputation with ARFs. Calls \code{adversarial_rf}, 
+#' \code{forde} and \code{expct}/\code{forge}.
 #'
 #' @param x Input data.
-#' @param m Number of multiple imputations. The default is single imputation (\code{m=1}).
-#' @param expectation Return expected value instead of multiple imputations. By default, for single imputation (\code{m=1}), the expected value is returned.
-#' @param num_trees Number of trees in ARF.
-#' @param min_node_size Minimum node size in ARF.
-#' @param round Round imputed values to their respective maximum precision in the original data set?
-#' @param finite_bounds Impose finite bounds on all continuous variables? See \code{\link{forde}}.
+#' @param m Number of imputed datasets to generate. The default is single 
+#'   imputation (\code{m = 1}).
+#' @param expectation Return expected value instead of multiple imputations. By 
+#'   default, for single imputation (\code{m = 1}), the expected value is 
+#'   returned.
+#' @param num_trees Number of trees to grow in the ARF. 
+#' @param min_node_size Minimal number of real data samples in leaf nodes.
+#' @param round Round continuous variables to their respective maximum precision 
+#'   in the real data set?
+#' @param finite_bounds Impose finite bounds on all continuous variables? See 
+#'   \code{\link{forde}}.
 #' @param epsilon Slack parameter on empirical bounds; see \code{\link{forde}}.
 #' @param verbose Print progress for \code{adversarial_rf}?
-#' @param ... Extra parameters to be passed to \code{adversarial_rf}, \code{forde}
-#'   and \code{expct}/\code{forge}.
+#' @param ... Extra parameters to be passed to \code{adversarial_rf}, 
+#'   \code{forde} and \code{expct}/\code{forge}.
 #'
-#' @return Imputed data. A single data table is returned for \code{m=1} and a list of data table for \code{m > 1}.
-#' @export
+#' @return Imputed data. A single dataset is returned for \code{m = 1}, a list
+#'   of datasets for \code{m > 1}.
 #'
 #' @examples
 #' # Generate some missings
@@ -30,7 +34,7 @@
 #' iris_imputed <- arf::impute(iris_na, m = 1)
 #' 
 #' # Multiple imputation
-#' iris_imputed <- arf::impute(iris_na, m = 20)
+#' iris_imputed <- arf::impute(iris_na, m = 10)
 #' 
 #' \dontrun{
 #' # Parallelization with doParallel
@@ -40,9 +44,18 @@
 #' doFuture::registerDoFuture()
 #' future::plan("multisession", workers = 4)
 #' }
+#' 
+#' @seealso
+#' \code{\link{arf}}, \code{\link{forde}}, \code{\link{forge}}, 
+#' \code{\link{expct}}, \code{\link{lik}}
+#' 
+#' @export
+#' @import data.table
+#' 
+
 impute <- function(x, 
                    m = 1, 
-                   expectation = ifelse(m==1, TRUE, FALSE), 
+                   expectation = ifelse(m == 1, TRUE, FALSE), 
                    num_trees = 100L, 
                    min_node_size = 10L, 
                    round = TRUE, 
