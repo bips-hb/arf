@@ -41,7 +41,8 @@ future::plan("multisession", workers = 4)
 }
 }
 \seealso{
-\code{\link{adversarial_rf}}, \code{\link{forde}}, \code{\link{forge}}, \code{\link{expct}}, \code{\link{lik}}
+\code{\link{adversarial_rf}}, \code{\link{forde}}, \code{\link{forge}},
+\code{\link{expct}}, \code{\link{lik}}
 
 Useful links:
 \itemize{

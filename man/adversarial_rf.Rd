@@ -37,7 +37,8 @@ round to the next?}
 
 \item{prune}{Impose \code{min_node_size} by pruning?}
 
-\item{verbose}{Print discriminator accuracy after each round? Will also show additional warnings.}
+\item{verbose}{Print discriminator accuracy after each round? Will also show
+additional warnings.}
 
 \item{parallel}{Compute in parallel? Must register backend beforehand, e.g.
 via \code{doParallel} or \code{doFuture}; see examples.}
@@ -68,10 +69,11 @@ estimation (see \code{\link{forde}}) and data synthesis (see
 trees for improved performance (typically on the order of 100-1000 depending
 on sample size).
 
-Integer variables are recoded with a warning. Default behavior is to convert
-those with six or more unique values to numeric, while those with up to five
-unique values are treated as ordered factors. To override this behavior,
-explicitly recode integer variables to the target type prior to training.
+Integer variables are recoded with a warning (set \code{verbose = FALSE} to
+silence these). Default behavior is to convert integer variables with six or
+more unique values to numeric, while those with up to five unique values are
+treated as ordered factors. To override this behavior, explicitly recode
+integer variables to the target type prior to training.
 
 Note: convergence is not guaranteed in finite samples. The \code{max_iters}
 argument sets an upper bound on the number of training rounds. Similar
@@ -119,5 +121,6 @@ of the 26th International Conference on Artificial Intelligence and
 Statistics}, pp. 5357-5375.
 }
 \seealso{
-\code{\link{arf}}, \code{\link{forde}}, \code{\link{forge}}, \code{\link{expct}}, \code{\link{lik}}
+\code{\link{arf}}, \code{\link{forde}}, \code{\link{forge}},
+\code{\link{expct}}, \code{\link{lik}}
 }

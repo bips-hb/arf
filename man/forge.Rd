@@ -22,26 +22,30 @@ forge(
 \item{n_synth}{Number of synthetic samples to generate.}
 
 \item{evidence}{Optional set of conditioning events. This can take one of
-three forms: (1) a partial sample, i.e. a single row of data with
-some but not all columns; (2) a data frame of conditioning events,
-which allows for inequalities and intervals; or (3) a posterior distribution over leaves;
-see Details and Examples.}
+three forms: (1) a partial sample, i.e. a single row of data with some but
+not all columns; (2) a data frame of conditioning events, which allows for
+inequalities; or (3) a posterior distribution over leaves. See Details.}
 
-\item{evidence_row_mode}{Interpretation of rows in multi-row evidence. If \code{'separate'},
-each row in \code{evidence} is a separate conditioning event for which \code{n_synth} synthetic samples
-are generated. If \code{'or'}, the rows are combined with a logical or; see Examples.}
+\item{evidence_row_mode}{Interpretation of rows in multi-row evidence. If
+\code{"separate"}, each row in \code{evidence} is a unique conditioning
+event for which \code{n_synth} synthetic samples are generated. If
+\code{"or"}, the rows are combined with a logical OR. See Examples.}
 
-\item{round}{Round continuous variables to their respective maximum precision in the real data set?}
+\item{round}{Round continuous variables to their respective maximum precision
+in the real data set?}
 
-\item{sample_NAs}{Sample NAs respecting the probability for missing values in the original data.}
+\item{sample_NAs}{Sample \code{NA}s respecting the probability for missing
+values in the original data?}
 
 \item{nomatch}{What to do if no leaf matches a condition in \code{evidence}?
-Options are to force sampling from a random leaf, either with a warning (\code{"force_warning"})
-or without a warning (\code{"force"}), or to return \code{NA}, also with a warning
-(\code{"na_warning"}) or without a warning (\code{"na"}). The default is \code{"force_warning"}.}
+Options are to force sampling from a random leaf, either with a warning
+(\code{"force_warning"}) or without (\code{"force"}); or to return
+\code{NA}, also with or without a warning (\code{"na_warning"} and
+(\code{"na"}, respectively). The default is \code{"force_warning"}.}
 
-\item{stepsize}{Stepsize defining number of evidence rows handled in one for each step.
-Defaults to nrow(evidence)/num_registered_workers for \code{parallel == TRUE}.}
+\item{stepsize}{How many rows of evidence should be handled at each step?
+Defaults to \code{nrow(evidence) / num_registered_workers} for
+\code{parallel == TRUE}.}
 
 \item{parallel}{Compute in parallel? Must register backend beforehand, e.g.
 via \code{doParallel} or \code{doFuture}; see examples.}
@@ -63,11 +67,11 @@ local independence criterion. See Watson et al. (2023).
 
 There are three methods for (optionally) encoding conditioning events via the
 \code{evidence} argument. The first is to provide a partial sample, where
-some columns from the training data are missing or set to \code{NA}. The second is to
-provide a data frame with condition events. This supports inequalities and intervals.
-Alternatively, users may directly input a pre-calculated posterior
-distribution over leaves, with columns \code{f_idx} and \code{wt}. This may
-be preferable for complex constraints. See Examples.
+some columns from the training data are missing or set to \code{NA}. The
+second is to provide a data frame with condition events. This supports
+inequalities and intervals. Alternatively, users may directly input a
+pre-calculated posterior distribution over leaves, with columns \code{f_idx}
+and \code{wt}. This may be preferable for complex constraints. See Examples.
 }
 \examples{
 # Train ARF and estimate leaf parameters
@@ -124,5 +128,6 @@ of the 26th International Conference on Artificial Intelligence and
 Statistics}, pp. 5357-5375.
 }
 \seealso{
-\code{\link{arf}}, \code{\link{adversarial_rf}}, \code{\link{forde}}, \code{\link{expct}}, \code{\link{lik}}
+\code{\link{arf}}, \code{\link{adversarial_rf}}, \code{\link{forde}},
+\code{\link{expct}}, \code{\link{lik}}
 }
