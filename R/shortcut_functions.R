@@ -127,7 +127,8 @@ rarf <- function(x, n_synth = NULL, ...) {
   
   if (!("params" %in% names(forde_args))) params <- do.call(forde, c(arf = list(arf), x = list(x), forde_args))
   
-  if(is.null(n_synth)) {
+  if (!("verbose" %in% names(forge_args))) forge_args$verbose = F
+  if (is.null(n_synth)) {
     if (is.null(forge_args$evidence))
       n_synth <- nrow(x)
     else {
@@ -196,6 +197,7 @@ earf <- function(x, ...) {
   
   if (!("params" %in% names(forde_args))) params <- do.call(forde, c(arf = list(arf), x = list(x), forde_args))
   
+  if (!("verbose" %in% names(expct_args))) expct_args$verbose = F
   do.call(expct, c(params = list(params),
                    expct_args))
   
