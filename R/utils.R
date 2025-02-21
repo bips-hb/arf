@@ -206,9 +206,9 @@ post_x <- function(x, params, round = TRUE) {
 #' @param evidence Data frame of conditioning event(s).
 #' @param row_mode Interpretation of rows in multi-row conditions.
 #' @param nomatch What to do if no leaf matches a condition in \code{evidence}?
-#'   Options are to force sampling from a random leaf, either with a warning (\code{"force_warning"})
-#'   or without a warning (\code{"force"}), or to return \code{NA}, also with a warning 
-#'   (\code{"na_warning"}) or without a warning (\code{"na"}). The default is \code{"force_warning"}.
+#'   Options are to force sampling from a random leaf (\code{"force"}) or return 
+#'   \code{NA} (\code{"na"}). The default is \code{"force"}.
+#' @param verbose Show warnings, e.g. when no leaf matches a condition?   
 #' @param stepsize Stepsize defining number of condition rows handled in one for each step.
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
 #'   via \code{doParallel} or \code{doFuture}; see examples.
@@ -226,7 +226,8 @@ post_x <- function(x, params, round = TRUE) {
 cforde <- function(params, 
                    evidence, 
                    row_mode = c("separate", "or"), 
-                   nomatch = c("force_warning", "force", "na_warning", "na"),
+                   nomatch = c("force", "na"),
+                   verbose = TRUE,
                    stepsize = 0, 
                    parallel = TRUE) {
   
@@ -283,7 +284,7 @@ cforde <- function(params,
     # Define subset of conditions for step_
     index_start <- conds_conditioned[(step_ - 1)*stepsize + 1]
     index_end <- conds_conditioned[min(step_ * stepsize, nconds_conditioned)]
-    condition_long_step <- condition_long[.(index_start:index_end),nomatch = NULL]
+    condition_long_step <- condition_long[.(index_start:index_end), nomatch = NULL]
     
     # Store cat and cnt conditions separately
     cat_conds <- condition_long_step[variable %in% cat_cols,c("c_idx","variable","val")][, variable := factor(variable)]
@@ -434,9 +435,9 @@ cforde <- function(params,
     if (relevant_leaves[,uniqueN(c_idx)] == 0 & row_mode == "or") {
       stop("For all entered evidence rows, no matching leaves could be found. This is probably because evidence lies outside of the distribution calculated by FORDE. For continuous data, consider setting epsilon>0 or finite_bounds='no' in forde(). For categorical data, consider setting alpha>0 in forde().")
     } else {
-      if (grepl("warning$", nomatch)) {
+      if (verbose) {
         wrn <- "For some entered evidence rows, no matching leaves could be found. This is probably because evidence lies outside of the distribution calculated by FORDE. For continuous data, consider setting epsilon>0 or finite_bounds='no' in forde(). For categorical data, consider setting alpha>0 in forde()."
-        if (grepl("^force", nomatch)) {
+        if (nomatch == "force") {
           warning(paste(wrn, "Sampling from all leaves with equal probability (can be changed with 'nomatch' argument)."))
         } else {
           warning(paste(wrn, "Returning NA for those rows (can be changed with 'nomatch' argument)."))
@@ -465,14 +466,14 @@ cforde <- function(params,
     # Re-calculate weights and transform back from log scale, handle (numerically) impossible cases
     if (row_mode == "or") {
       if (cvg_new[,all(cvg == -Inf)]) {
-        if (grepl("^force", nomatch)) {
+        if (nomatch == "force") {
           cvg_new[, cvg := 1/.N]
         } else {
           cvg_new[, cvg := NA]
         }
-        if (grepl("warning$", nomatch)) {
+        if (verbose) {
           wrn <- "All leaves have zero likelihood. This is probably because evidence contains an (almost) impossible combination."
-          if (grepl("^force", nomatch)) {
+          if (nomatch == "force") {
             warning(paste(wrn, "Sampling from all possible leaves with equal probability."))
           } else {
             warning(paste(wrn, "Returning NA."))
@@ -485,14 +486,14 @@ cforde <- function(params,
     } else {
       cvg_new[, leaf_zero_lik := all(cvg == -Inf), by = c_idx]
       if (any(cvg_new[, leaf_zero_lik])) {
-        if (grepl("^force", nomatch)) {
+        if (nomatch == "force") {
           cvg_new[leaf_zero_lik == TRUE, cvg := 1/.N, by = c_idx]
         } else {
           cvg_new <- cvg_new[leaf_zero_lik == FALSE, ]
         }
-        if (grepl("warning$", nomatch)) {
+        if (verbose) {
           wrn <- "All leaves have zero likelihood for some entered evidence rows. This is probably because evidence contains an (almost) impossible combination."
-          if (grepl("^force", nomatch)) {
+          if (nomatch == "force") {
             warning(paste(wrn, "Sampling from all possible leaves with equal probability (can be changed with 'nomatch' argument)."))
           } else {
             warning(paste(wrn, "Returning NA for those rows (can be changed with 'nomatch' argument)."))
@@ -526,7 +527,7 @@ cforde <- function(params,
   }
   
   # Add all leaves for all-NA conditions to forest
-  if ((grepl("^force", nomatch) & length(conds_impossible) > 0) | (row_mode == "separate" & nconds != nconds_conditioned)) {
+  if ((nomatch == "force" & length(conds_impossible) > 0) | (row_mode == "separate" & nconds != nconds_conditioned)) {
     conds_unconditioned <- c(conds_impossible, (1:nconds)[!(1:nconds) %in% conds_conditioned])
     forest_new_unconditioned <- copy(forest)
     forest_new_unconditioned <- rbindlist(replicate(length(conds_unconditioned), forest, simplify = F))

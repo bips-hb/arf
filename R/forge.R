@@ -16,10 +16,9 @@
 #' @param sample_NAs Sample \code{NA}s respecting the probability for missing 
 #'   values in the original data?
 #' @param nomatch What to do if no leaf matches a condition in \code{evidence}?
-#'   Options are to force sampling from a random leaf, either with a warning 
-#'   (\code{"force_warning"}) or without (\code{"force"}); or to return 
-#'   \code{NA}, also with or without a warning (\code{"na_warning"} and 
-#'   (\code{"na"}, respectively). The default is \code{"force_warning"}.
+#'   Options are to force sampling from a random leaf (\code{"force"}) or return 
+#'   \code{NA} (\code{"na"}). The default is \code{"force"}.
+#' @param verbose Show warnings, e.g. when no leaf matches a condition?   
 #' @param stepsize How many rows of evidence should be handled at each step? 
 #'   Defaults to \code{nrow(evidence) / num_registered_workers} for 
 #'   \code{parallel == TRUE}.
@@ -120,7 +119,8 @@ forge <- function(
     evidence_row_mode = c("separate", "or"),
     round = TRUE,
     sample_NAs = FALSE,
-    nomatch = c("force_warning", "force", "na_warning", "na"),
+    nomatch = c("force", "na"),
+    verbose = TRUE,
     stepsize = 0,
     parallel = TRUE) {
   
@@ -173,7 +173,8 @@ forge <- function(
       index_start <- (step_-1)*stepsize + 1
       index_end <- min(step_*stepsize, nrow(evidence))
       evidence_part <- evidence[index_start:index_end,]
-      cparams <- cforde(params, evidence_part, evidence_row_mode, nomatch, stepsize_cforde, parallel_cforde)
+      cparams <- cforde(params, evidence_part, evidence_row_mode, nomatch, verbose, 
+                        stepsize_cforde, parallel_cforde)
       if (is.null(cparams)) {
         n_synth <- n_synth * nrow(evidence_part)
       }
