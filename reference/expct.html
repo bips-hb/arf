@@ -48,7 +48,8 @@ on some event(s).</p>
 <span>  evidence <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  evidence_row_mode <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"separate"</span>, <span class="st">"or"</span><span class="op">)</span>,</span>
 <span>  round <span class="op">=</span> <span class="cn">FALSE</span>,</span>
-<span>  nomatch <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"force_warning"</span>, <span class="st">"force"</span>, <span class="st">"na_warning"</span>, <span class="st">"na"</span><span class="op">)</span>,</span>
+<span>  nomatch <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"force"</span>, <span class="st">"na"</span><span class="op">)</span>,</span>
+<span>  verbose <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  stepsize <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  parallel <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -92,8 +93,11 @@ in the real data set?</p></dd>
 <dt id="arg-nomatch">nomatch<a class="anchor" aria-label="anchor" href="#arg-nomatch"></a></dt>
 <dd><p>What to do if no leaf matches a condition in <code>evidence</code>?
 Options are to force sampling from a random leaf (<code>"force"</code>) or return
-<code>NA</code>, also with or without a warning (<code>"na_warning"</code> and
-(<code>"na"</code>, respectively). The default is <code>"force_warning"</code>.</p></dd>
+<code>NA</code> (<code>"na"</code>). The default is <code>"force"</code>.</p></dd>
+
+
+<dt id="arg-verbose">verbose<a class="anchor" aria-label="anchor" href="#arg-verbose"></a></dt>
+<dd><p>Show warnings, e.g. when no leaf matches a condition?</p></dd>
 
 
 <dt id="arg-stepsize">stepsize<a class="anchor" aria-label="anchor" href="#arg-stepsize"></a></dt>
