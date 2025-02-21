@@ -114,10 +114,7 @@ impute <- function(x,
                                 evidence = list(x), 
                                 round = list(round),
                                 forge_args))
-    x_synth <- as.data.table(x_synth)
-    x_synth[, idx := rep(1:m, nrow(x))]
-    x_imputed <- split(x_synth, by = "idx")
-    x_imputed <- lapply(x_imputed, function(x) x[, idx := NULL])
+    x_imputed <- split(x_synth, rep(1:m, nrow(x)))
   }
   x_imputed
 }
