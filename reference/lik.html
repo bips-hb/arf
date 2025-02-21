@@ -134,35 +134,35 @@ Statistics</em>, pp. 5357-5375.</p>
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># Train ARF and estimate leaf parameters</span></span></span>
 <span class="r-in"><span><span class="va">arf</span> <span class="op">&lt;-</span> <span class="fu"><a href="adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">iris</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 0, Accuracy: 77.44%</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 1, Accuracy: 41.28%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 0, Accuracy: 78.45%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 1, Accuracy: 42.28%</span>
 <span class="r-in"><span><span class="va">psi</span> <span class="op">&lt;-</span> <span class="fu"><a href="forde.html">forde</a></span><span class="op">(</span><span class="va">arf</span>, <span class="va">iris</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Estimate average log-likelihood</span></span></span>
 <span class="r-in"><span><span class="va">ll</span> <span class="op">&lt;-</span> <span class="fu">lik</span><span class="op">(</span><span class="va">psi</span>, <span class="va">iris</span>, arf <span class="op">=</span> <span class="va">arf</span>, log <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">ll</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] -0.5621515</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] -0.399569</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Identical but slower</span></span></span>
 <span class="r-in"><span><span class="va">ll</span> <span class="op">&lt;-</span> <span class="fu">lik</span><span class="op">(</span><span class="va">psi</span>, <span class="va">iris</span>, log <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
 <span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>For total evidence queries, it is faster to include the pre-trained arf.</span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">ll</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] -0.5621515</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] -0.399569</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Partial evidence query</span></span></span>
 <span class="r-in"><span><span class="fu">lik</span><span class="op">(</span><span class="va">psi</span>, query <span class="op">=</span> <span class="va">iris</span><span class="op">[</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">3</span><span class="op">]</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] -0.04143336</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0.5347122</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Condition on Species = "setosa"</span></span></span>
 <span class="r-in"><span><span class="va">evi</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>Species <span class="op">=</span> <span class="st">"setosa"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">lik</span><span class="op">(</span><span class="va">psi</span>, query <span class="op">=</span> <span class="va">iris</span><span class="op">[</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">3</span><span class="op">]</span>, evidence <span class="op">=</span> <span class="va">evi</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 1.054041</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 1.632475</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Condition on Species = "setosa" and Petal.Width &gt; 0.3</span></span></span>
 <span class="r-in"><span><span class="va">evi</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>Species <span class="op">=</span> <span class="st">"setosa"</span>, </span></span>
 <span class="r-in"><span>                  Petal.Width <span class="op">=</span> <span class="st">"&gt;0.3"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">lik</span><span class="op">(</span><span class="va">psi</span>, query <span class="op">=</span> <span class="va">iris</span><span class="op">[</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">3</span><span class="op">]</span>, evidence <span class="op">=</span> <span class="va">evi</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0.8357392</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 1.881411</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span> <span class="co"># \dontrun{</span></span></span>
 <span class="r-in"><span><span class="co"># Parallelization with doParallel</span></span></span>

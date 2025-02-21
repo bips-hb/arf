@@ -65,43 +65,46 @@ on some event(s).</p>
 <dt id="arg-query">query<a class="anchor" aria-label="anchor" href="#arg-query"></a></dt>
 <dd><p>Optional character vector of variable names. Estimates will be
 computed for each. If <code>NULL</code>, all variables other than those in
-<code>evidence</code> will be estimated. If evidence contains <code>NA</code>s, those
-variables will be estimated and a full dataset is returned.</p></dd>
+<code>evidence</code> will be estimated. If <code>evidence</code> contains <code>NA</code>s,
+those values will be imputed and a full dataset is returned.</p></dd>
 
 
 <dt id="arg-evidence">evidence<a class="anchor" aria-label="anchor" href="#arg-evidence"></a></dt>
 <dd><p>Optional set of conditioning events. This can take one of
 three forms: (1) a partial sample, i.e. a single row of data with
 some but not all columns; (2) a data frame of conditioning events,
-which allows for inequalities and intervals; or (3) a posterior distribution over leaves;
-see Details and Examples.</p></dd>
+which allows for inequalities and intervals; or (3) a posterior
+distribution over leaves. See Details and Examples.</p></dd>
 
 
 <dt id="arg-evidence-row-mode">evidence_row_mode<a class="anchor" aria-label="anchor" href="#arg-evidence-row-mode"></a></dt>
-<dd><p>Interpretation of rows in multi-row evidence. If <code>'separate'</code>,
-each row in <code>evidence</code> is a separate conditioning event for which <code>n_synth</code> synthetic samples
-are generated. If <code>'or'</code>, the rows are combined with a logical or; see Examples.</p></dd>
+<dd><p>Interpretation of rows in multi-row evidence. If
+<code>"separate"</code>, each row in <code>evidence</code> is a unique conditioning
+event for which <code>n_synth</code> synthetic samples are generated. If
+<code>"or"</code>, the rows are combined with a logical OR. See Examples.</p></dd>
 
 
 <dt id="arg-round">round<a class="anchor" aria-label="anchor" href="#arg-round"></a></dt>
-<dd><p>Round continuous variables to their respective maximum precision in the real data set?</p></dd>
+<dd><p>Round continuous variables to their respective maximum precision
+in the real data set?</p></dd>
 
 
 <dt id="arg-nomatch">nomatch<a class="anchor" aria-label="anchor" href="#arg-nomatch"></a></dt>
 <dd><p>What to do if no leaf matches a condition in <code>evidence</code>?
-Options are to force sampling from a random leaf, either with a warning (<code>"force_warning"</code>)
-or without a warning (<code>"force"</code>), or to return <code>NA</code>, also with a warning
-(<code>"na_warning"</code>) or without a warning (<code>"na"</code>). The default is <code>"force_warning"</code>.</p></dd>
+Options are to force sampling from a random leaf (<code>"force"</code>) or return
+<code>NA</code>, also with or without a warning (<code>"na_warning"</code> and
+(<code>"na"</code>, respectively). The default is <code>"force_warning"</code>.</p></dd>
 
 
 <dt id="arg-stepsize">stepsize<a class="anchor" aria-label="anchor" href="#arg-stepsize"></a></dt>
-<dd><p>Stepsize defining number of evidence rows handled in one for each step.
-Defaults to nrow(evidence)/num_registered_workers for <code>parallel == TRUE</code>.</p></dd>
+<dd><p>How many rows of evidence should be handled at each step?
+Defaults to <code>nrow(evidence) / num_registered_workers</code> for
+<code>parallel == TRUE</code>.</p></dd>
 
 
 <dt id="arg-parallel">parallel<a class="anchor" aria-label="anchor" href="#arg-parallel"></a></dt>
 <dd><p>Compute in parallel? Must register backend beforehand, e.g.
-via <code>doParallel</code> or <code>doFuture</code>; see examples.</p></dd>
+via <code>doParallel</code> or <code>doFuture</code>; see Examples.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -114,13 +117,14 @@ via <code>doParallel</code> or <code>doFuture</code>; see examples.</p></dd>
 conditioned on some event(s).</p>
 <p>There are three methods for (optionally) encoding conditioning events via the
 <code>evidence</code> argument. The first is to provide a partial sample, where
-some columns from the training data are missing or set to <code>NA</code>. The second is to
-provide a data frame with condition events. This supports inequalities and intervals.
-Alternatively, users may directly input a pre-calculated posterior
-distribution over leaves, with columns <code>f_idx</code> and <code>wt</code>. This may
-be preferable for complex constraints. See Examples.</p>
-<p>Please note that results for continuous features which are both included in <code>query</code> and in
-<code>evidence</code> with an interval condition are currently inconsistent.</p>
+some columns from the training data are missing or set to <code>NA</code>. The
+second is to provide a data frame with condition events. This supports
+inequalities and intervals. Alternatively, users may directly input a
+pre-calculated posterior distribution over leaves, with columns <code>f_idx</code>
+and <code>wt</code>. This may be preferable for complex constraints. See Examples.</p>
+<p>Please note that results for continuous features which are both included in
+<code>query</code> and in <code>evidence</code> with an interval condition are currently
+inconsistent.</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
@@ -131,7 +135,8 @@ Statistics</em>, pp. 5357-5375.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="arf-package.html">arf</a></code>, <code><a href="adversarial_rf.html">adversarial_rf</a></code>, <code><a href="forde.html">forde</a></code>, <code><a href="forge.html">forge</a></code>, <code><a href="lik.html">lik</a></code></p></div>
+    <div class="dont-index"><p><code><a href="arf-package.html">arf</a></code>, <code><a href="adversarial_rf.html">adversarial_rf</a></code>, <code><a href="forde.html">forde</a></code>,
+<code><a href="forge.html">forge</a></code>, <code><a href="lik.html">lik</a></code></p></div>
     </div>
 
     <div class="section level2">
@@ -158,7 +163,14 @@ Statistics</em>, pp. 5357-5375.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   Sepal.Length Sepal.Width Petal.Length Petal.Width</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1     5.026998    3.414044     1.542446   0.2771403</span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="co"># Condition on first two data rows with some missing values</span></span></span>
+<span class="r-in"><span><span class="co"># Condition on Species = "setosa" and Petal.Width &gt; 0.3</span></span></span>
+<span class="r-in"><span><span class="va">evi</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>Species <span class="op">=</span> <span class="st">"setosa"</span>, </span></span>
+<span class="r-in"><span>                  Petal.Width <span class="op">=</span> <span class="st">"&gt;0.3"</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu">expct</span><span class="op">(</span><span class="va">psi</span>, evidence <span class="op">=</span> <span class="va">evi</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   Sepal.Length Sepal.Width Petal.Length</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1     5.208278    3.515179     1.755113</span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Condition on first two rows with some missing values</span></span></span>
 <span class="r-in"><span><span class="va">evi</span> <span class="op">&lt;-</span> <span class="va">iris</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">2</span>,<span class="op">]</span></span></span>
 <span class="r-in"><span><span class="va">evi</span><span class="op">[</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="cn">NA_real_</span></span></span>
 <span class="r-in"><span><span class="va">evi</span><span class="op">[</span><span class="fl">1</span>, <span class="fl">5</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="cn">NA_character_</span></span></span>

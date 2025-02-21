@@ -91,7 +91,8 @@ round to the next?</p></dd>
 
 
 <dt id="arg-verbose">verbose<a class="anchor" aria-label="anchor" href="#arg-verbose"></a></dt>
-<dd><p>Print discriminator accuracy after each round? Will also show additional warnings.</p></dd>
+<dd><p>Print discriminator accuracy after each round? Will also show
+additional warnings.</p></dd>
 
 
 <dt id="arg-parallel">parallel<a class="anchor" aria-label="anchor" href="#arg-parallel"></a></dt>
@@ -124,10 +125,11 @@ estimation (see <code><a href="forde.html">forde</a></code>) and data synthesis 
 <code><a href="forge.html">forge</a></code>). For the former, we recommend increasing the number of
 trees for improved performance (typically on the order of 100-1000 depending
 on sample size).</p>
-<p>Integer variables are recoded with a warning. Default behavior is to convert
-those with six or more unique values to numeric, while those with up to five
-unique values are treated as ordered factors. To override this behavior,
-explicitly recode integer variables to the target type prior to training.</p>
+<p>Integer variables are recoded with a warning (set <code>verbose = FALSE</code> to
+silence these). Default behavior is to convert integer variables with six or
+more unique values to numeric, while those with up to five unique values are
+treated as ordered factors. To override this behavior, explicitly recode
+integer variables to the target type prior to training.</p>
 <p>Note: convergence is not guaranteed in finite samples. The <code>max_iters</code>
 argument sets an upper bound on the number of training rounds. Similar
 results may be attained by increasing <code>delta</code>. Even a single round can
@@ -145,7 +147,8 @@ Statistics</em>, pp. 5357-5375.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="arf-package.html">arf</a></code>, <code><a href="forde.html">forde</a></code>, <code><a href="forge.html">forge</a></code>, <code><a href="expct.html">expct</a></code>, <code><a href="lik.html">lik</a></code></p></div>
+    <div class="dont-index"><p><code><a href="arf-package.html">arf</a></code>, <code><a href="forde.html">forde</a></code>, <code><a href="forge.html">forge</a></code>,
+<code><a href="expct.html">expct</a></code>, <code><a href="lik.html">lik</a></code></p></div>
     </div>
 
     <div class="section level2">

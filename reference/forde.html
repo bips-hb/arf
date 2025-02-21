@@ -67,8 +67,8 @@ object of class <code>ranger</code>.</p></dd>
 <dt id="arg-oob">oob<a class="anchor" aria-label="anchor" href="#arg-oob"></a></dt>
 <dd><p>Only use out-of-bag samples for parameter estimation? If
 <code>TRUE</code>, <code>x</code> must be the same dataset used to train <code>arf</code>.
-Can also be "inbag" to only use in-bag samples. Default is <code>FALSE</code>, i.e.,
-to use all observations</p></dd>
+Set to <code>"inbag"</code> to only use in-bag samples. Default is <code>FALSE</code>,
+i.e. use all observations.</p></dd>
 
 
 <dt id="arg-family">family<a class="anchor" aria-label="anchor" href="#arg-family"></a></dt>
@@ -80,24 +80,23 @@ Details.</p></dd>
 
 <dt id="arg-finite-bounds">finite_bounds<a class="anchor" aria-label="anchor" href="#arg-finite-bounds"></a></dt>
 <dd><p>Impose finite bounds on all continuous variables? If
-<code>'local'</code>, infinite bounds are shrinked to empirical extrema within leaves.
-If <code>'global'</code>, infinite bounds are shrinked to global empirical extrema.
-if <code>'no'</code> (the default), do not impose finite bounds.</p></dd>
+<code>"local"</code>, infinite bounds are set to empirical extrema within leaves.
+If <code>"global"</code>, infinite bounds are set to global empirical extrema.
+if <code>"no"</code> (the default), infinite bounds are left unchanged.</p></dd>
 
 
 <dt id="arg-alpha">alpha<a class="anchor" aria-label="anchor" href="#arg-alpha"></a></dt>
 <dd><p>Optional pseudocount for Laplace smoothing of categorical
 features. This avoids zero-mass points when test data fall outside the
-support of training data. Effectively parametrizes a flat Dirichlet prior
+support of training data. Effectively parameterizes a flat Dirichlet prior
 on multinomial likelihoods.</p></dd>
 
 
 <dt id="arg-epsilon">epsilon<a class="anchor" aria-label="anchor" href="#arg-epsilon"></a></dt>
 <dd><p>Optional slack parameter on empirical bounds when
-<code>finite_bounds != 'no'</code>. This avoids
-zero-density points when test data fall outside the support of training
-data. The gap between lower and upper bounds is expanded by a factor of
-<code>1 + epsilon</code>.</p></dd>
+<code>finite_bounds != "no"</code>. This avoids zero-density points when test
+data fall outside the support of training data. The gap between lower and
+upper bounds is expanded by a factor of <code>1 + epsilon</code>.</p></dd>
 
 
 <dt id="arg-parallel">parallel<a class="anchor" aria-label="anchor" href="#arg-parallel"></a></dt>
@@ -122,8 +121,7 @@ continuous features. The result is a probabilistic circuit, stored as a
 <code>data.table</code>, which can be used for various downstream inference tasks.</p>
 <p>Currently, <code>forde</code> only provides support for a limited number of
 distributional families: truncated normal or uniform for continuous data,
-and multinomial for discrete data. Future releases will accommodate a larger
-set of options.</p>
+and multinomial for discrete data.</p>
 <p>Though <code>forde</code> was designed to take an adversarial random forest as
 input, the function's first argument can in principle be any object of class
 <code>ranger</code>. This allows users to test performance with alternative
@@ -144,7 +142,8 @@ treatment effects using random forests. <em>J. Am. Stat. Assoc.</em>,
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="arf-package.html">arf</a></code>, <code><a href="adversarial_rf.html">adversarial_rf</a></code>, <code><a href="forge.html">forge</a></code>, <code><a href="expct.html">expct</a></code>, <code><a href="lik.html">lik</a></code></p></div>
+    <div class="dont-index"><p><code><a href="arf-package.html">arf</a></code>, <code><a href="adversarial_rf.html">adversarial_rf</a></code>, <code><a href="forge.html">forge</a></code>,
+<code><a href="expct.html">expct</a></code>, <code><a href="lik.html">lik</a></code></p></div>
     </div>
 
     <div class="section level2">
@@ -182,6 +181,7 @@ treatment effects using random forests. <em>J. Am. Stat. Assoc.</em>,
 <span class="r-in"><span><span class="fu">doFuture</span><span class="fu">::</span><span class="fu"><a href="https://doFuture.futureverse.org/reference/registerDoFuture.html" class="external-link">registerDoFuture</a></span><span class="op">(</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">future</span><span class="fu">::</span><span class="fu"><a href="https://future.futureverse.org/reference/plan.html" class="external-link">plan</a></span><span class="op">(</span><span class="st">"multisession"</span>, workers <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
+<span class="r-in"><span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
     </div>

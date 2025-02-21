@@ -186,9 +186,9 @@ density estimator.</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Recompute with uniform density</span></span>
 <span><span class="va">params_unif</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/forde.html">forde</a></span><span class="op">(</span><span class="va">arf_iris</span>, <span class="va">iris</span>, family <span class="op">=</span> <span class="st">'unif'</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Warning in forde(arf_iris, iris, family = "unif"): Denisity estimation with</span></span>
-<span><span class="co">#&gt; uniform distribution requires finite bounds. finite_bounds has been set to</span></span>
-<span><span class="co">#&gt; 'local'.</span></span></code></pre></div>
+<span><span class="co">#&gt; Warning in forde(arf_iris, iris, family = "unif"): Density estimation with</span></span>
+<span><span class="co">#&gt; uniform distribution requires finite bounds. Resetting finite_bounds to</span></span>
+<span><span class="co">#&gt; "local".</span></span></code></pre></div>
 <p>This method tends to perform poorly in practice, and we do not
 recommend it. The option is implemented primarily for benchmarking
 purposes. Alternative families, e.g. truncated Poisson or beta
@@ -543,6 +543,59 @@ to the smile itself, rather than eyes or nose.</p>
 <p>These are the average
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>X</mi><mo>,</mo><mi>Y</mi></mrow><annotation encoding="application/x-tex">X, Y</annotation></semantics></math>
 coordinates for the smile above.</p>
+</div>
+<div class="section level2">
+<h2 id="data-imputation">Data imputation<a class="anchor" aria-label="anchor" href="#data-imputation"></a>
+</h2>
+<p>ARFs can be used to impute missing values in datasets. This can be
+done either on a one-shot basis, in which case we plug in the
+(conditional) expectation of the feature(s) with missing values; or as a
+multiple imputation routine, in which case we sample values from the
+relevant (conditional) distribution.</p>
+<p>For instance, consider the palmer penguins dataset, which includes
+several missing values.</p>
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Load palmer penguins dataset</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://allisonhorst.github.io/palmerpenguins/" class="external-link">palmerpenguins</a></span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">penguins</span><span class="op">)</span></span>
+<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 6 × 8</span></span></span>
+<span><span class="co">#&gt;   species island    bill_length_mm bill_depth_mm flipper_length_mm body_mass_g</span></span>
+<span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;fct&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;fct&gt;</span>              <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>             <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> Adelie  Torgersen           39.1          18.7               181        <span style="text-decoration: underline;">3</span>750</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> Adelie  Torgersen           39.5          17.4               186        <span style="text-decoration: underline;">3</span>800</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">3</span> Adelie  Torgersen           40.3          18                 195        <span style="text-decoration: underline;">3</span>250</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">4</span> Adelie  Torgersen           <span style="color: #BB0000;">NA</span>            <span style="color: #BB0000;">NA</span>                  <span style="color: #BB0000;">NA</span>          <span style="color: #BB0000;">NA</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">5</span> Adelie  Torgersen           36.7          19.3               193        <span style="text-decoration: underline;">3</span>450</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">6</span> Adelie  Torgersen           39.3          20.6               190        <span style="text-decoration: underline;">3</span>650</span></span>
+<span><span class="co">#&gt; <span style="color: #949494;"># ℹ 2 more variables: sex &lt;fct&gt;, year &lt;int&gt;</span></span></span></code></pre></div>
+<p>We can fill in the NA’s in row 4 with their expected value,
+conditional on the non-NA values (<code>species</code> and
+<code>island</code>) as follows:</p>
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Single imputation</span></span>
+<span><span class="va">penguins_imp</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/impute.html">impute</a></span><span class="op">(</span><span class="va">penguins</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">penguins_imp</span><span class="op">)</span></span>
+<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 6 × 8</span></span></span>
+<span><span class="co">#&gt;   species island    bill_length_mm bill_depth_mm flipper_length_mm body_mass_g</span></span>
+<span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;fct&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;fct&gt;</span>              <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>             <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> Adelie  Torgersen           39.1          18.7               181        <span style="text-decoration: underline;">3</span>750</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> Adelie  Torgersen           39.5          17.4               186        <span style="text-decoration: underline;">3</span>800</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">3</span> Adelie  Torgersen           40.3          18                 195        <span style="text-decoration: underline;">3</span>250</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">4</span> Adelie  Torgersen           39            18.5               189        <span style="text-decoration: underline;">3</span>717</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">5</span> Adelie  Torgersen           36.7          19.3               193        <span style="text-decoration: underline;">3</span>450</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">6</span> Adelie  Torgersen           39.3          20.6               190        <span style="text-decoration: underline;">3</span>650</span></span>
+<span><span class="co">#&gt; <span style="color: #949494;"># ℹ 2 more variables: sex &lt;fct&gt;, year &lt;int&gt;</span></span></span></code></pre></div>
+<p>Alternatively, we can perform multiple imputation to get a better
+sense of the range of plausible values in these conditional
+distributions.</p>
+<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Multiple imputation</span></span>
+<span><span class="va">penguins_multiple_imp</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/impute.html">impute</a></span><span class="op">(</span><span class="va">penguins</span>, m <span class="op">=</span> <span class="fl">100</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Check the distribution of bill_length_mm for sample 4</span></span>
+<span><span class="va">tmp</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">sapply</a></span><span class="op">(</span><span class="va">penguins_multiple_imp</span>, <span class="kw">function</span><span class="op">(</span><span class="va">dat</span><span class="op">)</span> <span class="va">dat</span><span class="op">$</span><span class="va">bill_length_mm</span><span class="op">[</span><span class="fl">4</span><span class="op">]</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/hist.html" class="external-link">hist</a></span><span class="op">(</span><span class="va">tmp</span>, breaks <span class="op">=</span> <span class="fl">20</span><span class="op">)</span></span></code></pre></div>
+<p><img src="arf_files/figure-html/imp3-1.png" width="576"></p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>
