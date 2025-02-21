@@ -7,25 +7,24 @@
 #' @param x Training data for estimating parameters.
 #' @param oob Only use out-of-bag samples for parameter estimation? If 
 #'   \code{TRUE}, \code{x} must be the same dataset used to train \code{arf}. 
-#'   Can also be "inbag" to only use in-bag samples. Default is \code{FALSE}, i.e.,
-#'   to use all observations
+#'   Set to \code{"inbag"} to only use in-bag samples. Default is \code{FALSE}, 
+#'   i.e. use all observations.
 #' @param family Distribution to use for density estimation of continuous 
 #'   features. Current options include truncated normal (the default
 #'   \code{family = "truncnorm"}) and uniform (\code{family = "unif"}). See 
 #'   Details.
 #' @param finite_bounds Impose finite bounds on all continuous variables? If
-#'   \code{'local'}, infinite bounds are shrinked to empirical extrema within leaves.
-#'   If \code{'global'}, infinite bounds are shrinked to global empirical extrema. 
-#'   if \code{'no'} (the default), do not impose finite bounds.
+#'   \code{"local"}, infinite bounds are set to empirical extrema within leaves.
+#'   If \code{"global"}, infinite bounds are set to global empirical extrema. 
+#'   if \code{"no"} (the default), infinite bounds are left unchanged.
 #' @param alpha Optional pseudocount for Laplace smoothing of categorical 
 #'   features. This avoids zero-mass points when test data fall outside the 
-#'   support of training data. Effectively parametrizes a flat Dirichlet prior
+#'   support of training data. Effectively parameterizes a flat Dirichlet prior
 #'   on multinomial likelihoods.
 #' @param epsilon Optional slack parameter on empirical bounds when 
-#'   \code{finite_bounds != 'no'}. This avoids 
-#'   zero-density points when test data fall outside the support of training 
-#'   data. The gap between lower and upper bounds is expanded by a factor of 
-#'   \code{1 + epsilon}. 
+#'   \code{finite_bounds != "no"}. This avoids zero-density points when test 
+#'   data fall outside the support of training data. The gap between lower and 
+#'   upper bounds is expanded by a factor of \code{1 + epsilon}. 
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
 #'   via \code{doParallel} or \code{doFuture}; see examples.
 #'   
@@ -40,8 +39,7 @@
 #' 
 #' Currently, \code{forde} only provides support for a limited number of 
 #' distributional families: truncated normal or uniform for continuous data,
-#' and multinomial for discrete data. Future releases will accommodate a larger 
-#' set of options.
+#' and multinomial for discrete data. 
 #' 
 #' Though \code{forde} was designed to take an adversarial random forest as 
 #' input, the function's first argument can in principle be any object of class 
@@ -100,8 +98,10 @@
 #' future::plan("multisession", workers = 4)
 #' }
 #' 
+#' 
 #' @seealso
-#' \code{\link{arf}}, \code{\link{adversarial_rf}}, \code{\link{forge}}, \code{\link{expct}}, \code{\link{lik}}
+#' \code{\link{arf}}, \code{\link{adversarial_rf}}, \code{\link{forge}}, 
+#' \code{\link{expct}}, \code{\link{lik}}
 #' 
 #'
 #' @export
@@ -125,7 +125,7 @@ forde <- function(
   tree <- n_oob <- cvg <- leaf <- variable <- count <- sd <- value <- psi_cnt <- 
     psi_cat <- f_idx <- sigma <- new_min <- new_max <- mid <- sigma0 <- prob <- 
     val <- val_count <- level <- all_na <- i <- k <- cnt <- . <- NA_share <-
-    mu <- length_emp <- max_emp <- min_emp <- NULL
+    mu <- length_emp <- max_emp <- min_emp <- inbag <- n_inbag <- NULL
   
   # Prelimz
   if (isTRUE(oob) & !nrow(x) %in% c(arf$num.samples, arf$num.samples/2)) {
@@ -140,7 +140,8 @@ forde <- function(
   # Uniform distribution requires finite bounds
   if (family == 'unif' & finite_bounds == 'no') {
     finite_bounds <- 'local'
-    warning("Denisity estimation with uniform distribution requires finite bounds. finite_bounds has been set to 'local'.")
+    warning('Density estimation with uniform distribution requires finite bounds. ',
+            'Resetting finite_bounds to "local".')
   }
   
   if (alpha < 0) {

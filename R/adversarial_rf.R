@@ -14,7 +14,8 @@
 #' @param early_stop Terminate loop if performance fails to improve from one 
 #'   round to the next? 
 #' @param prune Impose \code{min_node_size} by pruning? 
-#' @param verbose Print discriminator accuracy after each round? Will also show additional warnings.
+#' @param verbose Print discriminator accuracy after each round? Will also show 
+#'   additional warnings.
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
 #'   via \code{doParallel} or \code{doFuture}; see examples.
 #' @param ... Extra parameters to be passed to \code{ranger}.
@@ -37,10 +38,11 @@
 #' trees for improved performance (typically on the order of 100-1000 depending 
 #' on sample size).
 #' 
-#' Integer variables are recoded with a warning. Default behavior is to convert
-#' those with six or more unique values to numeric, while those with up to five
-#' unique values are treated as ordered factors. To override this behavior, 
-#' explicitly recode integer variables to the target type prior to training.
+#' Integer variables are recoded with a warning (set \code{verbose = FALSE} to 
+#' silence these). Default behavior is to convert integer variables with six or
+#' more unique values to numeric, while those with up to five unique values are 
+#' treated as ordered factors. To override this behavior, explicitly recode 
+#' integer variables to the target type prior to training.
 #' 
 #' Note: convergence is not guaranteed in finite samples. The \code{max_iters} 
 #' argument sets an upper bound on the number of training rounds. Similar 
@@ -93,7 +95,8 @@
 #' }
 #' 
 #' @seealso
-#' \code{\link{arf}}, \code{\link{forde}}, \code{\link{forge}}, \code{\link{expct}}, \code{\link{lik}}
+#' \code{\link{arf}}, \code{\link{forde}}, \code{\link{forge}}, 
+#' \code{\link{expct}}, \code{\link{lik}}
 #' 
 #' @export
 #' @import ranger 

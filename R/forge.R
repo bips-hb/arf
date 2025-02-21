@@ -4,21 +4,25 @@
 #' 
 #' @param params Circuit parameters learned via \code{\link{forde}}. 
 #' @param evidence Optional set of conditioning events. This can take one of 
-#'   three forms: (1) a partial sample, i.e. a single row of data with
-#'   some but not all columns; (2) a data frame of conditioning events, 
-#'   which allows for inequalities and intervals; or (3) a posterior distribution over leaves;
-#'   see Details and Examples.
-#' @param evidence_row_mode Interpretation of rows in multi-row evidence. If \code{'separate'},
-#'   each row in \code{evidence} is a separate conditioning event for which \code{n_synth} synthetic samples
-#'   are generated. If \code{'or'}, the rows are combined with a logical or; see Examples.
-#' @param round Round continuous variables to their respective maximum precision in the real data set?
-#' @param sample_NAs Sample NAs respecting the probability for missing values in the original data.
+#'   three forms: (1) a partial sample, i.e. a single row of data with some but
+#'   not all columns; (2) a data frame of conditioning events, which allows for 
+#'   inequalities; or (3) a posterior distribution over leaves. See Details.
+#' @param evidence_row_mode Interpretation of rows in multi-row evidence. If 
+#'   \code{"separate"}, each row in \code{evidence} is a unique conditioning 
+#'   event for which \code{n_synth} synthetic samples are generated. If 
+#'   \code{"or"}, the rows are combined with a logical OR. See Examples.
+#' @param round Round continuous variables to their respective maximum precision 
+#'   in the real data set?
+#' @param sample_NAs Sample \code{NA}s respecting the probability for missing 
+#'   values in the original data?
 #' @param nomatch What to do if no leaf matches a condition in \code{evidence}?
-#'   Options are to force sampling from a random leaf, either with a warning (\code{"force_warning"})
-#'   or without a warning (\code{"force"}), or to return \code{NA}, also with a warning 
-#'   (\code{"na_warning"}) or without a warning (\code{"na"}). The default is \code{"force_warning"}.
-#' @param stepsize Stepsize defining number of evidence rows handled in one for each step.
-#'   Defaults to nrow(evidence)/num_registered_workers for \code{parallel == TRUE}.
+#'   Options are to force sampling from a random leaf, either with a warning 
+#'   (\code{"force_warning"}) or without (\code{"force"}); or to return 
+#'   \code{NA}, also with or without a warning (\code{"na_warning"} and 
+#'   (\code{"na"}, respectively). The default is \code{"force_warning"}.
+#' @param stepsize How many rows of evidence should be handled at each step? 
+#'   Defaults to \code{nrow(evidence) / num_registered_workers} for 
+#'   \code{parallel == TRUE}.
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
 #'   via \code{doParallel} or \code{doFuture}; see examples.
 #' @param n_synth Number of synthetic samples to generate.
@@ -34,11 +38,11 @@
 #' 
 #' There are three methods for (optionally) encoding conditioning events via the 
 #' \code{evidence} argument. The first is to provide a partial sample, where
-#' some columns from the training data are missing or set to \code{NA}. The second is to 
-#' provide a data frame with condition events. This supports inequalities and intervals. 
-#' Alternatively, users may directly input a pre-calculated posterior 
-#' distribution over leaves, with columns \code{f_idx} and \code{wt}. This may 
-#' be preferable for complex constraints. See Examples.
+#' some columns from the training data are missing or set to \code{NA}. The 
+#' second is to provide a data frame with condition events. This supports 
+#' inequalities and intervals. Alternatively, users may directly input a 
+#' pre-calculated posterior distribution over leaves, with columns \code{f_idx} 
+#' and \code{wt}. This may be preferable for complex constraints. See Examples.
 #' 
 #' @return  
 #' A dataset of \code{n_synth} synthetic samples. 
@@ -99,7 +103,8 @@
 #' }
 #'
 #' @seealso
-#' \code{\link{arf}}, \code{\link{adversarial_rf}}, \code{\link{forde}}, \code{\link{expct}}, \code{\link{lik}}
+#' \code{\link{arf}}, \code{\link{adversarial_rf}}, \code{\link{forde}}, 
+#' \code{\link{expct}}, \code{\link{lik}}
 #' 
 #' @export
 #' @import data.table

@@ -20,31 +20,37 @@ impute(
 \arguments{
 \item{x}{Input data.}
 
-\item{m}{Number of multiple imputations. The default is single imputation (\code{m=1}).}
+\item{m}{Number of imputed datasets to generate. The default is single
+imputation (\code{m = 1}).}
 
-\item{expectation}{Return expected value instead of multiple imputations. By default, for single imputation (\code{m=1}), the expected value is returned.}
+\item{expectation}{Return expected value instead of multiple imputations. By
+default, for single imputation (\code{m = 1}), the expected value is
+returned.}
 
-\item{num_trees}{Number of trees in ARF.}
+\item{num_trees}{Number of trees to grow in the ARF.}
 
-\item{min_node_size}{Minimum node size in ARF.}
+\item{min_node_size}{Minimal number of real data samples in leaf nodes.}
 
-\item{round}{Round imputed values to their respective maximum precision in the original data set?}
+\item{round}{Round continuous variables to their respective maximum precision
+in the real data set?}
 
-\item{finite_bounds}{Impose finite bounds on all continuous variables? See \code{\link{forde}}.}
+\item{finite_bounds}{Impose finite bounds on all continuous variables? See
+\code{\link{forde}}.}
 
 \item{epsilon}{Slack parameter on empirical bounds; see \code{\link{forde}}.}
 
 \item{verbose}{Print progress for \code{adversarial_rf}?}
 
-\item{...}{Extra parameters to be passed to \code{adversarial_rf}, \code{forde}
-and \code{expct}/\code{forge}.}
+\item{...}{Extra parameters to be passed to \code{adversarial_rf},
+\code{forde} and \code{expct}/\code{forge}.}
 }
 \value{
-Imputed data. A single data table is returned for \code{m=1} and a list of data table for \code{m > 1}.
+Imputed data. A single dataset is returned for \code{m = 1}, a list
+of datasets for \code{m > 1}.
 }
 \description{
-Imputed a dataset with missing values using adversarial random forests (ARF).
-Calls \code{adversarial_rf}, \code{forde} and \code{expct}/\code{forge}.
+Perform single or multiple imputation with ARFs. Calls \code{adversarial_rf},
+\code{forde} and \code{expct}/\code{forge}.
 }
 \examples{
 # Generate some missings
@@ -57,7 +63,7 @@ for (j in 1:ncol(iris)) {
 iris_imputed <- arf::impute(iris_na, m = 1)
 
 # Multiple imputation
-iris_imputed <- arf::impute(iris_na, m = 20)
+iris_imputed <- arf::impute(iris_na, m = 10)
 
 \dontrun{
 # Parallelization with doParallel
@@ -67,4 +73,9 @@ doParallel::registerDoParallel(cores = 4)
 doFuture::registerDoFuture()
 future::plan("multisession", workers = 4)
 }
+
+}
+\seealso{
+\code{\link{arf}}, \code{\link{forde}}, \code{\link{forge}},
+\code{\link{expct}}, \code{\link{lik}}
 }
