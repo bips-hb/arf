@@ -1,3 +1,6 @@
+# arf 0.2.4
+* Let verbose=FALSE silence (some) warnings
+
 # arf 0.2.3
 * Add impute() function for direct missing data imputation with ARF
 * Add one-line functions darf(), earf(), rarf()
