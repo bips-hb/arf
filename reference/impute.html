@@ -126,10 +126,10 @@ of datasets for <code>m &gt; 1</code>.</p>
 <span class="r-in"><span><span class="op">}</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Single imputation</span></span></span>
-<span class="r-in"><span><span class="va">iris_imputed</span> <span class="op">&lt;-</span> <span class="fu">arf</span><span class="fu">::</span><span class="fu">impute</span><span class="op">(</span><span class="va">iris_na</span>, m <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">iris_imputed</span> <span class="op">&lt;-</span> <span class="fu">arf</span><span class="fu">::</span><span class="fu">impute</span><span class="op">(</span><span class="va">iris_na</span>, num_trees <span class="op">=</span> <span class="fl">10</span>, m <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Multiple imputation</span></span></span>
-<span class="r-in"><span><span class="va">iris_imputed</span> <span class="op">&lt;-</span> <span class="fu">arf</span><span class="fu">::</span><span class="fu">impute</span><span class="op">(</span><span class="va">iris_na</span>, m <span class="op">=</span> <span class="fl">10</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">iris_imputed</span> <span class="op">&lt;-</span> <span class="fu">arf</span><span class="fu">::</span><span class="fu">impute</span><span class="op">(</span><span class="va">iris_na</span>, num_trees <span class="op">=</span> <span class="fl">10</span>, m <span class="op">=</span> <span class="fl">10</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span> <span class="co"># \dontrun{</span></span></span>
 <span class="r-in"><span><span class="co"># Parallelization with doParallel</span></span></span>
