@@ -60,10 +60,10 @@ for (j in 1:ncol(iris)) {
 }
 
 # Single imputation
-iris_imputed <- arf::impute(iris_na, m = 1)
+iris_imputed <- arf::impute(iris_na, num_trees = 10, m = 1)
 
 # Multiple imputation
-iris_imputed <- arf::impute(iris_na, m = 10)
+iris_imputed <- arf::impute(iris_na, num_trees = 10, m = 10)
 
 \dontrun{
 # Parallelization with doParallel
