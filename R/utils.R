@@ -337,7 +337,7 @@ cforde <- function(params,
       cnt_relevant <- cnt_relevant[, .(
         c_idx,
         variable,
-        f_idx = Map(\(f_idx, min, max, i.min, i.max) {
+        f_idx = Map(function(f_idx, min, max, i.min, i.max) {
           if (!inherits(f_idx, "logical")) {
             rel_cnt_min <- i.min[f_idx]
             rel_cnt_max <- i.max[f_idx]
@@ -575,8 +575,8 @@ prep_cond <- function(evidence, params, row_mode) {
     cond[,(cat_cols) := lapply(.SD,as.character),.SDcols = cat_cols]  
   }
   
-  cols_check_range <- cond[,sapply(.SD, \(x) sum((str_sub(x,,1) == "(") | is.na(x))), .SDcols = cnt_cols]
-  cols_check_or <- cond[,sapply(.SD, \(x) sum(str_detect(x, "\\|")))]
+  cols_check_range <- cond[,sapply(.SD, function(x) sum((str_sub(x,,1) == "(") | is.na(x))), .SDcols = cnt_cols]
+  cols_check_or <- cond[,sapply(.SD, function(x) sum(str_detect(x, "\\|")))]
   
   if (row_mode == "or") {
     if (any(cols_check_range > 0 & cols_check_range < nrow(cond))){
