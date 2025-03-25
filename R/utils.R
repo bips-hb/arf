@@ -527,12 +527,12 @@ cforde <- function(params,
   }
   
   # Add all leaves for all-NA conditions to forest
-  if ((nomatch == "force" & length(conds_impossible) > 0) | (row_mode == "separate" & nconds != nconds_conditioned)) {
-    conds_unconditioned <- c(conds_impossible, (1:nconds)[!(1:nconds) %in% conds_conditioned])
+  if (row_mode == "separate" & nconds != nconds_conditioned) {
+    conds_unconditioned <- (1:nconds)[!(1:nconds) %in% conds_conditioned]
     forest_new_unconditioned <- copy(forest)
     forest_new_unconditioned <- rbindlist(replicate(length(conds_unconditioned), forest, simplify = F))
     forest_new_unconditioned[, `:=` (c_idx = rep(conds_unconditioned,each = nrow(forest)), f_idx_uncond = f_idx, cvg_arf = cvg)]
-    forest_new <- rbind(forest_new, forest_new_unconditioned)[!is.na(f_idx), ]
+    forest_new <- rbind(forest_new, forest_new_unconditioned)
   }
   
   setorder(setcolorder(forest_new,c("f_idx","c_idx","f_idx_uncond","tree","leaf","cvg_arf","cvg")), c_idx, f_idx, f_idx_uncond, tree, leaf)
@@ -543,7 +543,7 @@ cforde <- function(params,
 
 #' Preprocess conditions
 #' 
-#' This function prepares conditions for computing conditional circuit paramaters via cforde
+
 #' 
 #' @param params Circuit parameters learned via \code{\link{forde}}. 
 #' @param evidence Optional set of conditioning events.

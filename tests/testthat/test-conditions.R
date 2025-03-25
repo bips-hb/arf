@@ -32,7 +32,7 @@ test_that("if nomatch='force' and verbose=TRUE, run through with a warning", {
                                   nomatch = "force", verbose = TRUE,
                                   n_synth = 10, parallel = FALSE), 
       "All leaves have zero likelihood for some entered evidence rows\\. This is probably because evidence contains an \\(almost\\) impossible combination\\. Sampling from all possible leaves with equal probability \\(can be changed with 'nomatch' argument\\)\\.")
-  expect_true(all(!is.na(x_synth)))
+  expect_true(all(!is.na(x_synth) & x_synth$Sepal.Length == 100))
   
   # No matching leaf case (finite bounds)
   psi_global <- forde(arf, iris, finite_bounds = "global", parallel = FALSE)
@@ -40,7 +40,7 @@ test_that("if nomatch='force' and verbose=TRUE, run through with a warning", {
                                   nomatch = "force", verbose = TRUE,
                                   n_synth = 10, parallel = FALSE), 
                  "For some entered evidence rows, no matching leaves could be found\\. This is probably because evidence lies outside of the distribution calculated by FORDE\\. For continuous data, consider setting epsilon>0 or finite_bounds='no' in forde\\(\\)\\. For categorical data, consider setting alpha>0 in forde\\(\\)\\. Sampling from all leaves with equal probability \\(can be changed with 'nomatch' argument\\)\\.")
-  expect_true(all(!is.na(x_synth)))
+  expect_true(all(!is.na(x_synth) & x_synth$Sepal.Length == 100))
 })
 
 test_that("if nomatch='force' and verbose=FALSE, run through without a warning", {
@@ -49,14 +49,14 @@ test_that("if nomatch='force' and verbose=FALSE, run through without a warning",
   expect_silent(x_synth <- forge(psi_no, evidence = data.frame(Sepal.Length = 100), 
                                  nomatch = "force", verbose = FALSE,
                                  n_synth = 10, parallel = FALSE))
-  expect_true(all(!is.na(x_synth)))
+  expect_true(all(!is.na(x_synth) & x_synth$Sepal.Length == 100))
   
   # No matching leaf case (finite bounds)
   psi_global <- forde(arf, iris, finite_bounds = "global", parallel = FALSE)
   expect_silent(x_synth <- forge(psi_global, evidence = data.frame(Sepal.Length = 100), 
                                  nomatch = "force", verbose = FALSE,
                                  n_synth = 10, parallel = FALSE))
-  expect_true(all(!is.na(x_synth)))
+  expect_true(all(!is.na(x_synth) & x_synth$Sepal.Length == 100))
 })
 
 test_that("if nomatch='na' and verbose=TRUE, run through with a warning and return NA", {
@@ -66,7 +66,7 @@ test_that("if nomatch='na' and verbose=TRUE, run through with a warning and retu
                                   nomatch = "na", verbose = TRUE, 
                                   n_synth = 10, parallel = FALSE), 
                  "All leaves have zero likelihood for some entered evidence rows\\. This is probably because evidence contains an \\(almost\\) impossible combination\\. Returning NA for those rows \\(can be changed with 'nomatch' argument\\)\\.")
-  expect_true(all(is.na(x_synth[, -1])))
+  expect_true(all(is.na(x_synth[, -1]) & x_synth$Sepal.Length == 100))
   
   # No matching leaf case (finite bounds)
   psi_global <- forde(arf, iris, finite_bounds = "global", parallel = FALSE)
@@ -74,7 +74,7 @@ test_that("if nomatch='na' and verbose=TRUE, run through with a warning and retu
                                   nomatch = "na", verbose = TRUE, 
                                   n_synth = 10, parallel = FALSE), 
                  "For some entered evidence rows, no matching leaves could be found\\. This is probably because evidence lies outside of the distribution calculated by FORDE\\. For continuous data, consider setting epsilon>0 or finite_bounds='no' in forde\\(\\)\\. For categorical data, consider setting alpha>0 in forde\\(\\)\\. Returning NA for those rows \\(can be changed with 'nomatch' argument\\)\\.")
-  expect_true(all(is.na(x_synth[, -1])))
+  expect_true(all(is.na(x_synth[, -1]) & x_synth$Sepal.Length == 100))
 })
 
 test_that("if nomatch='na' and verbose=FALSE, run through without a warning and return NA", {
@@ -83,13 +83,13 @@ test_that("if nomatch='na' and verbose=FALSE, run through without a warning and 
   expect_silent(x_synth <- forge(psi_no, evidence = data.frame(Sepal.Length = 100), 
                                  nomatch = "na", verbose = FALSE, 
                                  n_synth = 10, parallel = FALSE))
-  expect_true(all(is.na(x_synth[, -1])))
+  expect_true(all(is.na(x_synth[, -1]) & x_synth$Sepal.Length == 100))
   
   # No matching leaf case (finite bounds)
   psi_global <- forde(arf, iris, finite_bounds = "global", parallel = FALSE)
   expect_silent(x_synth <- forge(psi_global, evidence = data.frame(Sepal.Length = 100), 
                                  nomatch = "na", verbose = FALSE, 
                                  n_synth = 10, parallel = FALSE))
-  expect_true(all(is.na(x_synth[, -1])))
+  expect_true(all(is.na(x_synth[, -1]) & x_synth$Sepal.Length == 100))
 })
 
