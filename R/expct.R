@@ -246,6 +246,24 @@ expct <- function(
     x_synth <- cbind(synth_cnt, synth_cat)
     x_synth <- post_x(x_synth, params, round)
     
+    if (evidence_row_mode == "separate" & any(omega[, is.na(f_idx)])) {
+      setDT(x_synth)
+      indices_na <- cparams$forest[is.na(f_idx), c_idx]
+      indices_sampled <- cparams$forest[!is.na(f_idx), unique(c_idx)]
+      rows_na <- dcast(rbind(data.table(c_idx = 0, variable = params$meta[,variable]),
+                             cparams$evidence_prepped[c_idx %in% indices_na,],
+                             fill = T),
+                       c_idx ~ variable, value.var = "val")[c_idx != 0,]
+      if (nomatch == "force") {
+        rows_na_sampled <- expct(params, parallel = parallel, stepsize = stepsize)
+        rows_na[is.na(rows_na)] <- rows_na_sampled[is.na(rows_na[,-1])]
+      }
+      x_synth[, c_idx := indices_sampled]
+      x_synth <- rbind(x_synth, rows_na, fill = T)
+      setorder(x_synth, c_idx)[, c_idx :=  NULL]
+      x_synth <- post_x(x_synth, params, round)
+    }
+    
     x_synth
   }
   if (isTRUE(parallel)) {
