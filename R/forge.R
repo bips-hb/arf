@@ -283,7 +283,7 @@ forge <- function(
       indices_na <- cparams$forest[is.na(f_idx), c_idx]
       indices_sampled <- cparams$forest[!is.na(f_idx), unique(c_idx)]
       rows_na <- dcast(rbind(data.table(c_idx = 0, variable = params$meta[,variable]),
-                                        cparams$evidence_prepped[c_idx == indices_na,],
+                                        cparams$evidence_prepped[c_idx %in% indices_na,],
                                         fill = T),
                                   c_idx ~ variable, value.var = "val")[c_idx != 0,]
       rows_na <- rbindlist(replicate(n_synth, rows_na, simplify = FALSE))
