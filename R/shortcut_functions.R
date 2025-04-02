@@ -123,6 +123,7 @@ rarf <- function(x, n_synth = NULL, ...) {
   forge_args <- dot_args[names(dot_args) %in% arg_names$forge]
   
   if (!("verbose" %in% names(arf_args))) arf_args$verbose = F
+  if ("sample_NAs" %in% names(forge_args) && forge_args$sample_NAs) arf_args$mia <- TRUE
   if (!("arf" %in% names(arf_args) | "params" %in% names(forde_args))) arf <- do.call(adversarial_rf, c(x = list(x), arf_args))
   
   if (!("params" %in% names(forde_args))) params <- do.call(forde, c(arf = list(arf), x = list(x), forde_args))
