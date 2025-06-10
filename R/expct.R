@@ -22,6 +22,8 @@
 #' @param nomatch What to do if no leaf matches a condition in \code{evidence}?
 #'   Options are to force sampling from a random leaf (\code{"force"}) or return 
 #'   \code{NA} (\code{"na"}). The default is \code{"force"}.
+#' @param cat_prob Return expected probabilities instead of expected categories 
+#'   for categorical data?   
 #' @param verbose Show warnings, e.g. when no leaf matches a condition?   
 #' @param stepsize How many rows of evidence should be handled at each step? 
 #'   Defaults to \code{nrow(evidence) / num_registered_workers} for 
@@ -109,6 +111,7 @@ expct <- function(
     evidence_row_mode = c("separate", "or"),
     round = FALSE,
     nomatch = c("force", "na"),
+    cat_prob = FALSE,
     verbose = TRUE,
     stepsize = 0,
     parallel = TRUE) {
@@ -238,7 +241,15 @@ expct <- function(
       }
       psi[NA_share == 1, wt := 0]
       cat <- psi[, sum(wt * prob), by = .(c_idx, variable, val)]
-      cat <- setDT(cat)[, .SD[which.max.random(V1)], by = .(c_idx, variable)]
+      if (cat_prob) {
+        # Get probability for first factor level
+        first_levels <- params$levels[, .SD[1], by = variable]
+        cat <- merge(cat, first_levels)
+        cat[, val := V1]
+        cat[, V1 := NULL]
+      } else {
+        cat <- setDT(cat)[, .SD[which.max.random(V1)], by = .(c_idx, variable)]
+      }
       synth_cat <- dcast(cat, c_idx ~ variable, value.var = 'val')[, c_idx := NULL]
     }
     

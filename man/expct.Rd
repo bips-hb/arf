@@ -11,6 +11,7 @@ expct(
   evidence_row_mode = c("separate", "or"),
   round = FALSE,
   nomatch = c("force", "na"),
+  cat_prob = FALSE,
   verbose = TRUE,
   stepsize = 0,
   parallel = TRUE
@@ -41,6 +42,9 @@ in the real data set?}
 \item{nomatch}{What to do if no leaf matches a condition in \code{evidence}?
 Options are to force sampling from a random leaf (\code{"force"}) or return
 \code{NA} (\code{"na"}). The default is \code{"force"}.}
+
+\item{cat_prob}{Return expected probabilities instead of expected categories
+for categorical data?}
 
 \item{verbose}{Show warnings, e.g. when no leaf matches a condition?}
 
