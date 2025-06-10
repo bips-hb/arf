@@ -44,7 +44,8 @@ Options are to force sampling from a random leaf (\code{"force"}) or return
 \code{NA} (\code{"na"}). The default is \code{"force"}.}
 
 \item{cat_prob}{Return expected probabilities instead of expected categories
-for categorical data?}
+for categorical data? So far, only implemented for integers (returns the
+probability of the first factor level).}
 
 \item{verbose}{Show warnings, e.g. when no leaf matches a condition?}
 
