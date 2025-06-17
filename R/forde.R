@@ -208,7 +208,7 @@ forde <- function(
       left_child <- arf$forest$child.nodeIDs[[tree]][[1]][i] + 1L
       right_child <- arf$forest$child.nodeIDs[[tree]][[2]][i] + 1L
       splitvarID <- arf$forest$split.varIDs[[tree]][i] + 1L
-      splitval <- arf$forest$split.value[[tree]][i]
+      splitval <- arf$forest$split.values[[tree]][i]
       if (left_child > 1) {
         ub[left_child, ] <- ub[right_child, ] <- ub[i, ]
         lb[left_child, ] <- lb[right_child, ] <- lb[i, ]
