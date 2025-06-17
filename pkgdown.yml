@@ -1,9 +1,9 @@
 pandoc: 3.1.11
-pkgdown: 2.1.1
+pkgdown: 2.1.3
 pkgdown_sha: ~
 articles:
   arf: arf.html
-last_built: 2025-03-31T10:50Z
+last_built: 2025-06-17T06:10Z
 urls:
   reference: https://bips-hb.github.io/arf/reference
   article: https://bips-hb.github.io/arf/articles
