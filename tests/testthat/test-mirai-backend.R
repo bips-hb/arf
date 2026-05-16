@@ -7,12 +7,13 @@ test_that("mirai backend produces equal forde output on iris", {
 
   arf <- adversarial_rf(iris, verbose = FALSE, parallel = FALSE)
 
-  withr::local_options(arf.backend = "foreach")
+  old <- options(arf.backend = "foreach")
+  on.exit(options(old), add = TRUE)
   psi_foreach <- forde(arf, iris, parallel = FALSE)
 
-  withr::local_options(arf.backend = "mirai")
+  options(arf.backend = "mirai")
   mirai::daemons(2)
-  withr::defer(mirai::daemons(0))
+  on.exit(mirai::daemons(0), add = TRUE)
   psi_mirai <- forde(arf, iris, parallel = TRUE)
 
   expect_equal(psi_mirai$cnt, psi_foreach$cnt, ignore_attr = TRUE)
@@ -26,7 +27,8 @@ test_that("mirai backend errors clearly when daemons are not set", {
 
   arf <- adversarial_rf(iris, verbose = FALSE, parallel = FALSE)
   mirai::daemons(0)
-  withr::local_options(arf.backend = "mirai")
+  old <- options(arf.backend = "mirai")
+  on.exit(options(old), add = TRUE)
 
   expect_error(forde(arf, iris, parallel = TRUE), "daemons")
 })

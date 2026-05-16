@@ -198,7 +198,9 @@ forde <- function(
   use_mirai <- identical(backend, 'mirai') && isTRUE(parallel)
   if (use_mirai) {
     arf_check_mirai_ready()
-    mirai::everywhere(library(data.table))
+    # Load (not attach) data.table on every daemon so its S3 methods
+    # (e.g. `[.data.table`) are registered for the worker bodies.
+    mirai::everywhere(requireNamespace('data.table', quietly = TRUE))
   }
   bnd_fn <- function(tree) {
     num_nodes <- length(arf$forest$split.varIDs[[tree]])
