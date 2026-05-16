@@ -11,3 +11,4 @@
 ^arf.*\.tgz$
 ^doc$
 ^Meta$
+^bench$
