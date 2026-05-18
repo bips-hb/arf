@@ -233,7 +233,7 @@ expct <- function(
                           sort = FALSE, allow.cartesian = TRUE)
         psi_uncond <- merge(omega, params$cat[variable %in% query, ], by.x = 'f_idx_uncond', by.y = 'f_idx',
                             sort = FALSE, allow.cartesian = TRUE)
-        psi_uncond_relevant <- psi_uncond[!psi_cond[,.(idx, variable)], on = .(idx, variable), all = FALSE]
+        psi_uncond_relevant <- psi_uncond[!psi_cond, on = .(idx, variable)]
         psi <- rbind(psi_cond, psi_uncond_relevant)
       }
       psi[NA_share == 1, wt := 0]
