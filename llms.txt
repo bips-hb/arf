@@ -1,0 +1,129 @@
+# arf: Adversarial random forests
+
+## Introduction
+
+Adversarial random forests (ARFs) recursively partition data into fully
+factorized leaves, where features are jointly independent. The procedure
+is iterative, with alternating rounds of generation and discrimination.
+Data become increasingly realistic at each round, until original and
+synthetic samples can no longer be reliably distinguished. This is
+useful for several unsupervised learning tasks, such as density
+estimation and data synthesis. Methods for both are implemented in this
+package. ARFs naturally handle unstructured data with mixed continuous
+and categorical covariates. They inherit many of the benefits of RFs,
+including speed, flexibility, and solid performance with default
+parameters.
+
+## Installation
+
+The `arf` package is available on `CRAN`:
+
+``` r
+
+install.packages("arf")
+```
+
+To install the development version from GitHub using `devtools`, run:
+
+``` r
+
+devtools::install_github("bips-hb/arf")
+```
+
+## Examples
+
+Using Fisher’s iris dataset, we train an ARF and estimate distribution
+parameters:
+
+``` r
+
+# Train the ARF
+arf <- adversarial_rf(iris)
+
+# Estimate distribution parameters
+psi <- forde(arf, iris)
+```
+
+### Density estimation
+
+To estimate log-likelihoods:
+
+``` r
+
+mean(lik(arf, psi, iris))
+```
+
+### Generative modeling
+
+To generate 100 synthetic samples:
+
+``` r
+
+forge(psi, 100)
+```
+
+### Conditional expectations
+
+To estimate the mean of some variable(s), optionally conditioned on some
+event(s):
+
+``` r
+
+evi <- data.frame(Species = "setosa")
+expct(psi, query = "Sepal.Length", evidence = evi)
+```
+
+For more detailed examples, see the package
+[vignette](https://bips-hb.github.io/arf/articles/vignette.html).
+
+## Python library
+
+A Python implementation of ARF, `arfpy`, is available on
+[PyPI](https://pypi.org/project/arfpy/). For the development version,
+see [here](https://github.com/bips-hb/arfpy).
+
+## References
+
+- Watson, D. S., Blesch, K., Kapar, J. & Wright, M. N. (2023).
+  Adversarial random forests for density estimation and generative
+  modeling. In *Proceedings of the 26th International Conference on
+  Artificial Intelligence and Statistics*. Link
+  [here](https://proceedings.mlr.press/v206/watson23a.html).
+- Blesch, K., Koenen, N., Kapar, J., Golchian, P., Burk, L., Loecher, M.
+  & Wright, M. N. (2025). Conditional feature importance with generative
+  modeling using adversarial random forests. In *Proceedings of the 39th
+  AAAI Conference on Artificial Intelligence*. Link
+  [here](https://arxiv.org/abs/2501.11178).
+
+# Package index
+
+## All functions
+
+- [`adversarial_rf()`](https://bips-hb.github.io/arf/reference/adversarial_rf.md)
+  : Adversarial Random Forests
+- [`arf`](https://bips-hb.github.io/arf/reference/arf-package.md)
+  [`arf-package`](https://bips-hb.github.io/arf/reference/arf-package.md)
+  : arf: Adversarial Random Forests
+- [`darf()`](https://bips-hb.github.io/arf/reference/darf.md) : Shortcut
+  likelihood function
+- [`earf()`](https://bips-hb.github.io/arf/reference/earf.md) : Shortcut
+  expectation function
+- [`expct()`](https://bips-hb.github.io/arf/reference/expct.md) :
+  Expected Value
+- [`forde()`](https://bips-hb.github.io/arf/reference/forde.md) :
+  Forests for Density Estimation
+- [`forge()`](https://bips-hb.github.io/arf/reference/forge.md) :
+  Forests for Generative Modeling
+- [`impute()`](https://bips-hb.github.io/arf/reference/impute.md) :
+  Missing value imputation with ARF
+- [`lik()`](https://bips-hb.github.io/arf/reference/lik.md) : Likelihood
+  Estimation
+- [`rarf()`](https://bips-hb.github.io/arf/reference/rarf.md) : Shortcut
+  sampling function
+
+# Articles
+
+### All vignettes
+
+- [Adversarial Random
+  Forests](https://bips-hb.github.io/arf/articles/arf.md):
