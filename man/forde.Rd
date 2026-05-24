@@ -23,8 +23,8 @@ object of class \code{ranger}.}
 
 \item{oob}{Only use out-of-bag samples for parameter estimation? If
 \code{TRUE}, \code{x} must be the same dataset used to train \code{arf}.
-Can also be "inbag" to only use in-bag samples. Default is \code{FALSE}, i.e.,
-to use all observations}
+Set to \code{"inbag"} to only use in-bag samples. Default is \code{FALSE},
+i.e. use all observations.}
 
 \item{family}{Distribution to use for density estimation of continuous
 features. Current options include truncated normal (the default
@@ -32,20 +32,19 @@ features. Current options include truncated normal (the default
 Details.}
 
 \item{finite_bounds}{Impose finite bounds on all continuous variables? If
-\code{'local'}, infinite bounds are shrinked to empirical extrema within leaves.
-If \code{'global'}, infinite bounds are shrinked to global empirical extrema.
-if \code{'no'} (the default), do not impose finite bounds.}
+\code{"local"}, infinite bounds are set to empirical extrema within leaves.
+If \code{"global"}, infinite bounds are set to global empirical extrema.
+if \code{"no"} (the default), infinite bounds are left unchanged.}
 
 \item{alpha}{Optional pseudocount for Laplace smoothing of categorical
 features. This avoids zero-mass points when test data fall outside the
-support of training data. Effectively parametrizes a flat Dirichlet prior
+support of training data. Effectively parameterizes a flat Dirichlet prior
 on multinomial likelihoods.}
 
 \item{epsilon}{Optional slack parameter on empirical bounds when
-\code{finite_bounds != 'no'}. This avoids
-zero-density points when test data fall outside the support of training
-data. The gap between lower and upper bounds is expanded by a factor of
-\code{1 + epsilon}.}
+\code{finite_bounds != "no"}. This avoids zero-density points when test
+data fall outside the support of training data. The gap between lower and
+upper bounds is expanded by a factor of \code{1 + epsilon}.}
 
 \item{parallel}{Compute in parallel? Must register backend beforehand, e.g.
 via \code{doParallel} or \code{doFuture}; see examples.}
@@ -69,8 +68,7 @@ continuous features. The result is a probabilistic circuit, stored as a
 
 Currently, \code{forde} only provides support for a limited number of
 distributional families: truncated normal or uniform for continuous data,
-and multinomial for discrete data. Future releases will accommodate a larger
-set of options.
+and multinomial for discrete data.
 
 Though \code{forde} was designed to take an adversarial random forest as
 input, the function's first argument can in principle be any object of class
@@ -110,6 +108,7 @@ doFuture::registerDoFuture()
 future::plan("multisession", workers = 4)
 }
 
+
 }
 \references{
 Watson, D., Blesch, K., Kapar, J., & Wright, M. (2023). Adversarial random
@@ -122,5 +121,6 @@ treatment effects using random forests. \emph{J. Am. Stat. Assoc.},
 \emph{113}(523): 1228-1242.
 }
 \seealso{
-\code{\link{arf}}, \code{\link{adversarial_rf}}, \code{\link{forge}}, \code{\link{expct}}, \code{\link{lik}}
+\code{\link{arf}}, \code{\link{adversarial_rf}}, \code{\link{forge}},
+\code{\link{expct}}, \code{\link{lik}}
 }

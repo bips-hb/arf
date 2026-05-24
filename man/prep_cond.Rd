@@ -14,6 +14,6 @@ prep_cond(evidence, params, row_mode)
 \item{row_mode}{Interpretation of rows in multi-row conditions.}
 }
 \description{
-This function prepares conditions for computing conditional circuit paramaters via cforde
+Preprocess conditions
 }
 \keyword{internal}

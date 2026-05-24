@@ -6,25 +6,28 @@
 #' @param params Circuit parameters learned via \code{\link{forde}}. 
 #' @param query Optional character vector of variable names. Estimates will be
 #'   computed for each. If \code{NULL}, all variables other than those in 
-#'   \code{evidence} will be estimated. If evidence contains \code{NA}s, those
-#'   variables will be estimated and a full dataset is returned.
+#'   \code{evidence} will be estimated. If \code{evidence} contains \code{NA}s, 
+#'   those values will be imputed and a full dataset is returned.
 #' @param evidence Optional set of conditioning events. This can take one of 
 #'   three forms: (1) a partial sample, i.e. a single row of data with
 #'   some but not all columns; (2) a data frame of conditioning events, 
-#'   which allows for inequalities and intervals; or (3) a posterior distribution over leaves;
-#'   see Details and Examples.
-#' @param evidence_row_mode Interpretation of rows in multi-row evidence. If \code{'separate'},
-#'   each row in \code{evidence} is a separate conditioning event for which \code{n_synth} synthetic samples
-#'   are generated. If \code{'or'}, the rows are combined with a logical or; see Examples.
-#' @param round Round continuous variables to their respective maximum precision in the real data set?
+#'   which allows for inequalities and intervals; or (3) a posterior 
+#'   distribution over leaves. See Details and Examples.
+#' @param evidence_row_mode Interpretation of rows in multi-row evidence. If 
+#'   \code{"separate"}, each row in \code{evidence} is a unique conditioning 
+#'   event for which \code{n_synth} synthetic samples are generated. If 
+#'   \code{"or"}, the rows are combined with a logical OR. See Examples.
+#' @param round Round continuous variables to their respective maximum precision 
+#'   in the real data set?
 #' @param nomatch What to do if no leaf matches a condition in \code{evidence}?
-#'   Options are to force sampling from a random leaf, either with a warning (\code{"force_warning"})
-#'   or without a warning (\code{"force"}), or to return \code{NA}, also with a warning 
-#'   (\code{"na_warning"}) or without a warning (\code{"na"}). The default is \code{"force_warning"}.
-#' @param stepsize Stepsize defining number of evidence rows handled in one for each step.
-#'   Defaults to nrow(evidence)/num_registered_workers for \code{parallel == TRUE}.
+#'   Options are to force sampling from a random leaf (\code{"force"}) or return 
+#'   \code{NA} (\code{"na"}). The default is \code{"force"}.
+#' @param verbose Show warnings, e.g. when no leaf matches a condition?   
+#' @param stepsize How many rows of evidence should be handled at each step? 
+#'   Defaults to \code{nrow(evidence) / num_registered_workers} for 
+#'   \code{parallel == TRUE}.
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
-#'   via \code{doParallel} or \code{doFuture}; see examples.
+#'   via \code{doParallel} or \code{doFuture}; see Examples.
 #'   
 #' @details 
 #' This function computes expected values for any subset of features, optionally 
@@ -32,14 +35,15 @@
 #' 
 #' There are three methods for (optionally) encoding conditioning events via the 
 #' \code{evidence} argument. The first is to provide a partial sample, where
-#' some columns from the training data are missing or set to \code{NA}. The second is to 
-#' provide a data frame with condition events. This supports inequalities and intervals. 
-#' Alternatively, users may directly input a pre-calculated posterior 
-#' distribution over leaves, with columns \code{f_idx} and \code{wt}. This may 
-#' be preferable for complex constraints. See Examples.
+#' some columns from the training data are missing or set to \code{NA}. The 
+#' second is to provide a data frame with condition events. This supports 
+#' inequalities and intervals. Alternatively, users may directly input a 
+#' pre-calculated posterior distribution over leaves, with columns \code{f_idx} 
+#' and \code{wt}. This may be preferable for complex constraints. See Examples.
 #' 
-#' Please note that results for continuous features which are both included in \code{query} and in
-#' \code{evidence} with an interval condition are currently inconsistent.
+#' Please note that results for continuous features which are both included in 
+#' \code{query} and in \code{evidence} with an interval condition are currently 
+#' inconsistent.
 #' 
 #' @return 
 #' A one row data frame with values for all query variables.
@@ -67,7 +71,12 @@
 #' # Compute expectations for all features other than Species
 #' expct(psi, evidence = evi)
 #' 
-#' # Condition on first two data rows with some missing values
+#' # Condition on Species = "setosa" and Petal.Width > 0.3
+#' evi <- data.frame(Species = "setosa", 
+#'                   Petal.Width = ">0.3")
+#' expct(psi, evidence = evi)
+#' 
+#' # Condition on first two rows with some missing values
 #' evi <- iris[1:2,]
 #' evi[1, 1] <- NA_real_
 #' evi[1, 5] <- NA_character_
@@ -84,7 +93,8 @@
 #' }
 #' 
 #' @seealso
-#' \code{\link{arf}}, \code{\link{adversarial_rf}}, \code{\link{forde}}, \code{\link{forge}}, \code{\link{lik}}
+#' \code{\link{arf}}, \code{\link{adversarial_rf}}, \code{\link{forde}}, 
+#' \code{\link{forge}}, \code{\link{lik}}
 #' 
 #'
 #' @export
@@ -98,7 +108,8 @@ expct <- function(
     evidence = NULL,
     evidence_row_mode = c("separate", "or"),
     round = FALSE,
-    nomatch = c("force_warning", "force", "na_warning", "na"),
+    nomatch = c("force", "na"),
+    verbose = TRUE,
     stepsize = 0,
     parallel = TRUE) {
   
@@ -164,7 +175,8 @@ expct <- function(
       index_start <- (step_-1)*stepsize + 1
       index_end <- min(step_*stepsize, nrow(evidence))
       evidence_part <- evidence[index_start:index_end,]
-      cparams <- cforde(params, evidence_part, evidence_row_mode, nomatch, stepsize_cforde, parallel_cforde)
+      cparams <- cforde(params, evidence_part, evidence_row_mode, nomatch, verbose, 
+                        stepsize_cforde, parallel_cforde)
     } 
     
     # omega contains the weight (wt) for each leaf (f_idx) for each condition (c_idx)
@@ -221,7 +233,7 @@ expct <- function(
                           sort = FALSE, allow.cartesian = TRUE)
         psi_uncond <- merge(omega, params$cat[variable %in% query, ], by.x = 'f_idx_uncond', by.y = 'f_idx',
                             sort = FALSE, allow.cartesian = TRUE)
-        psi_uncond_relevant <- psi_uncond[!psi_cond[,.(idx, variable)], on = .(idx, variable), all = FALSE]
+        psi_uncond_relevant <- psi_uncond[!psi_cond, on = .(idx, variable)]
         psi <- rbind(psi_cond, psi_uncond_relevant)
       }
       psi[NA_share == 1, wt := 0]
@@ -233,6 +245,24 @@ expct <- function(
     # Create dataset with expectations
     x_synth <- cbind(synth_cnt, synth_cat)
     x_synth <- post_x(x_synth, params, round)
+    
+    if (evidence_row_mode == "separate" & any(omega[, is.na(f_idx)])) {
+      setDT(x_synth)
+      indices_na <- cparams$forest[is.na(f_idx), c_idx]
+      indices_sampled <- cparams$forest[!is.na(f_idx), unique(c_idx)]
+      rows_na <- dcast(rbind(data.table(c_idx = 0, variable = params$meta[,variable]),
+                             cparams$evidence_prepped[c_idx %in% indices_na,],
+                             fill = T),
+                       c_idx ~ variable, value.var = "val")[c_idx != 0,]
+      if (nomatch == "force") {
+        rows_na_sampled <- expct(params, parallel = parallel, stepsize = stepsize)
+        rows_na[is.na(rows_na)] <- rows_na_sampled[is.na(rows_na[,-1])]
+      }
+      x_synth[, c_idx := indices_sampled]
+      x_synth <- rbind(x_synth, rows_na, fill = T)
+      setorder(x_synth, c_idx)[, c_idx :=  NULL]
+      x_synth <- post_x(x_synth, params, round)
+    }
     
     x_synth
   }

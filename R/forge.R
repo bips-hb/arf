@@ -4,21 +4,24 @@
 #' 
 #' @param params Circuit parameters learned via \code{\link{forde}}. 
 #' @param evidence Optional set of conditioning events. This can take one of 
-#'   three forms: (1) a partial sample, i.e. a single row of data with
-#'   some but not all columns; (2) a data frame of conditioning events, 
-#'   which allows for inequalities and intervals; or (3) a posterior distribution over leaves;
-#'   see Details and Examples.
-#' @param evidence_row_mode Interpretation of rows in multi-row evidence. If \code{'separate'},
-#'   each row in \code{evidence} is a separate conditioning event for which \code{n_synth} synthetic samples
-#'   are generated. If \code{'or'}, the rows are combined with a logical or; see Examples.
-#' @param round Round continuous variables to their respective maximum precision in the real data set?
-#' @param sample_NAs Sample NAs respecting the probability for missing values in the original data.
+#'   three forms: (1) a partial sample, i.e. a single row of data with some but
+#'   not all columns; (2) a data frame of conditioning events, which allows for 
+#'   inequalities; or (3) a posterior distribution over leaves. See Details.
+#' @param evidence_row_mode Interpretation of rows in multi-row evidence. If 
+#'   \code{"separate"}, each row in \code{evidence} is a unique conditioning 
+#'   event for which \code{n_synth} synthetic samples are generated. If 
+#'   \code{"or"}, the rows are combined with a logical OR. See Examples.
+#' @param round Round continuous variables to their respective maximum precision 
+#'   in the real data set?
+#' @param sample_NAs Sample \code{NA}s respecting the probability for missing 
+#'   values in the original data?
 #' @param nomatch What to do if no leaf matches a condition in \code{evidence}?
-#'   Options are to force sampling from a random leaf, either with a warning (\code{"force_warning"})
-#'   or without a warning (\code{"force"}), or to return \code{NA}, also with a warning 
-#'   (\code{"na_warning"}) or without a warning (\code{"na"}). The default is \code{"force_warning"}.
-#' @param stepsize Stepsize defining number of evidence rows handled in one for each step.
-#'   Defaults to nrow(evidence)/num_registered_workers for \code{parallel == TRUE}.
+#'   Options are to force sampling from a random leaf (\code{"force"}) or return 
+#'   \code{NA} (\code{"na"}). The default is \code{"force"}.
+#' @param verbose Show warnings, e.g. when no leaf matches a condition?   
+#' @param stepsize How many rows of evidence should be handled at each step? 
+#'   Defaults to \code{nrow(evidence) / num_registered_workers} for 
+#'   \code{parallel == TRUE}.
 #' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
 #'   via \code{doParallel} or \code{doFuture}; see examples.
 #' @param n_synth Number of synthetic samples to generate.
@@ -34,11 +37,11 @@
 #' 
 #' There are three methods for (optionally) encoding conditioning events via the 
 #' \code{evidence} argument. The first is to provide a partial sample, where
-#' some columns from the training data are missing or set to \code{NA}. The second is to 
-#' provide a data frame with condition events. This supports inequalities and intervals. 
-#' Alternatively, users may directly input a pre-calculated posterior 
-#' distribution over leaves, with columns \code{f_idx} and \code{wt}. This may 
-#' be preferable for complex constraints. See Examples.
+#' some columns from the training data are missing or set to \code{NA}. The 
+#' second is to provide a data frame with condition events. This supports 
+#' inequalities and intervals. Alternatively, users may directly input a 
+#' pre-calculated posterior distribution over leaves, with columns \code{f_idx} 
+#' and \code{wt}. This may be preferable for complex constraints. See Examples.
 #' 
 #' @return  
 #' A dataset of \code{n_synth} synthetic samples. 
@@ -99,7 +102,8 @@
 #' }
 #'
 #' @seealso
-#' \code{\link{arf}}, \code{\link{adversarial_rf}}, \code{\link{forde}}, \code{\link{expct}}, \code{\link{lik}}
+#' \code{\link{arf}}, \code{\link{adversarial_rf}}, \code{\link{forde}}, 
+#' \code{\link{expct}}, \code{\link{lik}}
 #' 
 #' @export
 #' @import data.table
@@ -115,7 +119,8 @@ forge <- function(
     evidence_row_mode = c("separate", "or"),
     round = TRUE,
     sample_NAs = FALSE,
-    nomatch = c("force_warning", "force", "na_warning", "na"),
+    nomatch = c("force", "na"),
+    verbose = TRUE,
     stepsize = 0,
     parallel = TRUE) {
   
@@ -168,7 +173,8 @@ forge <- function(
       index_start <- (step_-1)*stepsize + 1
       index_end <- min(step_*stepsize, nrow(evidence))
       evidence_part <- evidence[index_start:index_end,]
-      cparams <- cforde(params, evidence_part, evidence_row_mode, nomatch, stepsize_cforde, parallel_cforde)
+      cparams <- cforde(params, evidence_part, evidence_row_mode, nomatch, verbose, 
+                        stepsize_cforde, parallel_cforde)
       if (is.null(cparams)) {
         n_synth <- n_synth * nrow(evidence_part)
       }
@@ -245,7 +251,7 @@ forge <- function(
                           sort = FALSE, allow.cartesian = TRUE)
         psi_uncond <- merge(omega, params$cat, by.x = 'f_idx_uncond', by.y = 'f_idx',
                             sort = FALSE, allow.cartesian = TRUE)
-        psi_uncond_relevant <- psi_uncond[!psi_cond[,.(idx, variable)], on = .(idx, variable), all = FALSE]
+        psi_uncond_relevant <- psi_uncond[!psi_cond, on = .(idx, variable)]
         psi <- rbind(psi_cond, psi_uncond_relevant)
       }
       psi[prob < 1, val := sample(val, 1, prob = prob), by = .(variable, idx)]
@@ -269,24 +275,25 @@ forge <- function(
       NA_share <- rbind(NA_share_cnt, NA_share_cat)
       setorder(NA_share[,variable := factor(variable, levels = params$meta[,variable])], variable, idx)
       NA_share[,dat := rbinom(.N, 1, prob = NA_share)]
-      x_synth[dcast(NA_share,formula =  idx ~ variable, value.var = "dat")[,-"idx"] == 1] <- NA
+      x_synth[dcast(NA_share, formula = idx ~ variable, value.var = "dat")[,-"idx"] == 1] <- NA
       x_synth <- post_x(x_synth, params, round)
     }
-    
     if (evidence_row_mode == "separate" & any(omega[, is.na(f_idx)])) {
       setDT(x_synth)
       indices_na <- cparams$forest[is.na(f_idx), c_idx]
       indices_sampled <- cparams$forest[!is.na(f_idx), unique(c_idx)]
-      evidence_part_long <- dcast(rbind(data.table(c_idx = 0, variable = params$meta[,variable]),
-                                        cparams$evidence_prepped,
+      rows_na <- dcast(rbind(data.table(c_idx = 0, variable = params$meta[,variable]),
+                                        cparams$evidence_prepped[c_idx %in% indices_na,],
                                         fill = T),
-                                  c_idx ~ variable, value.var = "val")[c_idx != 0,-"c_idx"]
-      rows_na <- evidence_part_long[indices_na, ]
-      rows_na[, idx := indices_na]
+                                  c_idx ~ variable, value.var = "val")[c_idx != 0,]
       rows_na <- rbindlist(replicate(n_synth, rows_na, simplify = FALSE))
-      x_synth[, idx := rep(indices_sampled, each = n_synth)]
+      if (nomatch == "force") {
+        rows_na_sampled <- forge(params, n_synth = nrow(rows_na), sample_NAs = sample_NAs, parallel = parallel, stepsize = stepsize)
+        rows_na[is.na(rows_na)] <- rows_na_sampled[is.na(rows_na[,-1])]
+      }
+      x_synth[, c_idx := rep(indices_sampled, each = n_synth)]
       x_synth <- rbind(x_synth, rows_na, fill = T)
-      setorder(x_synth, idx)[, idx :=  NULL]
+      setorder(x_synth, c_idx)[, c_idx :=  NULL]
       x_synth <- post_x(x_synth, params, round)
     }
     x_synth

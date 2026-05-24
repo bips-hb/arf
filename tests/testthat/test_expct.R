@@ -51,3 +51,35 @@ test_that("expct works with partial sample", {
   expect_equal(ncol(res), ncol(iris) - ncol(evi))
   expect_equal(colnames(res), colnames(iris)[3:5])
 })
+
+test_that("if nomatch='force', do not return NA", {
+  # Zero likelihood case (no finite bounds)
+  psi_no <- forde(arf, iris, finite_bounds = "no", parallel = FALSE)
+  x_synth <- expct(psi_no, evidence = data.frame(Sepal.Length = 100), 
+                   nomatch = "force", verbose = FALSE, 
+                   parallel = FALSE)
+  expect_true(all(!is.na(x_synth) & x_synth$Sepal.Length == 100))
+  
+  # No matching leaf case (finite bounds)
+  psi_global <- forde(arf, iris, finite_bounds = "global", parallel = FALSE)
+  x_synth <- expct(psi_global, evidence = data.frame(Sepal.Length = 100), 
+                   nomatch = "force", verbose = FALSE, 
+                   parallel = FALSE)
+  expect_true(all(!is.na(x_synth) & x_synth$Sepal.Length == 100))
+})
+
+test_that("if nomatch='na', return NA", {
+  # Zero likelihood case (no finite bounds)
+  psi_no <- forde(arf, iris, finite_bounds = "no", parallel = FALSE)
+  x_synth <- expct(psi_no, evidence = data.frame(Sepal.Length = 100), 
+                   nomatch = "na", verbose = FALSE, 
+                   parallel = FALSE)
+  expect_true(all(is.na(x_synth[, -1]) & x_synth$Sepal.Length == 100))
+  
+  # No matching leaf case (finite bounds)
+  psi_global <- forde(arf, iris, finite_bounds = "global", parallel = FALSE)
+  x_synth <- expct(psi_global, evidence = data.frame(Sepal.Length = 100), 
+                   nomatch = "na", verbose = FALSE, 
+                   parallel = FALSE)
+  expect_true(all(is.na(x_synth[, -1]) & x_synth$Sepal.Length == 100))
+})

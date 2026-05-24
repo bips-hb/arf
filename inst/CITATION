@@ -1,0 +1,17 @@
+bibentry(
+  bibtype   = "InProceedings",
+  title     = "Adversarial random forests for density estimation and generative modeling",
+  author    = c(person(given = "David S.",
+                      family = "Watson"), 
+               person(given = "Kristin",
+                      family = "Blesch"), 
+               person(given = "Jan",
+                      family = "Kapar"),
+               person(given = "Marvin N.",
+                      family = "Wright")),
+  booktitle = "Proceedings of The 26th International Conference on Artificial Intelligence and Statistics (AISTATS)",
+  year      = "2023",
+  publisher = "PMLR", 
+  volume    = "206", 
+  pages     = "5357-5375"
+)

@@ -55,3 +55,6 @@ A Python implementation of ARF, `arfpy`, is available on [PyPI](https://pypi.org
 
 ## References
 * Watson, D. S., Blesch, K., Kapar, J. & Wright, M. N. (2023). Adversarial random forests for density estimation and generative modeling. In *Proceedings of the 26th International Conference on Artificial Intelligence and Statistics*. Link [here](https://proceedings.mlr.press/v206/watson23a.html).
+* Blesch, K., Koenen, N., Kapar, J., Golchian, P., Burk, L., Loecher, M. & Wright, M. N. (2025). Conditional feature importance with generative modeling using adversarial random forests. In *Proceedings of the 39th AAAI Conference on Artificial Intelligence*. Link [here](https://arxiv.org/abs/2501.11178).
+
+

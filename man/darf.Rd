@@ -17,7 +17,8 @@ training features. See Details of \code{lik}. Is set to \code{x} if \code{zero}.
 and \code{lik}.}
 }
 \value{
-A vector of likelihoods, optionally on the log scale. A dataset of \code{n_synth} synthetic samples or of \code{nrow(x)} synthetic
+A vector of likelihoods, optionally on the log scale. A dataset of
+\code{n_synth} synthetic samples or of \code{nrow(x)} synthetic
 samples if \code{n_synth} is undefined.
 }
 \description{
