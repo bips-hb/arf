@@ -208,7 +208,7 @@ forde <- function(
       left_child <- arf$forest$child.nodeIDs[[tree]][[1]][i] + 1L
       right_child <- arf$forest$child.nodeIDs[[tree]][[2]][i] + 1L
       splitvarID <- arf$forest$split.varIDs[[tree]][i] + 1L
-      splitval <- arf$forest$split.value[[tree]][i]
+      splitval <- arf$forest$split.values[[tree]][i]
       if (left_child > 1) {
         ub[left_child, ] <- ub[right_child, ] <- ub[i, ]
         lb[left_child, ] <- lb[right_child, ] <- lb[i, ]
@@ -243,6 +243,7 @@ forde <- function(
     keep <- unique(keep[, cnt := .N, by = .(tree, leaf)])
     keep[, n_oob := sum(oob), by = tree]
     keep[, cvg := cnt / n_oob][, c('oob', 'cnt', 'n_oob') := NULL]
+    keep[, cvg := cvg/sum(cvg), by = tree]
   } else if (oob == "inbag") {
     keep[, inbag := as.vector(sapply(seq_len(num_trees), function(b) {
       arf$inbag.counts[[b]][seq_len(n)] > 0L
@@ -251,6 +252,7 @@ forde <- function(
     keep <- unique(keep[, cnt := .N, by = .(tree, leaf)])
     keep[, n_inbag := sum(inbag), by = tree]
     keep[, cvg := cnt / n_inbag][, c('inbag', 'cnt', 'n_inbag') := NULL]
+    keep[, cvg := cvg/sum(cvg), by = tree]
   } else {
     keep <- unique(keep[, cnt := .N, by = .(tree, leaf)])
     keep[, cvg := cnt / n][, cnt := NULL]
