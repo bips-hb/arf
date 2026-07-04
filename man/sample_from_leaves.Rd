@@ -2,28 +2,78 @@
 % Please edit documentation in R/sample_from_leaves.R
 \name{sample_from_leaves}
 \alias{sample_from_leaves}
-\title{Generate synthetic data by sampling from leaves of a random forest}
+\title{Generate synthetic data by sampling from the leaves of a random forest}
 \usage{
-sample_from_leaves(arf, x_real, factor_cols = NULL, lvls = NULL, prep = TRUE)
+sample_from_leaves(
+  arf,
+  x_real,
+  params = NULL,
+  round = TRUE,
+  factor_cols = NULL,
+  lvls = NULL,
+  prep = TRUE
+)
 }
 \arguments{
-\item{arf}{Random forest to sample from}
+\item{arf}{A trained ARF, as returned by \code{\link{adversarial_rf}} (a
+\code{ranger} object).}
 
-\item{x_real}{Data to sample from}
+\item{x_real}{Data whose intra-leaf structure is used for sampling, typically
+the data the forest was trained on.}
 
-\item{factor_cols}{Logical vector indicating which columns are factors (optional)}
+\item{params}{Optional circuit parameters as returned by \code{\link{forde}}.
+If supplied, the synthetic data is post-processed with the same routine used
+by \code{\link{forge}}: variable types and factor levels are restored,
+continuous variables are rounded to their observed precision (see
+\code{round}), and the class of the original input is reinstated. If
+\code{NULL}, a minimally processed \code{data.table} is returned with factor
+columns encoded as character, matching the representation used internally by
+\code{adversarial_rf}.}
 
-\item{lvls}{List of factor levels (optional)}
+\item{round}{Round continuous variables to their maximum precision in the real
+data? Only relevant when \code{params} is supplied.}
 
-\item{prep}{Whether to prepare the data before sampling}
+\item{factor_cols}{Optional logical vector flagging the factor columns of
+\code{x_real}. Computed from \code{x_real} if \code{NULL}. Mainly for
+internal use to avoid recomputation.}
+
+\item{lvls}{Optional list of factor levels for the factor columns of
+\code{x_real}. Computed from \code{x_real} if \code{NULL}. Mainly for
+internal use.}
+
+\item{prep}{Prepare \code{x_real} with the internal pre-processing routine
+before sampling? Set to \code{FALSE} if \code{x_real} is already prepared
+(internal use).}
 }
 \value{
-A data.table of synthetic data
+A dataset of \code{nrow(x_real)} synthetic samples. When \code{params}
+is supplied, its class and column types match the original data; otherwise a
+\code{data.table} with factor columns encoded as character.
 }
 \description{
-Generate synthetic data by sampling from leaves of a random forest
+Draws synthetic samples by sampling, for each observation, a leaf from the
+forest and then drawing each feature independently (marginally) from the real
+observations that fall into that leaf. This is the intra-leaf sampling step
+used internally by \code{\link{adversarial_rf}} to generate synthetic data
+during the adversarial loop, exposed here as a stand-alone function.
 }
 \examples{
 arf <- adversarial_rf(iris)
-sample_from_leaves(arf, iris)
+
+# Minimally processed output (factors as character)
+x_synth <- sample_from_leaves(arf, iris)
+
+# Fully post-processed output, consistent with forge()
+psi <- forde(arf, iris)
+x_synth <- sample_from_leaves(arf, iris, params = psi)
+
+}
+\references{
+Watson, D., Blesch, K., Kapar, J., & Wright, M. (2023). Adversarial random
+forests for density estimation and generative modeling. In \emph{Proceedings
+of the 26th International Conference on Artificial Intelligence and
+Statistics}, pp. 5357-5375.
+}
+\seealso{
+\code{\link{adversarial_rf}}, \code{\link{forde}}, \code{\link{forge}}
 }

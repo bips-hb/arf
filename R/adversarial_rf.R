@@ -156,7 +156,7 @@ adversarial_rf <- function(
     converged <- FALSE
     while (!isTRUE(converged)) { # Adversarial loop begins...
       # Create synthetic data by sampling from intra-leaf marginals
-      x_synth <- sample_from_leaves(rf0, x_real, factor_cols, lvls, prep = FALSE)
+      x_synth <- sample_from_leaves(rf0, x_real, factor_cols = factor_cols, lvls = lvls, prep = FALSE)
       # Concatenate real and synthetic data
       dat <- rbind(data.frame(y = 1L, x_real),
                    data.frame(y = 0L, x_synth))
