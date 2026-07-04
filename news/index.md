@@ -1,5 +1,9 @@
 # Changelog
 
+## arf 0.2.5
+
+- Export sample_from_leaves() for intra-leaf marginal sampling
+
 ## arf 0.2.4
 
 CRAN release: 2025-02-24

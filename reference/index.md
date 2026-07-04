@@ -23,3 +23,6 @@
   Estimation
 - [`rarf()`](https://bips-hb.github.io/arf/reference/rarf.md) : Shortcut
   sampling function
+- [`sample_from_leaves()`](https://bips-hb.github.io/arf/reference/sample_from_leaves.md)
+  : Generate synthetic data by sampling from the leaves of a random
+  forest
