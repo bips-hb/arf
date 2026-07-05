@@ -5,7 +5,7 @@
 ^docs$
 ^pkgdown$
 ^todo.R$
-^LICENSE$
+^LICENSE\.md$
 ^arf\.Rcheck$
 ^arf.*\.tar\.gz$
 ^arf.*\.tgz$
