@@ -35,12 +35,21 @@ backend (mirai **or** fork, never both), and the parent samples the child's
 | `sweep.R` | time **and** peak memory over a grid of worker counts × sizes | **the cluster run** — backend scaling + the memory story |
 | `mem-backends.R` | time + peak memory at a single config | a quick one-off snapshot |
 
-```sh
-# scaling sweep (the main cluster tool)
-ARF_BENCH_WORKERS=1,2,4,8,16 ARF_BENCH_N=5000,20000 ARF_BENCH_TREES=100,200 \
-  ARF_BENCH_DT_THREADS=1 ARF_BENCH_ITERS=1 Rscript bench/sweep.R
+`run-sweep.sh` is the convenience launcher for a cluster node:
 
-# single snapshot
+```sh
+bench/run-sweep.sh                 # clean: 1 thread per worker (fair scaling baseline)
+bench/run-sweep.sh realistic       # realistic: data.table + ranger at 10 threads each
+bench/run-sweep.sh realistic 8     # ...with 8 threads
+```
+
+It just exports the `ARF_BENCH_*` variables and runs `sweep.R`; any variable you
+set in the environment overrides its defaults. Or call the scripts directly:
+
+```sh
+ARF_BENCH_WORKERS=1,2,4,8,16 ARF_BENCH_N=5000,20000 ARF_BENCH_TREES=100,200 \
+  ARF_BENCH_DT_THREADS=1 ARF_BENCH_RANGER_THREADS=1 ARF_BENCH_ITERS=1 Rscript bench/sweep.R
+
 ARF_BENCH_N=20000 ARF_BENCH_TREES=200 ARF_BENCH_WORKERS=8 Rscript bench/mem-backends.R
 ```
 
@@ -50,17 +59,28 @@ reads it (no refit). Grids are comma-separated env overrides (`ARF_BENCH_WORKERS
 
 ## Parallelism topology (important)
 
-Run on **reserved/idle resources**, and mind the thread topology or the numbers
-are confounded. `data.table` is multi-threaded by default, so without control
-each worker spins up several threads and `N` workers oversubscribe the machine
-(this also makes the "sequential" baseline secretly multi-threaded). The scripts
-pin `data.table` to **one thread per worker** (main process, forked foreach
-workers, and mirai daemons) via `ARF_BENCH_DT_THREADS` (default 1), so `N`
-workers means `N` cores — the fair comparison.
+Run on **reserved/idle resources**. Two libraries also thread internally and
+confound the backend comparison if left uncontrolled: `data.table` (the per-tree
+work) and `ranger` (forde's `terminalNodes` prediction). Both are pinned via env
+vars — `ARF_BENCH_DT_THREADS` (`data.table`, on main + forked workers + mirai
+daemons) and `ARF_BENCH_RANGER_THREADS` (`ranger`, via `options(ranger.num.threads)`
+which forde's `predict` inherits).
 
-The one-time `adversarial_rf()` fit happens *outside* the timed region, so
-ranger's own threading affects only setup wall-time, not the reported backend
-numbers — it is orthogonal to the backend comparison.
+### Two regimes: clean vs realistic
+
+- **clean** (`run-sweep.sh`, threads = 1): each worker is single-threaded, so
+  `N` workers means `N` cores. This is the *unconfounded scaling baseline* —
+  without it, `data.table`'s default multi-threading even makes "sequential"
+  secretly parallel.
+- **realistic** (`run-sweep.sh realistic`, threads = 10): `data.table`/`ranger`
+  multi-thread as in naive real-world use. At high worker counts this
+  **intentionally oversubscribes** (e.g. 16 workers × 10 threads), which is the
+  point — to check whether the clean-baseline interpretation survives realistic
+  usage, where practical throughput matters more than tidy scaling.
+
+Compare the two: if mirai's memory advantage or the speed ordering flips between
+regimes, that is a finding worth reporting. The `dt_threads`/`ranger_threads`
+columns in the CSV record which regime produced each row.
 
 ### Timing caveat: cold vs steady-state
 

@@ -85,9 +85,14 @@ BENCH_METRIC  <- if (BENCH_USE_PSS) "PSS" else "RSS"
 
 # Function executed in the CHILD process (fresh R): load the package, run forde()
 # `iters` times for one backend, return the elapsed seconds per iteration.
-.bench_cell_fn <- function(pkgdir, data_path, backend, n_workers, dt_threads, iters) {
+# dt_threads pins data.table (per worker); ranger_threads sets ranger's default
+# threads, which forde()'s terminalNodes prediction picks up (it does not pass
+# num.threads itself).
+.bench_cell_fn <- function(pkgdir, data_path, backend, n_workers, dt_threads,
+                           ranger_threads, iters) {
   suppressWarnings(suppressMessages(pkgload::load_all(pkgdir, quiet = TRUE)))
   data.table::setDTthreads(dt_threads)
+  options(ranger.num.threads = ranger_threads)
   d <- readRDS(data_path); arf <- d$arf; X <- d$X
   if (backend == "sequential") {
     options(arf.backend = NULL); par <- FALSE
@@ -111,10 +116,11 @@ BENCH_METRIC  <- if (BENCH_USE_PSS) "PSS" else "RSS"
 # Parent-side: launch a cell in a fresh subprocess and sample its peak memory
 # via /proc while it runs. Returns list(seconds = median, peak_mb).
 bench_measure_cell <- function(backend, data_path, n_workers, dt_threads,
-                               pkgdir, iters = 1L, interval = 0.05) {
+                               pkgdir, ranger_threads = 1L, iters = 1L,
+                               interval = 0.05) {
   proc <- callr::r_bg(.bench_cell_fn,
                       args = list(pkgdir, data_path, backend, n_workers,
-                                  dt_threads, iters))
+                                  dt_threads, ranger_threads, iters))
   pid <- proc$get_pid()
   peak_kb <- 0
   repeat {

@@ -19,6 +19,7 @@ bench_require_backends()
 
 pkgdir      <- normalizePath(".")
 dt_threads  <- as.integer(Sys.getenv("ARF_BENCH_DT_THREADS", "1"))
+rgr_threads <- as.integer(Sys.getenv("ARF_BENCH_RANGER_THREADS", "1"))
 iters       <- as.integer(Sys.getenv("ARF_BENCH_ITERS", "1"))
 worker_grid <- bench_ints("ARF_BENCH_WORKERS", c(1, 2, 4, 8))
 n_grid      <- bench_ints("ARF_BENCH_N", c(5000, 20000))
@@ -27,9 +28,9 @@ p           <- as.integer(Sys.getenv("ARF_BENCH_P", "30"))
 backends    <- c("sequential", "foreach", "mirai")
 
 message(sprintf(
-  "Sweep | workers {%s} | n {%s} | trees {%s} | p %d | dt.threads/worker %d | iters %d | metric %s",
+  "Sweep | workers {%s} | n {%s} | trees {%s} | p %d | dt.threads %d | ranger.threads %d | iters %d | metric %s",
   paste(worker_grid, collapse = ","), paste(n_grid, collapse = ","),
-  paste(trees_grid, collapse = ","), p, dt_threads, iters, BENCH_METRIC))
+  paste(trees_grid, collapse = ","), p, dt_threads, rgr_threads, iters, BENCH_METRIC))
 
 rows <- list()
 for (n in n_grid) {
@@ -44,11 +45,12 @@ for (n in n_grid) {
       for (be in backends) {
         # sequential is worker-independent: run it once (at the first worker count)
         if (be == "sequential" && w != worker_grid[1]) next
-        m <- bench_measure_cell(be, data_path, w, dt_threads, pkgdir, iters)
+        m <- bench_measure_cell(be, data_path, w, dt_threads, pkgdir,
+                                ranger_threads = rgr_threads, iters = iters)
         rows[[length(rows) + 1L]] <- data.frame(
           n = n, trees = trees,
           workers = if (be == "sequential") NA_integer_ else w,
-          dt_threads = dt_threads, backend = be,
+          dt_threads = dt_threads, ranger_threads = rgr_threads, backend = be,
           seconds = round(m$seconds, 2), peak_mb = round(m$peak_mb, 1),
           metric = BENCH_METRIC)
         message(sprintf("  n=%-6d trees=%-4d w=%-3s %-10s %8.1fs %9.1f MB",

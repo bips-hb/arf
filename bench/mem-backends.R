@@ -17,6 +17,7 @@ p          <- as.integer(Sys.getenv("ARF_BENCH_P", "30"))
 trees      <- as.integer(Sys.getenv("ARF_BENCH_TREES", "100"))
 n_workers  <- as.integer(Sys.getenv("ARF_BENCH_WORKERS", "4"))
 dt_threads <- as.integer(Sys.getenv("ARF_BENCH_DT_THREADS", "1"))
+rgr_threads <- as.integer(Sys.getenv("ARF_BENCH_RANGER_THREADS", "1"))
 iters      <- as.integer(Sys.getenv("ARF_BENCH_ITERS", "1"))
 
 set.seed(1)
@@ -29,7 +30,8 @@ saveRDS(list(arf = arf, X = X), data_path)
 rm(arf, X); invisible(gc())
 
 out <- do.call(rbind, lapply(c("sequential", "foreach", "mirai"), function(be) {
-  m <- bench_measure_cell(be, data_path, n_workers, dt_threads, pkgdir, iters)
+  m <- bench_measure_cell(be, data_path, n_workers, dt_threads, pkgdir,
+                          ranger_threads = rgr_threads, iters = iters)
   data.frame(backend = be, seconds = round(m$seconds, 2),
              peak_mb = round(m$peak_mb, 1), metric = BENCH_METRIC)
 }))
@@ -39,6 +41,7 @@ print(out, row.names = FALSE)
 
 dir.create("bench/results", showWarnings = FALSE, recursive = TRUE)
 stamp <- format(Sys.time(), "%Y%m%d-%H%M%S")
-write.csv(cbind(n = n, trees = trees, workers = n_workers, dt_threads = dt_threads, out),
+write.csv(cbind(n = n, trees = trees, workers = n_workers, dt_threads = dt_threads,
+                ranger_threads = rgr_threads, out),
           sprintf("bench/results/mem-%s.csv", stamp), row.names = FALSE)
 cat("\nWritten to bench/results/mem-", stamp, ".csv\n", sep = "")
