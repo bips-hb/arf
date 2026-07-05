@@ -1,6 +1,8 @@
 # Parallelism backend benchmarks
 
-Scripts here compare the parallel backends available to `forde()`:
+`bench-backends.R` compares the parallel backends available to `forde()` across
+a grid of task sizes, using the [`bench`](https://bench.r-lib.org) package
+(`bench::press` over configurations, `bench::mark` per backend):
 
 - **sequential** — `forde(parallel = FALSE)`
 - **foreach** — `forde(parallel = TRUE)` with a registered `foreach` backend
@@ -8,32 +10,33 @@ Scripts here compare the parallel backends available to `forde()`:
 - **mirai** — `options(arf.backend = "mirai")` with `mirai::daemons()` set. Data
   is shared read-only via `mori`, so it is not copied per worker.
 
-The point of interest is **memory**: the foreach path copies the training data
-(and forest) into every worker, whereas the mirai+mori path shares one copy. The
-benchmark therefore reports peak memory as well as wall-clock time.
-
-## Metric: PSS, not RSS
-
-Memory is measured as the **peak total PSS (Proportional Set Size) across the R
-process tree** on Linux (`/proc/<pid>/smaps_rollup`). PSS divides shared pages
-among the processes that map them, so a page shared by N workers counts once
-(split N ways) rather than N times. This is the fair way to compare a
-copy-per-worker backend against a shared-memory one — RSS would double-count the
-shared pages and understate mori's advantage's inverse (i.e. overstate its cost).
-
-This is Linux-only. On other platforms the memory column is reported as `NA`.
+Each backend is included only if its packages are available (`doParallel` for
+foreach; `mirai` + `mori` for mirai). `bench::mark`'s `check` runs a tolerant
+`all.equal()` across backends, so the benchmark doubles as a correctness gate.
 
 ## Running
 
 ```sh
-Rscript bench/bench-backends.R                 # defaults
-Rscript bench/bench-backends.R 5000 40 100 4   # n, p, num_trees, n_workers
+Rscript bench/bench-backends.R
+ARF_BENCH_WORKERS=8 Rscript bench/bench-backends.R
 ```
 
-Requires `doParallel` for the foreach path and `mirai` + `mori` for the mirai
-path; each backend is skipped (with a note) if its packages are unavailable.
+Results (both the raw `bench_mark` object and a flat CSV summary) are written to
+`bench/results/`, which is **gitignored** — nothing here is committed or shipped
+(`bench/` is also in `.Rbuildignore`).
 
-Run in an otherwise-idle session: the sampler sums PSS over the R process
-subtree, so concurrent unrelated R work in the same tree would be attributed.
+## On the memory columns
 
-`bench/` is listed in `.Rbuildignore`, so nothing here ships in the package.
+`bench::mark` reports `mem_alloc` and gc counts, but these track allocations in
+the **main R process only**. The parallel backends do their per-tree work in
+separate worker/daemon processes, so `mem_alloc` does **not** capture the
+per-worker data copies that motivate mirai+mori — it can even make the parallel
+backends look *lighter* than sequential (the main process just collects
+results). Use `mem_alloc`/gc for main-process signal and wall-clock time for
+throughput.
+
+To measure the cross-process memory footprint — the actual mirai/mori advantage
+— you need OS-level RSS/PSS of the whole R process tree (e.g. sampling
+`/proc/<pid>/smaps_rollup` on Linux). That is intentionally out of scope for
+this `bench`-based script; add a separate memory harness if/when that comparison
+is needed.

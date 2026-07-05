@@ -15,3 +15,4 @@ branch/
 /doc/
 /Meta/
 bench/slurm/logs/
+bench/results/

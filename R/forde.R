@@ -234,6 +234,7 @@ forde <- function(
     keep <- unique(keep[, cnt := .N, by = .(tree, leaf)])
     keep[, n_oob := sum(oob), by = tree]
     keep[, cvg := cnt / n_oob][, c('oob', 'cnt', 'n_oob') := NULL]
+    keep[, cvg := cvg/sum(cvg), by = tree]
   } else if (oob == "inbag") {
     keep[, inbag := as.vector(sapply(seq_len(num_trees), function(b) {
       arf$inbag.counts[[b]][seq_len(n)] > 0L
@@ -242,6 +243,7 @@ forde <- function(
     keep <- unique(keep[, cnt := .N, by = .(tree, leaf)])
     keep[, n_inbag := sum(inbag), by = tree]
     keep[, cvg := cnt / n_inbag][, c('inbag', 'cnt', 'n_inbag') := NULL]
+    keep[, cvg := cvg/sum(cvg), by = tree]
   } else {
     keep <- unique(keep[, cnt := .N, by = .(tree, leaf)])
     keep[, cvg := cnt / n][, cnt := NULL]
