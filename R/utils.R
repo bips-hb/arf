@@ -310,7 +310,7 @@ cforde <- function(params,
       setorder(relevant_leaves_changed_cat)
       conditions_unchanged_cat <- setdiff(condition_long_step[, c_idx], cat_conds[, c_idx])
       relevant_leaves_unchanged_cat <- data.table(c_idx = rep(conditions_unchanged_cat, each = nrow(forest) ), f_idx = rep(forest[,f_idx],length(conditions_unchanged_cat)))
-      relevant_leaves_cat <- rbind(relevant_leaves_changed_cat, relevant_leaves_unchanged_cat, fill = T)
+      relevant_leaves_cat <- rbind(relevant_leaves_changed_cat, relevant_leaves_unchanged_cat, fill = TRUE)
       relevant_leaves_cat_list <- relevant_leaves_cat[,.(f_idx = .(f_idx)), by=c_idx]
     } else {
       relevant_leaves_cat <- data.table(c_idx = integer(), f_idx = integer())
@@ -365,12 +365,12 @@ cforde <- function(params,
       relevant_leaves_cnt <- rbind(relevant_leaves_changed_cnt, relevant_leaves_unchanged_cnt)
       
       # Calculate updates for cnt params matching cnt conditions
-      cnt_new <- merge(merge(relevant_leaves_cnt, cnt_conds, by = "c_idx", allow.cartesian = T, sort = F), cnt, by = c("f_idx", "variable"), all.x = T, allow.cartesian = T, sort = F)
+      cnt_new <- merge(merge(relevant_leaves_cnt, cnt_conds, by = "c_idx", allow.cartesian = TRUE, sort = FALSE), cnt, by = c("f_idx", "variable"), all.x = TRUE, allow.cartesian = TRUE, sort = FALSE)
       cnt_new[!is.na(val),`:=` (min = min.y,
                                 max = max.y)]
-      cnt_new[is.na(val),`:=` (min = pmax(min.x, min.y, na.rm = T),
-                               max = pmin(max.x, max.y, na.rm = T))]
-      cnt_new <- cnt_new[min <= max & sum(max.x, val, na.rm = T) != min.y, ]
+      cnt_new[is.na(val),`:=` (min = pmax(min.x, min.y, na.rm = TRUE),
+                               max = pmin(max.x, max.y, na.rm = TRUE))]
+      cnt_new <- cnt_new[min <= max & sum(max.x, val, na.rm = TRUE) != min.y, ]
       cnt_new[, prob := NA_real_]
       if (family == "truncnorm") {
         cnt_new[!is.na(val), prob := dtruncnorm(val, a=min.y, b=max.y, mean=mu, sd=sigma)*(val != min.y)]
@@ -401,11 +401,11 @@ cforde <- function(params,
       # If no cnt conditions exist, output empty update table cnt_new for cnt params
     } else {
       relevant_leaves <- relevant_leaves_cat[,.(c_idx, f_idx)]
-      cnt_new <- cbind(cnt[F,], data.table(cvg_factor = numeric(), c_idx = integer(), val = numeric(), prob = numeric()))
+      cnt_new <- cbind(cnt[FALSE,], data.table(cvg_factor = numeric(), c_idx = integer(), val = numeric(), prob = numeric()))
     }
     
     # Calculate updates for cat params matching cat conditions
-    cat_new <- merge(merge(relevant_leaves, cat_conds, by = "c_idx", allow.cartesian = T), cat, by = c("f_idx","variable", "val")) 
+    cat_new <- merge(merge(relevant_leaves, cat_conds, by = "c_idx", allow.cartesian = TRUE), cat, by = c("f_idx","variable", "val")) 
     
     # Ensure probabilities sum to 1
     cat_new[, cvg_factor := sum(prob), by = .(f_idx, c_idx, variable)]
@@ -426,8 +426,8 @@ cforde <- function(params,
   
   # Re-index matching leaves
   relevant_leaves <- updates_relevant_leaves$relevant_leaves[,`:=` (f_idx = .I, f_idx_uncond = f_idx)][]
-  cnt_new <- setcolorder(merge(relevant_leaves, updates_relevant_leaves$cnt_new, by.x = c("c_idx", "f_idx_uncond"), by.y = c("c_idx", "f_idx"), sort = F), c("f_idx","c_idx","variable","min","max","val","cvg_factor"))[]
-  cat_new <- setcolorder(merge(relevant_leaves, updates_relevant_leaves$cat_new, by.x = c("c_idx", "f_idx_uncond"), by.y = c("c_idx", "f_idx"), sort = F), c("f_idx","c_idx","variable","val","prob","cvg_factor"))[]
+  cnt_new <- setcolorder(merge(relevant_leaves, updates_relevant_leaves$cnt_new, by.x = c("c_idx", "f_idx_uncond"), by.y = c("c_idx", "f_idx"), sort = FALSE), c("f_idx","c_idx","variable","min","max","val","cvg_factor"))[]
+  cat_new <- setcolorder(merge(relevant_leaves, updates_relevant_leaves$cat_new, by.x = c("c_idx", "f_idx_uncond"), by.y = c("c_idx", "f_idx"), sort = FALSE), c("f_idx","c_idx","variable","val","prob","cvg_factor"))[]
   
   # Check for conditions with no matching leaves and handle this according to row_mode
   conds_impossible <- conds_conditioned[!(conds_conditioned %in% relevant_leaves[,unique(c_idx)])]
@@ -449,7 +449,7 @@ cforde <- function(params,
   }
   
   # Calculate new forest (set of leaves and weights)
-  forest_new <- merge(relevant_leaves, forest, by.x = "f_idx_uncond", by.y = "f_idx", all.x = T, sort = F)
+  forest_new <- merge(relevant_leaves, forest, by.x = "f_idx_uncond", by.y = "f_idx", all.x = TRUE, sort = FALSE)
   setnames(forest_new, "cvg", "cvg_arf")
   
   cvg_new <- unique(rbind(cat_new[, .(f_idx, c_idx, variable, cvg_factor)],
@@ -530,7 +530,7 @@ cforde <- function(params,
   if (row_mode == "separate" & nconds != nconds_conditioned) {
     conds_unconditioned <- (1:nconds)[!(1:nconds) %in% conds_conditioned]
     forest_new_unconditioned <- copy(forest)
-    forest_new_unconditioned <- rbindlist(replicate(length(conds_unconditioned), forest, simplify = F))
+    forest_new_unconditioned <- rbindlist(replicate(length(conds_unconditioned), forest, simplify = FALSE))
     forest_new_unconditioned[, `:=` (c_idx = rep(conds_unconditioned,each = nrow(forest)), f_idx_uncond = f_idx, cvg_arf = cvg)]
     forest_new <- rbind(forest_new, forest_new_unconditioned)
   }

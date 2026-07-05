@@ -52,7 +52,7 @@ darf <- function(x, query = NULL, ...) {
   forde_args <- dot_args[names(dot_args) %in% arg_names$forde]
   lik_args <- dot_args[names(dot_args) %in% arg_names$lik]
   
-  if (!("verbose" %in% names(arf_args))) arf_args$verbose = F
+  if (!("verbose" %in% names(arf_args))) arf_args$verbose = FALSE
   if (!("arf" %in% names(arf_args) | "params" %in% names(forde_args))) arf <- do.call(adversarial_rf, c(x = list(x), arf_args))
   
   if (!("params" %in% names(forde_args))) params <- do.call(forde, c(arf = list(arf), x = list(x), forde_args))
@@ -122,12 +122,12 @@ rarf <- function(x, n_synth = NULL, ...) {
   forde_args <- dot_args[names(dot_args) %in% arg_names$forde]
   forge_args <- dot_args[names(dot_args) %in% arg_names$forge]
   
-  if (!("verbose" %in% names(arf_args))) arf_args$verbose = F
+  if (!("verbose" %in% names(arf_args))) arf_args$verbose = FALSE
   if (!("arf" %in% names(arf_args) | "params" %in% names(forde_args))) arf <- do.call(adversarial_rf, c(x = list(x), arf_args))
   
   if (!("params" %in% names(forde_args))) params <- do.call(forde, c(arf = list(arf), x = list(x), forde_args))
   
-  if (!("verbose" %in% names(forge_args))) forge_args$verbose = F
+  if (!("verbose" %in% names(forge_args))) forge_args$verbose = FALSE
   if (is.null(n_synth)) {
     if (is.null(forge_args$evidence))
       n_synth <- nrow(x)
@@ -192,12 +192,12 @@ earf <- function(x, ...) {
   forde_args <- dot_args[names(dot_args) %in% arg_names$forde]
   expct_args <- dot_args[names(dot_args) %in% arg_names$expct]
   
-  if (!("verbose" %in% names(arf_args))) arf_args$verbose = F
+  if (!("verbose" %in% names(arf_args))) arf_args$verbose = FALSE
   if (!("arf" %in% names(arf_args) | "params" %in% names(forde_args))) arf <- do.call(adversarial_rf, c(x = list(x), arf_args))
   
   if (!("params" %in% names(forde_args))) params <- do.call(forde, c(arf = list(arf), x = list(x), forde_args))
   
-  if (!("verbose" %in% names(expct_args))) expct_args$verbose = F
+  if (!("verbose" %in% names(expct_args))) expct_args$verbose = FALSE
   do.call(expct, c(params = list(params),
                    expct_args))
   

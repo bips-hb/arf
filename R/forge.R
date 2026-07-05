@@ -284,7 +284,7 @@ forge <- function(
       indices_sampled <- cparams$forest[!is.na(f_idx), unique(c_idx)]
       rows_na <- dcast(rbind(data.table(c_idx = 0, variable = params$meta[,variable]),
                                         cparams$evidence_prepped[c_idx %in% indices_na,],
-                                        fill = T),
+                                        fill = TRUE),
                                   c_idx ~ variable, value.var = "val")[c_idx != 0,]
       rows_na <- rbindlist(replicate(n_synth, rows_na, simplify = FALSE))
       if (nomatch == "force") {
@@ -292,7 +292,7 @@ forge <- function(
         rows_na[is.na(rows_na)] <- rows_na_sampled[is.na(rows_na[,-1])]
       }
       x_synth[, c_idx := rep(indices_sampled, each = n_synth)]
-      x_synth <- rbind(x_synth, rows_na, fill = T)
+      x_synth <- rbind(x_synth, rows_na, fill = TRUE)
       setorder(x_synth, c_idx)[, c_idx :=  NULL]
       x_synth <- post_x(x_synth, params, round)
     }
