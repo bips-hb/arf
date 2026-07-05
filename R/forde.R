@@ -201,13 +201,11 @@ forde <- function(
     # (e.g. `[.data.table`) are registered for the worker bodies.
     mirai::everywhere(requireNamespace('data.table', quietly = TRUE))
   }
-  # Per-tree workers live once in forde_workers.R and are shared by the serial,
-  # foreach, and mirai backends. The closures below bind the shared function to
-  # a local so foreach's %dopar% exports it to the workers along with the data.
-  bnd_impl <- arf_bnd_fn
+  # Per-tree workers live once in forde_workers.R, shared by all backends; the
+  # closures below adapt them to foreach's one-argument iteration.
   bnd_fn <- function(tree) {
-    bnd_impl(tree, arf$forest, d, finite_bounds, factor_cols, x, epsilon,
-             colnames_x)
+    arf_bnd_fn(tree, arf$forest, d, finite_bounds, factor_cols, x, epsilon,
+               colnames_x)
   }
   if (use_mirai) {
     forest_slice <- mori::share(
@@ -265,10 +263,9 @@ forde <- function(
   }
   # Continuous case
   if (any(!factor_cols)) {
-    psi_cnt_impl <- arf_psi_cnt_fn
     psi_cnt_fn <- function(tree) {
-      psi_cnt_impl(tree, x, factor_cols, pred, arf$inbag.counts, n, oob, bnds,
-                   finite_bounds, epsilon, family)
+      arf_psi_cnt_fn(tree, x, factor_cols, pred, arf$inbag.counts, n, oob, bnds,
+                     finite_bounds, epsilon, family)
     }
     if (use_mirai) {
       psi_cnt <- arf_mirai_tree_map(num_trees, arf_psi_cnt_fn, list(
@@ -277,10 +274,10 @@ forde <- function(
         bnds = bnds_shared, finite_bounds = finite_bounds,
         epsilon = epsilon, family = family))
     } else if (isTRUE(parallel)) {
-      psi_cnt <- foreach(tree = seq_len(num_trees), .combine = rbind) %dopar% 
+      psi_cnt <- foreach(tree = seq_len(num_trees), .combine = rbind) %dopar%
         psi_cnt_fn(tree)
     } else {
-      psi_cnt <- foreach(tree = seq_len(num_trees), .combine = rbind) %do% 
+      psi_cnt <- foreach(tree = seq_len(num_trees), .combine = rbind) %do%
         psi_cnt_fn(tree)
     }
     setkey(psi_cnt, f_idx, variable)
@@ -292,9 +289,8 @@ forde <- function(
   
   # Categorical case
   if (any(factor_cols)) {
-    psi_cat_impl <- arf_psi_cat_fn
     psi_cat_fn <- function(tree) {
-      psi_cat_impl(tree, x, factor_cols, pred, bnds, oob, lvl_df_rf, alpha)
+      arf_psi_cat_fn(tree, x, factor_cols, pred, bnds, oob, lvl_df_rf, alpha)
     }
     if (use_mirai) {
       psi_cat <- arf_mirai_tree_map(num_trees, arf_psi_cat_fn, list(
@@ -302,10 +298,10 @@ forde <- function(
         bnds = bnds_shared, oob = oob,
         lvl_df_rf = mori::share(lvl_df_rf), alpha = alpha))
     } else if (isTRUE(parallel)) {
-      psi_cat <- foreach(tree = seq_len(num_trees), .combine = rbind) %dopar% 
+      psi_cat <- foreach(tree = seq_len(num_trees), .combine = rbind) %dopar%
         psi_cat_fn(tree)
     } else {
-      psi_cat <- foreach(tree = seq_len(num_trees), .combine = rbind) %do% 
+      psi_cat <- foreach(tree = seq_len(num_trees), .combine = rbind) %do%
         psi_cat_fn(tree)
     }
     lvl_df_rf[, level := NULL]
