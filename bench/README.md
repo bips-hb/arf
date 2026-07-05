@@ -25,18 +25,30 @@ Results (both the raw `bench_mark` object and a flat CSV summary) are written to
 `bench/results/`, which is **gitignored** — nothing here is committed or shipped
 (`bench/` is also in `.Rbuildignore`).
 
-## On the memory columns
+`bench-backends.R` reports **time only** (`bench::mark(memory = TRUE)` errors on
+parallel code, and its `mem_alloc` sees only the main process anyway). Memory is
+measured by a separate script.
 
-`bench::mark` reports `mem_alloc` and gc counts, but these track allocations in
-the **main R process only**. The parallel backends do their per-tree work in
-separate worker/daemon processes, so `mem_alloc` does **not** capture the
-per-worker data copies that motivate mirai+mori — it can even make the parallel
-backends look *lighter* than sequential (the main process just collects
-results). Use `mem_alloc`/gc for main-process signal and wall-clock time for
-throughput.
+## `mem-backends.R` — peak memory
 
-To measure the cross-process memory footprint — the actual mirai/mori advantage
-— you need OS-level RSS/PSS of the whole R process tree (e.g. sampling
-`/proc/<pid>/smaps_rollup` on Linux). That is intentionally out of scope for
-this `bench`-based script; add a separate memory harness if/when that comparison
-is needed.
+```sh
+Rscript bench/mem-backends.R
+ARF_BENCH_N=20000 ARF_BENCH_TREES=200 ARF_BENCH_WORKERS=8 Rscript bench/mem-backends.R
+```
+
+Reports peak total memory across this user's R process tree while `forde()`
+runs, per backend, and writes a CSV to `bench/results/`.
+
+### Why PSS, and why manual sampling
+
+The metric is **PSS (Proportional Set Size)** on Linux, read from
+`/proc/<pid>/smaps_rollup`. PSS divides shared pages among the processes mapping
+them, so mori's shared data counts once (split), not once per daemon — the fair
+way to compare a copy-per-worker backend (foreach) against a shared-memory one
+(mirai+mori).
+
+We sample this manually rather than via a package because there is no better R
+option for it: `bench` can't profile parallel code, and the `ps` package
+(cleaner, cross-platform) only exposes **RSS**, which double-counts shared pages
+and would *understate* mori's advantage. PSS is Linux-only; on other platforms
+`mem-backends.R` falls back to RSS and labels the column accordingly.
