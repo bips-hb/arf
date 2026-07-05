@@ -72,15 +72,22 @@ which forde's `predict` inherits).
   `N` workers means `N` cores. This is the *unconfounded scaling baseline* —
   without it, `data.table`'s default multi-threading even makes "sequential"
   secretly parallel.
-- **realistic** (`run-sweep.sh realistic`, threads = 10): `data.table`/`ranger`
-  multi-thread as in naive real-world use. At high worker counts this
-  **intentionally oversubscribes** (e.g. 16 workers × 10 threads), which is the
-  point — to check whether the clean-baseline interpretation survives realistic
-  usage, where practical throughput matters more than tidy scaling.
+- **realistic** (`run-sweep.sh realistic`, threads = N): `data.table`/`ranger`
+  multi-thread as in real-world use, so each worker uses several cores.
 
-Compare the two: if mirai's memory advantage or the speed ordering flips between
-regimes, that is a finding worth reporting. The `dt_threads`/`ranger_threads`
-columns in the CSV record which regime produced each row.
+**Do not oversubscribe.** Keep `workers × threads` **under the core count, with
+headroom** — the sweep prints an `OVERSUBSCRIBED` warning otherwise. Beyond the
+obvious thrashing, mirai degrades *catastrophically* when oversubscribed: its
+per-`forde` dispatch/collect over nanonext gets CPU-starved by the compute
+threads (in one 16×10 run on 192 cores, mirai took 900s vs foreach's 53s). So in
+realistic mode either lower the worker grid or the thread count; e.g. on C cores
+pick `max(workers) × threads ≲ C`. `run-sweep.sh` also exports
+`OMP_WAIT_POLICY=passive` so `data.table`'s idle OpenMP threads sleep instead of
+spinning (spinning inflates load average and starves mirai's coordination).
+
+Compare the two regimes: if mirai's memory advantage or the speed ordering flips,
+that is a finding worth reporting. The `dt_threads`/`ranger_threads` columns in
+the CSV record which regime produced each row.
 
 ### Timing caveat: cold vs steady-state
 

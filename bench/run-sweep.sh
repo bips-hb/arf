@@ -15,6 +15,12 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."   # repo root: sweep.R uses paths relative to it
 
+# data.table's OpenMP threads busy-wait (spin) by default, which burns CPU while
+# idle and inflates load average enormously under many workers -- and starves
+# mirai's IPC coordination. Make idle threads sleep instead. Must be set before
+# R starts; it propagates to the callr children and mirai daemons they spawn.
+export OMP_WAIT_POLICY="${OMP_WAIT_POLICY:-passive}"
+
 MODE="${1:-clean}"
 NTHREADS="${2:-10}"
 

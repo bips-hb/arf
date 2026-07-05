@@ -32,6 +32,17 @@ message(sprintf(
   paste(worker_grid, collapse = ","), paste(n_grid, collapse = ","),
   paste(trees_grid, collapse = ","), p, dt_threads, rgr_threads, iters, BENCH_METRIC))
 
+# Warn on oversubscription: workers x data.table-threads should stay under the
+# core count (with headroom -- mirai needs CPU for its dispatch/collect, and it
+# degrades catastrophically when starved). This is the #1 confounder of results.
+cores <- as.integer(Sys.getenv("ARF_BENCH_CORES", parallel::detectCores()))
+peak_concurrency <- max(worker_grid) * dt_threads
+if (peak_concurrency > cores) {
+  message(sprintf(
+    "  WARNING: peak workers x dt.threads = %d exceeds %d cores -- OVERSUBSCRIBED.\n  Cells at high worker counts will thrash (mirai worst). Keep workers x threads\n  under the core count (with headroom), or lower ARF_BENCH_DT_THREADS / workers.",
+    peak_concurrency, cores))
+}
+
 rows <- list()
 for (n in n_grid) {
   for (trees in trees_grid) {
