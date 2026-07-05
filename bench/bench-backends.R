@@ -14,50 +14,40 @@
 # lighter than sequential). Treat mem_alloc/gc as main-process signals; for the
 # cross-process memory story use OS-level RSS/PSS of the process tree.
 
-suppressWarnings(suppressMessages(pkgload::load_all(quiet = TRUE)))
+source("bench/bench-helpers.R")
 stopifnot(requireNamespace("bench", quietly = TRUE))
+bench_require_backends()
 
-n_workers <- as.integer(Sys.getenv("ARF_BENCH_WORKERS", "4"))
+n_workers  <- as.integer(Sys.getenv("ARF_BENCH_WORKERS", "4"))
+# data.table is multi-threaded by default, which oversubscribes cores when N
+# workers each spin up threads (and even makes "sequential" multi-threaded).
+# Pin threads per worker so "N workers" means N cores -- the fair comparison.
+dt_threads <- as.integer(Sys.getenv("ARF_BENCH_DT_THREADS", "1"))
+data.table::setDTthreads(dt_threads)
 
-have_foreach <- requireNamespace("doParallel", quietly = TRUE)
-have_mirai   <- requireNamespace("mirai", quietly = TRUE) &&
-  requireNamespace("mori", quietly = TRUE)
-
-backends <- c("sequential",
-              if (have_foreach) "foreach",
-              if (have_mirai) "mirai")
+backends <- c("sequential", "foreach", "mirai")
 message("Backends: ", paste(backends, collapse = ", "),
-        "  |  workers = ", n_workers)
+        "  |  workers = ", n_workers, "  |  data.table threads/worker = ", dt_threads)
 
 # Register the parallel backends once; they persist for the whole run.
-if (have_foreach) doParallel::registerDoParallel(cores = n_workers)
-if (have_mirai) mirai::daemons(n_workers)
-
-make_data <- function(n, p) {
-  X <- as.data.frame(matrix(stats::rnorm(n * p), n, p))
-  X$grp <- factor(sample(letters[1:6], n, replace = TRUE))
-  X
-}
+# doParallel forks inherit the main setDTthreads; mirai daemons need it set too.
+doParallel::registerDoParallel(cores = n_workers)
+mirai::daemons(n_workers)
+mirai::everywhere(data.table::setDTthreads(dt_threads))
 
 # One forde() call for a given backend; the option toggles the code path.
 forde_be <- function(be, arf, X) {
-  if (be == "sequential") {
-    return(forde(arf, X, parallel = FALSE))
-  }
+  if (be == "sequential") return(forde(arf, X, parallel = FALSE))
   options(arf.backend = be)
   on.exit(options(arf.backend = NULL), add = TRUE)
   forde(arf, X, parallel = TRUE)
 }
 
-# Grid is env-overridable (comma-separated) for quick smoke tests, e.g.
+# Grid is env-overridable (comma-separated), e.g.
 #   ARF_BENCH_N=500 ARF_BENCH_TREES=10 Rscript bench/bench-backends.R
-as_ints <- function(env, default) {
-  v <- Sys.getenv(env, "")
-  if (nzchar(v)) as.integer(strsplit(v, ",")[[1]]) else default
-}
 grid <- expand.grid(
-  n = as_ints("ARF_BENCH_N", c(1000L, 5000L, 20000L)),
-  trees = as_ints("ARF_BENCH_TREES", c(50L, 200L)),
+  n = bench_ints("ARF_BENCH_N", c(1000, 5000, 20000)),
+  trees = bench_ints("ARF_BENCH_TREES", c(50, 200)),
   KEEP.OUT.ATTRS = FALSE
 )
 
@@ -65,7 +55,7 @@ results <- bench::press(
   .grid = grid,
   {
     set.seed(1)
-    X <- make_data(n, p = 30L)
+    X <- bench_make_data(n, p = 30L)
     arf <- adversarial_rf(X, num_trees = trees, verbose = FALSE, parallel = FALSE)
     exprs <- setNames(
       lapply(backends, function(be) bquote(forde_be(.(be), arf, X))),
@@ -82,7 +72,7 @@ results <- bench::press(
   }
 )
 
-if (have_mirai) mirai::daemons(0)
+mirai::daemons(0)
 
 # Persist to the gitignored results directory.
 dir.create("bench/results", showWarnings = FALSE, recursive = TRUE)
