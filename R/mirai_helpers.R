@@ -5,6 +5,84 @@
 # Activated by getOption("arf.backend", "foreach") == "mirai".
 # Hidden from public API; mirai and mori in Suggests only.
 
+# Session-scoped state for once-per-run notifications.
+.arf_env <- new.env(parent = emptyenv())
+
+# Emit a backend notification at most once per distinct state per session,
+# and only when getOption("arf.verbose", TRUE) is TRUE (opt-out switch).
+arf_backend_inform <- function(msg, key) {
+  if (!isTRUE(getOption("arf.verbose", TRUE))) {
+    return(invisible(FALSE))
+  }
+  shown <- get0("backend_shown", envir = .arf_env, ifnotfound = character(0))
+  if (key %in% shown) {
+    return(invisible(FALSE))
+  }
+  assign("backend_shown", c(shown, key), envir = .arf_env)
+  message(msg)
+  invisible(TRUE)
+}
+
+# Decide which parallel backend forde() should use, and tell the user.
+# Only meaningful when parallel = TRUE. Precedence:
+#   1. explicit options(arf.backend = "foreach" | "mirai")  (validated)
+#   2. active mirai daemons                                  -> "mirai"
+#   3. otherwise                                             -> "foreach"
+# For the foreach path we additionally report whether a real parallel backend
+# is registered (>1 worker) or whether it will fall back to sequential.
+# Returns one of "sequential", "foreach", "mirai".
+arf_select_backend <- function(parallel) {
+  if (!isTRUE(parallel)) {
+    return("sequential")
+  }
+  mirai_ready <- requireNamespace("mirai", quietly = TRUE) &&
+    requireNamespace("mori", quietly = TRUE) &&
+    {
+      st <- mirai::status()
+      !is.null(st$connections) && st$connections >= 1L
+    }
+  dopar_workers <- if (requireNamespace("foreach", quietly = TRUE)) {
+    foreach::getDoParWorkers()
+  } else {
+    1L
+  }
+
+  opt <- getOption("arf.backend", NULL)
+  if (!is.null(opt)) {
+    # Explicit user choice wins; validate and hard-check mirai readiness.
+    backend <- match.arg(opt, c("foreach", "mirai"))
+    if (backend == "mirai") {
+      arf_check_mirai_ready()
+    }
+  } else if (mirai_ready) {
+    backend <- "mirai"
+  } else {
+    backend <- "foreach"
+  }
+
+  # Report the effective backend: parallel = TRUE only, at most once per
+  # distinct state per session, suppressible via options(arf.verbose = FALSE).
+  if (backend == "mirai") {
+    n <- mirai::status()$connections
+    arf_backend_inform(
+      paste0("arf: using 'mirai' backend (", n, " daemon",
+             if (n != 1L) "s" else "", ")."),
+      key = paste0("mirai:", n))
+  } else if (dopar_workers > 1L) {
+    arf_backend_inform(
+      paste0("arf: using 'foreach' backend (", foreach::getDoParName(),
+             ", ", dopar_workers, " workers)."),
+      key = paste0("foreach:", dopar_workers))
+  } else {
+    arf_backend_inform(
+      paste0("arf: parallel = TRUE but no parallel backend is registered; ",
+             "computing sequentially. Register a foreach backend (e.g. ",
+             "doParallel) or start mirai daemons via mirai::daemons()."),
+      key = "sequential-fallback")
+  }
+  backend
+}
+
 arf_check_mirai_ready <- function() {
   if (!requireNamespace("mirai", quietly = TRUE)) {
     stop("arf.backend = 'mirai' requires the 'mirai' package. ",
@@ -27,9 +105,9 @@ arf_check_mirai_ready <- function() {
 
 # Note: data.table objects come back from mori with truelength == 0
 # (selfref dropped by the ALTREP round-trip), but read-only operations
-# in the worker bodies tolerate this — see bench/compat/01-datatable.R.
-# No setalloccol() repair is needed because workers only read the
-# shared tables and build fresh data.tables from the results.
+# in the worker bodies tolerate this. No setalloccol() repair is needed
+# because workers only read the shared tables and build fresh data.tables
+# from the results.
 
 # Dispatch a per-tree worker over mirai daemons. Trees are split into
 # one chunk per daemon; each task loops the per-tree worker over its
