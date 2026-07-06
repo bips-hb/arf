@@ -21,7 +21,7 @@ CPUS="${ARF_BENCH_SLURM_CPUS:-17}"
 MEM="${ARF_BENCH_SLURM_MEM:-64G}"
 TIME="${ARF_BENCH_SLURM_TIME:-08:00:00}"
 OPTS="${ARF_BENCH_SBATCH_OPTS:-}"
-mkdir -p bench/results
+mkdir -p bench/results bench/logs
 
 # name|env-settings (applied per job on top of the caller's environment)
 CONFIGS=(
@@ -41,7 +41,7 @@ for cfg in "${CONFIGS[@]}"; do
   env_settings="ARF_BENCH_LABEL=$name ${cfg#*|}"
   cmd=(sbatch --job-name="arf-bench-$name"
        --cpus-per-task="$CPUS" --mem="$MEM" --time="$TIME"
-       --output="bench/results/slurm-$name-%j.log")
+       --output="bench/logs/slurm-$name-%j.log")
   # shellcheck disable=SC2206  # intentional word-splitting of extra flags
   [ -n "$OPTS" ] && cmd+=($OPTS)
   cmd+=(--wrap="ARF_BENCH_SCRIPT=bench/sweep-ops.R $env_settings bench/run-sweep.sh clean")
