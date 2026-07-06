@@ -160,6 +160,12 @@ arf_check_mirai_ready <- function() {
 # (params, evidence, training data, ...) into EVERY task, defeating mori
 # sharing. Pass package-level functions (serialized as a namespace reference)
 # or strip base-R-only closures to globalenv() before shipping.
+# This is a documented mirai gotcha, see the Community FAQ:
+# https://mirai.r-lib.org/articles/v07-questions.html
+# The FAQ recommends carrier::crate() for the general case. We skip it here
+# because our shipped functions are pure base R with all inputs as explicit
+# arguments: there is nothing to crate, and environment(fn) <- globalenv()
+# gets the same zero-payload serialization without adding a carrier dependency.
 arf_mirai_tree_map <- function(num_trees, worker_fn, shared_args,
                                combine = data.table::rbindlist) {
   st <- mirai::status()

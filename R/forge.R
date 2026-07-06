@@ -199,6 +199,7 @@ forge <- function(
       stepsize_cforde = stepsize_cforde, parallel_cforde = parallel_cforde),
       # package-level combine: an inline closure here would serialize forge's
       # whole frame (params included) into every task
+      # See the closure note in mirai_helpers.R.
       combine = arf_rbind_steps)
   } else if (isTRUE(parallel) && step_no > 1) {
     x_synth_ <- foreach(step = 1:step_no, .combine = "rbind") %dopar% par_fun(step)

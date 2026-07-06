@@ -220,6 +220,7 @@ adversarial_rf <- function(
       # before shipping. chunk_fn's would otherwise be THIS frame (rf0, dat,
       # x_real: hundreds of MB serialized into every task); arf_prune_tree's
       # namespace env would force daemons to load arf.
+      # See the closure note above arf_mirai_tree_map() in mirai_helpers.R.
       environment(chunk_fn) <- globalenv()
       prune_worker <- arf_prune_tree
       environment(prune_worker) <- globalenv()
