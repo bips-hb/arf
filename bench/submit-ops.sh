@@ -18,7 +18,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 CPUS="${ARF_BENCH_SLURM_CPUS:-17}"
-MEM="${ARF_BENCH_SLURM_MEM:-64G}"
+# Nodes have ~1TB RAM; expct's cartesian hit the old 64G ceiling and OOM'd at
+# n=20000. Request generously (jobs run on separate nodes / spread out anyway).
+MEM="${ARF_BENCH_SLURM_MEM:-256G}"
 TIME="${ARF_BENCH_SLURM_TIME:-08:00:00}"
 OPTS="${ARF_BENCH_SBATCH_OPTS:-}"
 mkdir -p bench/results bench/logs
