@@ -92,6 +92,28 @@ arf_load_on_daemons <- function() {
   invisible(TRUE)
 }
 
+# Worker count for sizing step/fold chunks. Whichever parallel backend is active
+# reports >1; the inactive one reports 1, so max() picks the right pool without
+# re-deriving backend-selection precedence. Needed because stepsize was sized via
+# foreach::getDoParWorkers() alone, which is 1 under a pure mirai backend (daemons
+# set, no foreach registered) -> step_no 1 -> mirai never engages.
+# ponytail: sizing hint only; the dispatch gate governs real parallelism, so a
+# slight over/under-split when both backends are up is harmless.
+arf_n_workers <- function() {
+  mirai_conns <- if (requireNamespace("mirai", quietly = TRUE)) {
+    st <- tryCatch(mirai::status(), error = function(e) NULL)
+    if (!is.null(st$connections)) as.integer(st$connections) else 0L
+  } else {
+    0L
+  }
+  dopar <- if (requireNamespace("foreach", quietly = TRUE)) {
+    foreach::getDoParWorkers()
+  } else {
+    1L
+  }
+  max(1L, mirai_conns, dopar)
+}
+
 arf_check_mirai_ready <- function() {
   if (!requireNamespace("mirai", quietly = TRUE)) {
     stop("arf.backend = 'mirai' requires the 'mirai' package. ",

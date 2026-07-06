@@ -98,3 +98,38 @@ test_that("mirai backend gives structurally consistent expct()", {
   expect_equal(dim(x_mirai), dim(x_foreach))
   expect_equal(colnames(x_mirai), colnames(x_foreach))
 })
+
+test_that("arf_n_workers reflects active mirai daemons (stepsize sizing)", {
+  skip_if_not_installed("mirai")
+
+  mirai::daemons(0)
+  n_idle <- arf_n_workers()  # no mirai, no foreach -> 1
+  expect_equal(n_idle, 1L)
+
+  mirai::daemons(3)
+  on.exit(mirai::daemons(0), add = TRUE)
+  expect_gte(arf_n_workers(), 3L)  # must see daemons, else step_no==1 kills mirai
+})
+
+test_that("mirai backend gives identical cforde() (deterministic)", {
+  skip_if_not_installed("mirai")
+  skip_if_not_installed("mori")
+
+  arf <- adversarial_rf(iris, verbose = FALSE, parallel = FALSE)
+  psi <- forde(arf, iris, parallel = FALSE)
+  set.seed(1)
+  evi <- data.frame(Sepal.Length = runif(20, 4.5, 7))  # 20 conditions -> multi-step
+
+  old <- options(arf.backend = "foreach")
+  on.exit(options(old), add = TRUE)
+  cf_foreach <- arf:::cforde(psi, evi, stepsize = 5, parallel = FALSE, verbose = FALSE)
+
+  options(arf.backend = "mirai")
+  setup_mirai_daemons(2)
+  on.exit(mirai::daemons(0), add = TRUE)
+  cf_mirai <- arf:::cforde(psi, evi, stepsize = 5, parallel = TRUE, verbose = FALSE)
+
+  expect_equal(cf_mirai$forest, cf_foreach$forest)  # cforde is deterministic
+  expect_equal(cf_mirai$cnt, cf_foreach$cnt)
+  expect_equal(cf_mirai$cat, cf_foreach$cat)
+})

@@ -146,7 +146,7 @@ forge <- function(
     evidence <- as.data.table(evidence)
     if (stepsize == 0) {
       if (parallel) {
-        stepsize <- ceiling(nrow(evidence)/foreach::getDoParWorkers())
+        stepsize <- ceiling(nrow(evidence)/arf_n_workers())
       } else {
         stepsize <- nrow(evidence)
       }
