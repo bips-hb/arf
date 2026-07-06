@@ -12,7 +12,7 @@ test_that("mirai backend produces equal forde output on iris", {
   psi_foreach <- forde(arf, iris, parallel = FALSE)
 
   options(arf.backend = "mirai")
-  mirai::daemons(2)
+  setup_mirai_daemons(2)
   on.exit(mirai::daemons(0), add = TRUE)
   psi_mirai <- forde(arf, iris, parallel = TRUE)
 
@@ -48,7 +48,7 @@ test_that("mirai backend produces structurally consistent forge() output", {
                      stepsize = 5, verbose = FALSE)
 
   options(arf.backend = "mirai")
-  mirai::daemons(2)
+  setup_mirai_daemons(2)
   on.exit(mirai::daemons(0), add = TRUE)
   x_mirai <- forge(psi, n_synth = 3, evidence = evi, parallel = TRUE,
                    stepsize = 5, verbose = FALSE)
@@ -71,7 +71,7 @@ test_that("mirai backend gives identical lik() (deterministic)", {
   ll_foreach <- lik(psi, iris, arf = arf, batch = 30, parallel = FALSE)
 
   options(arf.backend = "mirai")
-  mirai::daemons(2)
+  setup_mirai_daemons(2)
   on.exit(mirai::daemons(0), add = TRUE)
   ll_mirai <- lik(psi, iris, arf = arf, batch = 30, parallel = TRUE)
 
@@ -91,7 +91,7 @@ test_that("mirai backend gives structurally consistent expct()", {
   x_foreach <- expct(psi, evidence = evi, parallel = FALSE, stepsize = 5, verbose = FALSE)
 
   options(arf.backend = "mirai")
-  mirai::daemons(2)
+  setup_mirai_daemons(2)
   on.exit(mirai::daemons(0), add = TRUE)
   x_mirai <- expct(psi, evidence = evi, parallel = TRUE, stepsize = 5, verbose = FALSE)
 

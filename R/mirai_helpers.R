@@ -83,17 +83,12 @@ arf_select_backend <- function(parallel) {
   backend
 }
 
-# Load arf on all mirai daemons so workers can call its internals (forge's
-# per-step worker uses cforde/resample/post_x, unlike forde's self-contained
-# per-tree workers). Handles a load_all()'d dev tree and an installed arf.
+# Load arf on all mirai daemons so workers can call its internals (forge/expct/
+# lik workers use cforde/resample/post_x, unlike forde's self-contained per-tree
+# workers). No-op on daemons where arf is already loaded (e.g. dev-loaded in
+# tests; see tests/testthat/helper-mirai.R).
 arf_load_on_daemons <- function() {
-  if (requireNamespace("pkgload", quietly = TRUE) &&
-      isTRUE(tryCatch(pkgload::is_dev_package("arf"), error = function(e) FALSE))) {
-    pdir <- getNamespaceInfo("arf", "path")
-    mirai::everywhere(suppressMessages(pkgload::load_all(pdir, quiet = TRUE)), pdir = pdir)
-  } else {
-    mirai::everywhere(suppressMessages(loadNamespace("arf")))
-  }
+  mirai::everywhere(suppressMessages(loadNamespace("arf")))
   invisible(TRUE)
 }
 

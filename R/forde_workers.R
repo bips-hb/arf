@@ -56,7 +56,8 @@ arf_psi_cnt_fn <- function(tree, x, factor_cols, pred, inbag.counts, n,
                            oob, bnds, finite_bounds, epsilon, family) {
   # data.table NSE silencing
   leaf <- variable <- value <- min_emp <- max_emp <- length_emp <- mu <-
-    sigma <- NA_share <- new_min <- new_max <- mid <- sigma0 <- NULL  # nolint
+    sigma <- NA_share <- new_min <- new_max <- mid <- sigma0 <- f_idx <- . <-
+    NULL  # nolint
 
   dt <- data.table::data.table(x[, !factor_cols, drop = FALSE],
                                leaf = pred[, tree])
@@ -137,7 +138,7 @@ arf_psi_cat_fn <- function(tree, x, factor_cols, pred, bnds, oob,
                            lvl_df_rf, alpha) {
   # data.table NSE silencing
   leaf <- variable <- val <- NA_share <- count <- val_count <- k <-
-    level <- prob <- f_idx <- NULL  # nolint
+    level <- prob <- f_idx <- . <- NULL  # nolint
 
   dt <- data.table::data.table(x[, factor_cols, drop = FALSE],
                                leaf = pred[, tree])

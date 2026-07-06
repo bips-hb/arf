@@ -42,6 +42,7 @@ Suggests:
     mlbench,
     mori,
     palmerpenguins,
+    pkgload,
     rmarkdown,
     testthat (>= 3.0.0),
     tibble
