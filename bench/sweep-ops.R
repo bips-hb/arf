@@ -103,7 +103,12 @@ for (n in n_grid) {
 out <- do.call(rbind, rows)
 dir.create("bench/results", showWarnings = FALSE, recursive = TRUE)
 stamp <- format(Sys.time(), "%Y%m%d-%H%M%S")
-f <- sprintf("bench/results/sweep-ops-%s.csv", stamp)
+# ARF_BENCH_LABEL (set per job by bench/submit-ops.sh) keys the filename to the
+# config, so parallel jobs stay distinguishable and viz.R can pick the latest
+# run per config.
+label <- Sys.getenv("ARF_BENCH_LABEL", "")
+f <- sprintf("bench/results/sweep-ops-%s%s.csv",
+             if (nzchar(label)) paste0(label, "-") else "", stamp)
 write.csv(out, f, row.names = FALSE)
 cat(sprintf("\n=== arf pipeline backend sweep (%s) ===\n", BENCH_METRIC))
 print(out, row.names = FALSE)

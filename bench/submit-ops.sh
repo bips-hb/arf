@@ -38,7 +38,7 @@ CONFIGS=(
 
 for cfg in "${CONFIGS[@]}"; do
   name="${cfg%%|*}"
-  env_settings="${cfg#*|}"
+  env_settings="ARF_BENCH_LABEL=$name ${cfg#*|}"
   cmd=(sbatch --job-name="arf-bench-$name"
        --cpus-per-task="$CPUS" --mem="$MEM" --time="$TIME"
        --output="bench/results/slurm-$name-%j.log")
