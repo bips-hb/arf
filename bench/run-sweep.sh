@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
-# Kick off the forde() backend sweep on a cluster node.
+# Kick off an arf backend sweep on a cluster node.
 #
 #   bench/run-sweep.sh                 # "clean": 1 thread per worker (fair scaling baseline)
 #   bench/run-sweep.sh realistic       # "realistic": data.table + ranger at N threads each
 #   bench/run-sweep.sh realistic 8     # ...with N = 8 threads
+#
+# By default runs bench/sweep.R (forde only). Set ARF_BENCH_SCRIPT to sweep the
+# whole pipeline (forde/forge/expct/lik/adversarial_rf):
+#   ARF_BENCH_SCRIPT=bench/sweep-ops.R ARF_BENCH_ITERS=3 bench/run-sweep.sh clean
 #
 # The two regimes answer different questions (see bench/README.md):
 #   clean      -- N workers == N cores, so backend scaling is unconfounded.
@@ -44,11 +48,20 @@ case "$MODE" in
     ;;
 esac
 
+SCRIPT="${ARF_BENCH_SCRIPT:-bench/sweep.R}"
+
 echo "Mode: $MODE"
+echo "  script         = $SCRIPT"
 echo "  workers        = $ARF_BENCH_WORKERS"
 echo "  n              = $ARF_BENCH_N"
 echo "  trees          = $ARF_BENCH_TREES"
 echo "  dt.threads     = $ARF_BENCH_DT_THREADS"
 echo "  ranger.threads = $ARF_BENCH_RANGER_THREADS"
 echo "  iters          = $ARF_BENCH_ITERS"
-exec Rscript bench/sweep.R
+if [ "$SCRIPT" = "bench/sweep-ops.R" ]; then
+  echo "  ops            = ${ARF_BENCH_OPS:-forde,forge,expct,lik,adversarial_rf (default)}"
+  echo "  n_evidence     = ${ARF_BENCH_NEVIDENCE:-2000 (default)}"
+  echo "  n_synth        = ${ARF_BENCH_NSYNTH:-1 (default)}"
+  echo "  n_folds        = ${ARF_BENCH_NFOLDS:-8 (default)}"
+fi
+exec Rscript "$SCRIPT"
