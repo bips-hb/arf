@@ -1,3 +1,8 @@
+# arf 0.3.0
+* Add mirai/mori parallel backend as an alternative to foreach/doParallel
+	* Shares the learned circuit across workers via mori, lowering memory use in adversarial_rf(), forde(), forge(), expct(), and lik()
+	* Enable with active mirai daemons or options(arf.backend); see ?arf-options
+
 # arf 0.2.5
 * Export sample_from_leaves() for intra-leaf marginal sampling
 

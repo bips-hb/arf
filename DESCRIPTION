@@ -1,6 +1,6 @@
 Package: arf
 Title: Adversarial Random Forests
-Version: 0.2.5
+Version: 0.3.0
 Authors@R: c(
     person("Marvin N.", "Wright", , "cran@wrig.de", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-8542-6291")),
@@ -51,4 +51,4 @@ VignetteBuilder:
 Config/testthat/edition: 3
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.2
+Config/roxygen2/version: 8.0.0

@@ -26,8 +26,9 @@
 #' @param stepsize How many rows of evidence should be handled at each step? 
 #'   Defaults to \code{nrow(evidence) / num_registered_workers} for 
 #'   \code{parallel == TRUE}.
-#' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
-#'   via \code{doParallel} or \code{doFuture}; see Examples.
+#' @param parallel Compute in parallel? Requires a registered \code{foreach}
+#'   backend (\code{doParallel}, \code{doFuture}) or active \code{mirai}
+#'   daemons. See \code{\link{arf-options}}.
 #'   
 #' @details 
 #' This function computes expected values for any subset of features, optionally 
@@ -90,6 +91,9 @@
 #' # ... or with doFuture
 #' doFuture::registerDoFuture()
 #' future::plan("multisession", workers = 4)
+#'
+#' # ... or with mirai (shares the learned circuit across workers via mori)
+#' mirai::daemons(4)
 #' }
 #' 
 #' @seealso

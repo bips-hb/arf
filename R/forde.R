@@ -25,8 +25,9 @@
 #'   \code{finite_bounds != "no"}. This avoids zero-density points when test 
 #'   data fall outside the support of training data. The gap between lower and 
 #'   upper bounds is expanded by a factor of \code{1 + epsilon}. 
-#' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
-#'   via \code{doParallel} or \code{doFuture}; see examples.
+#' @param parallel Compute in parallel? Requires a registered \code{foreach}
+#'   backend (\code{doParallel}, \code{doFuture}) or active \code{mirai}
+#'   daemons. See \code{\link{arf-options}}.
 #'   
 #'   
 #' @details 
@@ -96,6 +97,9 @@
 #' # ... or with doFuture
 #' doFuture::registerDoFuture()
 #' future::plan("multisession", workers = 4)
+#'
+#' # ... or with mirai (shares the learned circuit across workers via mori)
+#' mirai::daemons(4)
 #' }
 #' 
 #' 

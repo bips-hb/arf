@@ -76,7 +76,19 @@ In either case, we can now execute in parallel.
 arf_iris <- adversarial_rf(iris, num_trees = 100)
 ```
 
-A note on **nested parallelism**: when a backend is registered, ARF distributes work across worker processes, and within each worker `data.table` may *also* use several threads. On a machine with many cores these multiply (`workers × threads`), and if the product exceeds your cores the result is oversubscription --- which *slows things down* rather than speeding them up, and inflates load average because `data.table`'s idle OpenMP threads busy-wait by default. If parallel performance disappoints or load spikes, cap per-worker threads with `data.table::setDTthreads()` and set the environment variable `OMP_WAIT_POLICY=passive` (before starting R) so idle threads sleep instead of spinning. The best split of cores between worker processes and per-worker threads depends on your data and hardware.
+As an alternative to `foreach`, arf can use the `mirai` backend. Start daemons and arf uses them automatically, with no `foreach` registration needed. The learned circuit is shared across workers via `mori`, so memory stays roughly flat in the number of workers instead of growing with it. Speed is otherwise comparable. This matters most for many workers or large circuits.
+
+```{r mirai, eval=FALSE}
+# mirai backend: start daemons, then call arf as usual
+library(mirai)
+daemons(2)
+arf_iris <- adversarial_rf(iris, num_trees = 100)
+daemons(0)  # shut down when done
+```
+
+If both are available, set `options(arf.backend = "foreach")` or `"mirai"` to choose explicitly. See `?"arf-options"` for details. The same backend is used by `forde`, `forge`, `expct`, and `lik`.
+
+**Nested parallelism**: ARF splits work across workers, and `data.table` also threads within each worker. These multiply (`workers × threads`), so a product above your core count oversubscribes, which slows things down and inflates load average, since `data.table`'s idle OpenMP threads busy-wait by default. If parallel performance disappoints, cap per-worker threads with `data.table::setDTthreads()` and set `OMP_WAIT_POLICY=passive` before starting R so idle threads sleep. The best split of workers and threads depends on the data and hardware.
 
 The result is an object of class `ranger`, which we can input to downstream functions.
 

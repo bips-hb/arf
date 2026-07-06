@@ -40,8 +40,9 @@ round to the next?}
 \item{verbose}{Print discriminator accuracy after each round? Will also show
 additional warnings.}
 
-\item{parallel}{Compute in parallel? Must register backend beforehand, e.g.
-via \code{doParallel} or \code{doFuture}; see examples.}
+\item{parallel}{Compute in parallel? Requires a registered \code{foreach}
+backend (\code{doParallel}, \code{doFuture}) or active \code{mirai}
+daemons. See \code{\link{arf-options}}.}
 
 \item{...}{Extra parameters to be passed to \code{ranger}.}
 }
@@ -111,6 +112,9 @@ doParallel::registerDoParallel(cores = 4)
 # ... or with doFuture
 doFuture::registerDoFuture()
 future::plan("multisession", workers = 4)
+
+# ... or with mirai (shares the learned circuit across workers via mori)
+mirai::daemons(4)
 }
 
 }

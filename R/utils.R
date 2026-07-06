@@ -210,8 +210,9 @@ post_x <- function(x, params, round = TRUE) {
 #'   \code{NA} (\code{"na"}). The default is \code{"force"}.
 #' @param verbose Show warnings, e.g. when no leaf matches a condition?   
 #' @param stepsize Stepsize defining number of condition rows handled in one for each step.
-#' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
-#'   via \code{doParallel} or \code{doFuture}; see examples.
+#' @param parallel Compute in parallel? Requires a registered \code{foreach}
+#'   backend (\code{doParallel}, \code{doFuture}) or active \code{mirai}
+#'   daemons. See \code{\link{arf-options}}.
 #'   
 #' @return List with conditions (\code{evidence_input}), prepared conditions (\code{evidence_prepped})
 #'   and leaves that match the conditions in evidence with continuous data (\code{cnt}) 

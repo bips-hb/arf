@@ -46,8 +46,9 @@ on multinomial likelihoods.}
 data fall outside the support of training data. The gap between lower and
 upper bounds is expanded by a factor of \code{1 + epsilon}.}
 
-\item{parallel}{Compute in parallel? Must register backend beforehand, e.g.
-via \code{doParallel} or \code{doFuture}; see examples.}
+\item{parallel}{Compute in parallel? Requires a registered \code{foreach}
+backend (\code{doParallel}, \code{doFuture}) or active \code{mirai}
+daemons. See \code{\link{arf-options}}.}
 }
 \value{
 A \code{list} with 5 elements: (1) parameters for continuous data; (2)
@@ -106,6 +107,9 @@ doParallel::registerDoParallel(cores = 4)
 # ... or with doFuture
 doFuture::registerDoFuture()
 future::plan("multisession", workers = 4)
+
+# ... or with mirai (shares the learned circuit across workers via mori)
+mirai::daemons(4)
 }
 
 
