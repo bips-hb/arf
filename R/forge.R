@@ -192,7 +192,14 @@ forge <- function(
       factor_cols = factor_cols, evidence_row_mode = evidence_row_mode,
       nomatch = nomatch, verbose = verbose, round = round,
       sample_NAs = sample_NAs, stepsize = stepsize,
-      stepsize_cforde = stepsize_cforde, parallel_cforde = parallel_cforde))
+      stepsize_cforde = stepsize_cforde, parallel_cforde = parallel_cforde),
+      # match serial foreach .combine="rbind": same class AND clean 1..n row.names
+      # (reset each level so the final chunk-rbind doesn't leave "1.1"-style names)
+      combine = function(parts) {
+        r <- do.call(rbind, parts)
+        rownames(r) <- NULL
+        r
+      })
   } else if (isTRUE(parallel) && step_no > 1) {
     x_synth_ <- foreach(step = 1:step_no, .combine = "rbind") %dopar% par_fun(step)
   } else {

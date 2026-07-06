@@ -133,3 +133,76 @@ test_that("mirai backend gives identical cforde() (deterministic)", {
   expect_equal(cf_mirai$cnt, cf_foreach$cnt)
   expect_equal(cf_mirai$cat, cf_foreach$cat)
 })
+
+test_that("mirai backend preserves row order and class in expct() (regression)", {
+  skip_if_not_installed("mirai")
+  skip_if_not_installed("mori")
+
+  # step_no (8) > n_workers (2): guards against interleaved-chunk row scrambling
+  # and data.table-vs-data.frame class drift in arf_mirai_tree_map.
+  arf <- adversarial_rf(iris, verbose = FALSE, parallel = FALSE)
+  psi <- forde(arf, iris, parallel = FALSE)
+  evi <- data.frame(Sepal.Length = seq(4.5, 7, length.out = 8))
+
+  old <- options(arf.backend = "foreach")
+  on.exit(options(old), add = TRUE)
+  x_foreach <- expct(psi, query = "Petal.Length", evidence = evi,
+                     parallel = FALSE, stepsize = 1, verbose = FALSE)
+
+  options(arf.backend = "mirai")
+  setup_mirai_daemons(2)
+  on.exit(mirai::daemons(0), add = TRUE)
+  x_mirai <- expct(psi, query = "Petal.Length", evidence = evi,
+                   parallel = TRUE, stepsize = 1, verbose = FALSE)
+
+  expect_equal(x_mirai, x_foreach)  # exact: order + values + class + row.names
+})
+
+test_that("mirai backend gives identical adversarial_rf() pruning (deterministic)", {
+  skip_if_not_installed("mirai")
+  skip_if_not_installed("mori")
+
+  # Prune is deterministic given a forest. Build one unpruned forest, then prune
+  # it both ways and compare (can't compare full adversarial_rf across backends:
+  # ranger threading makes the forest itself non-reproducible).
+  set.seed(7)
+  a0 <- adversarial_rf(iris, num_trees = 50, prune = FALSE, parallel = FALSE,
+                       verbose = FALSE)
+  pred <- stats::predict(a0, prep_x(iris), type = "terminalNodes")$predictions + 1L
+  nt <- 50L
+  serial <- lapply(seq_len(nt), arf_prune_tree,
+                   child_nodeIDs = a0$forest$child.nodeIDs, pred = pred,
+                   min_node_size = 2L)
+
+  setup_mirai_daemons(2)
+  on.exit(mirai::daemons(0), add = TRUE)
+  child_shared <- mori::share(a0$forest$child.nodeIDs)
+  pred_shared <- mori::share(pred)
+  n_chunks <- max(1L, min(as.integer(mirai::status()$connections), nt))
+  chunks <- split(seq_len(nt), sort(rep(seq_len(n_chunks), length.out = nt)))
+  res <- mirai::mirai_map(
+    chunks,
+    function(trees, worker, child_nodeIDs, pred, min_node_size) {
+      lapply(trees, worker, child_nodeIDs = child_nodeIDs, pred = pred,
+             min_node_size = min_node_size)
+    },
+    .args = list(worker = arf_prune_tree, child_nodeIDs = child_shared,
+                 pred = pred_shared, min_node_size = 2L))[]
+  mirai_out <- unname(do.call(c, res))
+
+  expect_identical(mirai_out, serial)
+})
+
+test_that("mirai backend runs adversarial_rf() end to end", {
+  skip_if_not_installed("mirai")
+  skip_if_not_installed("mori")
+
+  old <- options(arf.backend = "mirai")
+  on.exit(options(old), add = TRUE)
+  setup_mirai_daemons(2)
+  on.exit(mirai::daemons(0), add = TRUE)
+
+  a <- adversarial_rf(iris, num_trees = 30, parallel = TRUE, verbose = FALSE)
+  expect_s3_class(a, "ranger")
+  expect_length(a$forest$child.nodeIDs, a$num.trees)
+})

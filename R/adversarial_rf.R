@@ -183,41 +183,45 @@ adversarial_rf <- function(
     }
   }
   
-  # Prune leaves to ensure min_node_size w.r.t. real data
+  # Prune leaves to ensure min_node_size w.r.t. real data. Per-tree work lives in
+  # arf_prune_tree() (prune_workers.R). This is a meaningful share of runtime once
+  # ranger training is threaded (the prune loop is pure R, unaffected by
+  # ranger's num.threads), so it gets the same backend treatment as the rest.
   if (isTRUE(prune)) {
     pred <- stats::predict(rf0, x_real, type = 'terminalNodes')$predictions + 1L
-    prune <- function(tree) {
-      # Nodes to prune are leaves which contain fewer than min_node_size real samples
-      out <- rf0$forest$child.nodeIDs[[tree]]
-      leaves <- which(out[[1]] == 0L)
-      to_prune <- leaves[!(leaves %in% which(tabulate(pred[, tree]) >= min_node_size))]
-      while(length(to_prune) > 0) {
-        if (1 %in% to_prune) {
-          # Never prune the root
-          break
-        }
-        for (tp in to_prune) {
-          # Find parent
-          parent <- which((out[[1]] + 1L) == tp)
-          if (length(parent) > 0) {
-            # If node to prune (tp) is the left child of parent, replace left child with right child
-            out[[1]][parent] <- out[[2]][parent]
-          } else {
-            # If node to prune (tp) is the right child of parent, replace right child with left child
-            parent <- which((out[[2]] + 1L) == tp)
-            out[[2]][parent] <- out[[1]][parent]
-          }
-        }
-        # If both children of a parent are to be pruned, prune the parent in the next round
-        # This happens if both children have been pruned
-        to_prune <- which((out[[1]] + 1L) %in% to_prune)
-      }
-      return(out)
+    prune_one <- function(b) {
+      arf_prune_tree(b, rf0$forest$child.nodeIDs, pred, min_node_size)
     }
-    if (isTRUE(parallel)) {
-      rf0$forest$child.nodeIDs <- foreach(b = seq_len(num_trees)) %dopar% prune(b)
+    use_mirai <- FALSE
+    if (num_trees > 1) {
+      backend <- arf_select_backend(parallel)
+      use_mirai <- identical(backend, 'mirai')
+    }
+    if (use_mirai) {
+      # arf_prune_tree's body is base-R, so pass it as an object (daemons need no
+      # arf loaded). Share the two big read-only objects (pred is n x num_trees;
+      # child.nodeIDs is the forest) once via mori. Chunk contiguously and c() so
+      # the flat result keeps tree order 1..num_trees (unname: mirai_map names
+      # chunks, but child.nodeIDs must stay an unnamed list).
+      pred_shared <- mori::share(pred)
+      child_shared <- mori::share(rf0$forest$child.nodeIDs)
+      n_chunks <- max(1L, min(as.integer(mirai::status()$connections), num_trees))
+      chunks <- split(seq_len(num_trees),
+                      sort(rep(seq_len(n_chunks), length.out = num_trees)))
+      chunk_fn <- function(trees, worker, child_nodeIDs, pred, min_node_size) {
+        lapply(trees, worker, child_nodeIDs = child_nodeIDs,
+               pred = pred, min_node_size = min_node_size)
+      }
+      res <- mirai::mirai_map(chunks, chunk_fn,
+                              .args = list(worker = arf_prune_tree,
+                                           child_nodeIDs = child_shared,
+                                           pred = pred_shared,
+                                           min_node_size = min_node_size))[]
+      rf0$forest$child.nodeIDs <- unname(do.call(c, res))
+    } else if (isTRUE(parallel) && num_trees > 1) {
+      rf0$forest$child.nodeIDs <- foreach(b = seq_len(num_trees)) %dopar% prune_one(b)
     } else {
-      rf0$forest$child.nodeIDs <- foreach(b = seq_len(num_trees)) %do% prune(b)
+      rf0$forest$child.nodeIDs <- foreach(b = seq_len(num_trees)) %do% prune_one(b)
     }
   }
   

@@ -146,22 +146,33 @@ arf_check_mirai_ready <- function() {
 # At small scale this is timing-neutral vs one-task-per-tree, but it
 # bounds the number of result objects serialized back to n_workers
 # rather than num_trees, which matters for the large-grid cases.
-arf_mirai_tree_map <- function(num_trees, worker_fn, shared_args) {
+# Chunks MUST be contiguous (sort()): rbindlist concatenates them in chunk
+# order, so interleaved chunks would scramble positional output (forge/expct
+# rows are per-evidence-row; forde is keyed so order-independent, but we can't
+# rely on that here). See test "mirai preserves row order".
+# `combine` stacks per-item results within a chunk and then across chunks. Default
+# rbindlist returns a data.table (forde wants that; results are re-keyed). forge/
+# expct pass a rbind-based combine so the object class matches their serial foreach
+# .combine="rbind" output (data.table vs data.frame is otherwise a parity break;
+# values are identical either way).
+arf_mirai_tree_map <- function(num_trees, worker_fn, shared_args,
+                               combine = data.table::rbindlist) {
   st <- mirai::status()
   n_workers <- max(1L, as.integer(st$connections))
   n_chunks <- max(1L, min(n_workers, num_trees))
   chunks <- split(seq_len(num_trees),
-                   rep(seq_len(n_chunks), length.out = num_trees))
-  chunk_runner <- function(trees, worker_fn, shared_args) {
+                   sort(rep(seq_len(n_chunks), length.out = num_trees)))
+  chunk_runner <- function(trees, worker_fn, shared_args, combine) {
     parts <- lapply(trees, function(tr) {
       do.call(worker_fn, c(list(tr), shared_args))
     })
-    data.table::rbindlist(parts)
+    combine(parts)
   }
   res <- mirai::mirai_map(
     chunks,
     chunk_runner,
-    .args = list(worker_fn = worker_fn, shared_args = shared_args)
+    .args = list(worker_fn = worker_fn, shared_args = shared_args,
+                 combine = combine)
   )[]
-  data.table::rbindlist(res)
+  combine(res)
 }
