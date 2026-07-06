@@ -28,7 +28,7 @@ worker_grid <- bench_ints("ARF_BENCH_WORKERS", c(1, 2, 4, 8))
 n_grid      <- bench_ints("ARF_BENCH_N", c(5000, 20000))
 trees_grid  <- bench_ints("ARF_BENCH_TREES", 100)
 p           <- as.integer(Sys.getenv("ARF_BENCH_P", "30"))
-n_evidence  <- as.integer(Sys.getenv("ARF_BENCH_NEVIDENCE", "2000"))
+n_evidence  <- as.integer(Sys.getenv("ARF_BENCH_NEVIDENCE", "100"))
 n_synth     <- as.integer(Sys.getenv("ARF_BENCH_NSYNTH", "1"))
 n_folds     <- as.integer(Sys.getenv("ARF_BENCH_NFOLDS", "8"))
 ops_grid    <- strsplit(Sys.getenv("ARF_BENCH_OPS",

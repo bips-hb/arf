@@ -60,28 +60,26 @@ BENCH_METRIC  <- if (BENCH_USE_PSS) "PSS" else "RSS"
     as.numeric(strsplit(st, " ")[[1]][2]) * 4  # RSS pages -> kB (4k pages)
   }
 }
-# pids of `root` plus all descendants (walks /proc ppid links); catches foreach
-# fork workers and mirai daemons spawned by the child.
-.bench_descendants <- function(root) {
+# Process-group id of a pid (field after "pid (comm) state ppid" in /proc/stat).
+# mirai daemons reparent to init (ppid=1) but KEEP the launcher's process group,
+# so ppid-walking misses them while foreach fork workers are caught -- an unfair
+# undercount. Grouping by pgid catches both. callr r_bg gives each cell child its
+# own pgid, so this never sweeps in the parent or other cells.
+.bench_pgid <- function(pid) {
+  st <- .bench_read(sprintf("/proc/%d/stat", pid))
+  if (!length(st)) return(NA_integer_)
+  as.integer(strsplit(sub("^.*\\) \\S+ ", "", st[1]), " ", fixed = TRUE)[[1]][3])
+}
+# pids sharing `root`'s process group: the orchestrator, mirai dispatcher +
+# daemons, and foreach fork workers.
+.bench_group <- function(root) {
+  g <- .bench_pgid(root)
+  if (is.na(g)) return(root)
   pids <- suppressWarnings(as.integer(list.files("/proc")))
   pids <- pids[!is.na(pids)]
-  ppid <- setNames(rep(NA_integer_, length(pids)), pids)
-  for (pp in pids) {
-    st <- .bench_read(sprintf("/proc/%d/stat", pp))
-    if (!length(st)) next
-    after <- sub("^\\d+ \\(.*\\) \\S+ ", "", st)  # strip "pid (comm) state "
-    ppid[as.character(pp)] <- as.integer(strsplit(after, " ", fixed = TRUE)[[1]][1])
-  }
-  out <- root; frontier <- root
-  repeat {
-    kids <- as.integer(names(ppid)[ppid %in% frontier])
-    kids <- setdiff(kids, out)
-    if (!length(kids)) break
-    out <- c(out, kids); frontier <- kids
-  }
-  out
+  pids[vapply(pids, function(p) isTRUE(.bench_pgid(p) == g), logical(1))]
 }
-.bench_tree_kb <- function(root) sum(vapply(.bench_descendants(root), .bench_pid_kb, numeric(1)))
+.bench_tree_kb <- function(root) sum(vapply(.bench_group(root), .bench_pid_kb, numeric(1)))
 
 # Function executed in the CHILD process (fresh R): load the package, run one
 # operation `iters` times for one backend, return the elapsed seconds per iter.
@@ -114,6 +112,7 @@ BENCH_METRIC  <- if (BENCH_USE_PSS) "PSS" else "RSS"
   } else if (backend == "mirai") {
     options(arf.backend = "mirai"); par <- TRUE
     mirai::daemons(n_workers)
+    on.exit(mirai::daemons(0), add = TRUE)  # always stop, even if the op errors
     mirai::everywhere(data.table::setDTthreads(dt_threads))
     # load the dev build on daemons once (forge/expct/lik/cforde workers call arf
     # internals); prune passes its worker as an object so needs no load.
@@ -138,7 +137,6 @@ BENCH_METRIC  <- if (BENCH_USE_PSS) "PSS" else "RSS"
     stop("unknown op: ", op))
   secs <- vapply(seq_len(iters),
                  function(i) system.time(run())[["elapsed"]], numeric(1))
-  if (backend == "mirai") mirai::daemons(0)
   secs
 }
 `%||%` <- function(a, b) if (is.null(a)) b else a
