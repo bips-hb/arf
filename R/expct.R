@@ -118,8 +118,13 @@ expct <- function(
   
   # To avoid data.table check issues
   variable <- tree <- f_idx <- cvg <- wt <- V1 <- value <- val <- family <-
-    mu <- sigma <- obs <- prob <- f_idx_uncond <- step <- c_idx <- idx <- 
+    mu <- sigma <- obs <- prob <- f_idx_uncond <- step <- c_idx <- idx <-
     NA_share <- . <- NULL
+
+  # Defaults so the extracted per-step worker always receives these (set below
+  # for the conditional cases).
+  stepsize_cforde <- 0L
+  parallel_cforde <- FALSE
   
   # Prepare evidence and stepsize
   if (is.null(evidence)) {
@@ -164,113 +169,34 @@ expct <- function(
   }
   factor_cols <- params$meta[variable %in% query, family == 'multinom']
   
-  # Run in parallel for each step
+  # Per-step work lives once in arf_expct_step() (expct_workers.R). This closure
+  # adapts it to foreach's one-argument iteration.
   par_fun <- function(step_) {
-    
-    # Prepare the event space
-    if (is.null(evidence) || ( ncol(evidence) == 2 && all(colnames(evidence) == c("f_idx", "wt")))) {
-      cparams <- NULL
-    } else {
-      # Call cforde with part of the evidence for this step
-      index_start <- (step_-1)*stepsize + 1
-      index_end <- min(step_*stepsize, nrow(evidence))
-      evidence_part <- evidence[index_start:index_end,]
-      cparams <- cforde(params, evidence_part, evidence_row_mode, nomatch, verbose, 
-                        stepsize_cforde, parallel_cforde)
-    } 
-    
-    # omega contains the weight (wt) for each leaf (f_idx) for each condition (c_idx)
-    if (is.null(cparams)) {
-      if (is.null(evidence)) {
-        num_trees <- params$forest[, max(tree)]
-        omega <- params$forest[, .(f_idx, f_idx_uncond = f_idx, cvg)]
-        omega[, `:=` (c_idx = 1, wt = cvg / num_trees)]
-        omega[, cvg := NULL]
-      } else {
-        omega <- copy(evidence)
-        omega[, f_idx_uncond := f_idx]
-        omega[, c_idx := 1]
-      }
-    } else {
-      omega <- cparams$forest[, .(c_idx, f_idx, f_idx_uncond, wt = cvg)]
-    } 
-    omega <- omega[wt > 0, ]
-    omega[, idx := .I]
-    
-    synth_cnt <- synth_cat <- NULL
-    # Continuous data
-    if (any(!factor_cols)) {
-      if (is.null(cparams) || nrow(cparams$cnt) == 0){
-        psi_cond <- data.table()
-      } else {
-        psi_cond <- merge(omega, cparams$cnt[variable %in% query, -c("cvg_factor", "f_idx_uncond")], by = c('c_idx', 'f_idx'), 
-                          sort = FALSE, allow.cartesian = TRUE)[prob > 0,]
-        # calculate absolute weights for sub-leaf areas (resulting from within-row or-conditions)
-        if(any(psi_cond[,prob != 1])) {
-          psi_cond[, wt := wt*prob]
-          psi_cond[, I := seq_len(.N), by = .(variable, idx)]
-        } else {
-          psi_cond[, I := 1]
-        }
-        psi_cond[, prob := NULL]
-      } 
-      psi <- unique(rbind(psi_cond,
-                          merge(omega, params$cnt[variable %in% query, ], by.x = 'f_idx_uncond', by.y = 'f_idx',
-                                sort = FALSE, allow.cartesian = TRUE)[,`:=` (val = NA_real_, I = 1)]), by = c("c_idx", "f_idx", "variable", "I"))[, I := NULL]
-      psi[NA_share == 1, wt := 0]
-      cnt <- psi[is.na(val), val := sum(wt * mu)/sum(wt), by = .(c_idx, variable)]
-      cnt <- unique(cnt[, .(c_idx, variable, val)])
-      synth_cnt <- dcast(cnt, c_idx ~ variable, value.var = 'val')[, c_idx := NULL]
-    }
-    
-    
-    # Categorical data
-    if (any(factor_cols)) {
-      if (is.null(cparams) || nrow(cparams$cat) == 0) {
-        psi <- merge(omega, params$cat[variable %in% query, ], by.x = 'f_idx_uncond', by.y = 'f_idx', sort = FALSE, allow.cartesian = TRUE)
-      } else {
-        psi_cond <- merge(omega, cparams$cat[variable %in% query, -c("cvg_factor", "f_idx_uncond")], by = c('c_idx', 'f_idx'), 
-                          sort = FALSE, allow.cartesian = TRUE)
-        psi_uncond <- merge(omega, params$cat[variable %in% query, ], by.x = 'f_idx_uncond', by.y = 'f_idx',
-                            sort = FALSE, allow.cartesian = TRUE)
-        psi_uncond_relevant <- psi_uncond[!psi_cond, on = .(idx, variable)]
-        psi <- rbind(psi_cond, psi_uncond_relevant)
-      }
-      psi[NA_share == 1, wt := 0]
-      cat <- psi[, sum(wt * prob), by = .(c_idx, variable, val)]
-      cat <- setDT(cat)[, .SD[which.max.random(V1)], by = .(c_idx, variable)]
-      synth_cat <- dcast(cat, c_idx ~ variable, value.var = 'val')[, c_idx := NULL]
-    }
-    
-    # Create dataset with expectations
-    x_synth <- cbind(synth_cnt, synth_cat)
-    x_synth <- post_x(x_synth, params, round)
-    
-    if (evidence_row_mode == "separate" & any(omega[, is.na(f_idx)])) {
-      setDT(x_synth)
-      indices_na <- cparams$forest[is.na(f_idx), c_idx]
-      indices_sampled <- cparams$forest[!is.na(f_idx), unique(c_idx)]
-      rows_na <- dcast(rbind(data.table(c_idx = 0, variable = params$meta[,variable]),
-                             cparams$evidence_prepped[c_idx %in% indices_na,],
-                             fill = TRUE),
-                       c_idx ~ variable, value.var = "val")[c_idx != 0,]
-      if (nomatch == "force") {
-        rows_na_sampled <- expct(params, parallel = parallel, stepsize = stepsize)
-        rows_na[is.na(rows_na)] <- rows_na_sampled[is.na(rows_na[,-1])]
-      }
-      x_synth[, c_idx := indices_sampled]
-      x_synth <- rbind(x_synth, rows_na, fill = TRUE)
-      setorder(x_synth, c_idx)[, c_idx :=  NULL]
-      x_synth <- post_x(x_synth, params, round)
-    }
-    
-    x_synth
+    arf_expct_step(step_, params, evidence, query, factor_cols,
+                   evidence_row_mode, nomatch, verbose, round, stepsize,
+                   stepsize_cforde, parallel_cforde)
   }
-  if (isTRUE(parallel)) {
+  # Parallelism is across steps: 1 step is inherently serial for any backend.
+  # mirai only for step_no > 1; "or" mode already set parallel <- FALSE.
+  use_mirai <- FALSE
+  if (step_no > 1) {
+    backend <- arf_select_backend(parallel)
+    use_mirai <- identical(backend, 'mirai')
+  }
+  if (use_mirai) {
+    arf_load_on_daemons()  # daemons need arf: worker calls cforde/post_x/which.max.random
+    params_shared <- mori::share(params)
+    evidence_shared <- if (!is.null(evidence)) mori::share(evidence) else NULL
+    x_synth_ <- arf_mirai_tree_map(step_no, arf_expct_step, list(
+      params = params_shared, evidence = evidence_shared, query = query,
+      factor_cols = factor_cols, evidence_row_mode = evidence_row_mode,
+      nomatch = nomatch, verbose = verbose, round = round, stepsize = stepsize,
+      stepsize_cforde = stepsize_cforde, parallel_cforde = parallel_cforde))
+  } else if (isTRUE(parallel) && step_no > 1) {
     x_synth_ <- foreach(step = 1:step_no, .combine = "rbind") %dopar% par_fun(step)
   } else {
     x_synth_ <- foreach(step = 1:step_no, .combine = "rbind") %do% par_fun(step)
   }
-  
+
   return(x_synth_)
 }

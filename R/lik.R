@@ -127,11 +127,13 @@ lik <- function(
   }
   x <- suppressWarnings(prep_x(x))
   factor_cols <- sapply(x, is.factor)
+  pure <- all(factor_cols) | all(!factor_cols)  # worker arg (was computed inside lik_fn)
   
   # Prep evidence
   conj <- !is.null(evidence) && !(ncol(evidence) == 2 && all(c("f_idx", "wt") %in% colnames(evidence)))
   
   # Check ARF
+  preds <- NULL  # set below iff arf-based leaf assignment is used
   if (d == params$meta[, .N] & !is.null(arf)) {
     num_trees <- arf$num.trees
     preds <- stats::predict(arf, x, type = 'terminalNodes')$predictions + 1L
@@ -173,135 +175,28 @@ lik <- function(
   }
   batch_idx <- suppressWarnings(split(seq_len(n), seq_len(k)))
   
-  # Likelihood function 
+  # Per-fold work lives once in arf_lik_fold() (lik_workers.R). This closure
+  # adapts it to foreach; `arf` is used only via is.null() (preds carries the
+  # arf-derived leaf assignments), passed to the worker as a boolean.
   lik_fn <- function(fold, arf) {
-    
-    # Prep work
-    psi_cnt <- psi_cat <- NULL
-    pure <- all(factor_cols) | all(!factor_cols)
-    if (is.null(arf) & !isTRUE(pure)) {
-      omega_tmp <- rbindlist(lapply(batch_idx[[fold]], function(i) {
-        omega$obs <- i
-        omega$wt <- NULL
-        return(omega)
-      })) 
-    }
-    
-    # Continuous data
-    if (any(!factor_cols)) {
-      fam <- params$meta[class == 'numeric', unique(family)]
-      x_long <- melt(
-        data.table(obs = batch_idx[[fold]], 
-                   x[batch_idx[[fold]], !factor_cols, drop = FALSE]), 
-        id.vars = 'obs', variable.factor = FALSE
-      )
-      if (is.null(arf)) {
-        psi_cnt <- merge(params$cnt[f_idx %in% leaves], x_long, by = 'variable', 
-                         sort = FALSE, allow.cartesian = TRUE)
-        rm(x_long)
-      } else {
-        preds_cnt <- merge(preds[f_idx %in% leaves], x_long, by = 'obs', 
-                           sort = FALSE, allow.cartesian = TRUE)
-        rm(x_long)
-        psi_cnt <- merge(params$cnt[f_idx %in% leaves], preds_cnt, 
-                         by = c('f_idx', 'variable'), sort = FALSE)
-        rm(preds_cnt)
-      }
-      if (fam == 'truncnorm') {
-        psi_cnt[, lik := truncnorm::dtruncnorm(value, a = min, b = max, 
-                                               mean = mu, sd = sigma)]
-      } else if (fam == 'unif') {
-        psi_cnt[, lik := stats::dunif(value, min = min, max = max)]
-      }
-      psi_cnt[value == min, lik := 0]
-      psi_cnt[, lik := prod(lik), by = .(f_idx, obs)]
-      psi_cnt <- unique(psi_cnt[lik > 0, .(f_idx, obs, lik)])
-      if (is.null(arf) & !isTRUE(pure)) {
-        omega_tmp <- merge(omega_tmp, psi_cnt[, .(f_idx, obs)], 
-                           by = c('f_idx', 'obs'), sort = FALSE)
-        leaves <- omega_tmp[, unique(f_idx)]
-      }
-    }
-    
-    # Categorical data
-    if (any(factor_cols)) {
-      x_tmp <- x[batch_idx[[fold]], factor_cols, drop = FALSE]
-      n_tmp <- nrow(x_tmp)
-      x_long <- melt(
-        data.table(obs = batch_idx[[fold]], x_tmp), 
-        id.vars = 'obs', value.name = 'val', variable.factor = FALSE
-      )
-      # Speedups are possible if there are many duplicates
-      is_unique <- !duplicated(x_tmp)
-      if (all(is_unique)) {
-        x_unique <- x_long
-        colnames(x_unique)[1] <- 's_idx'
-      } else {
-        x_unique <- unique(x_tmp)
-        x_unique <- melt(
-          data.table(s_idx = seq_len(nrow(x_unique)), x_unique),
-          id.vars = 's_idx', value.name = 'val', variable.factor = FALSE
-        )
-        s_idx <- integer(length = n_tmp)
-        s_idx[is_unique] <- seq_len(sum(is_unique))
-        for (i in 2:n_tmp) {
-          if (s_idx[i] == 0L) {
-            s_idx[i] <- s_idx[i - 1L]
-          }
-        }
-        idx_dt <- data.table(obs = batch_idx[[fold]], s_idx = s_idx)
-      }
-      if (is.null(arf)) {
-        grd <- rbindlist(lapply(which(factor_cols), function(j) {
-          expand.grid('f_idx' = leaves, 'variable' = colnames(x)[j],
-                      'val' = x_long[variable == colnames(x)[j], unique(val)],
-                      stringsAsFactors = FALSE)
-        }))
-        rm(x_long)
-        psi_cat <- merge(params$cat[f_idx %in% leaves], grd, 
-                         by = c('f_idx', 'variable', 'val'), 
-                         sort = FALSE, all.y = TRUE)
-        rm(grd)
-        psi_cat[is.na(prob), prob := 0]
-        psi_cat <- merge(psi_cat, x_unique, by = c('variable', 'val'), 
-                         sort = FALSE, allow.cartesian = TRUE)
-        psi_cat[, lik := prod(prob), by = .(f_idx, s_idx)]
-        psi_cat <- unique(psi_cat[lik > 0, .(f_idx, s_idx, lik)])
-        if (all(is_unique)) {
-          setnames(psi_cat, 's_idx', 'obs')
-        } else {
-          if (!isTRUE(pure)) {
-            omega_tmp <- merge(idx_dt, omega_tmp, by = 'obs', sort = FALSE)
-            psi_cat <- merge(psi_cat, omega_tmp, by = c('f_idx', 's_idx'),
-                             sort = FALSE)[, s_idx := NULL]
-            rm(omega_tmp)
-            setcolorder(psi_cat, c('f_idx', 'obs', 'lik'))
-            psi_cnt <- merge(psi_cnt, psi_cat[, .(f_idx, obs)], 
-                             by = c('f_idx', 'obs'), sort = FALSE)
-          }
-        }
-      } else {
-        preds_cat <- merge(preds[f_idx %in% leaves], x_long, by = 'obs', 
-                           sort = FALSE, allow.cartesian = TRUE)
-        rm(x_long)
-        psi_cat <- merge(params$cat, preds_cat, by = c('f_idx', 'variable', 'val'),
-                         sort = FALSE, allow.cartesian = TRUE, all.y = TRUE)
-        rm(preds_cat)
-        psi_cat[is.na(prob), prob := 0]
-        psi_cat[, lik := prod(prob), by = .(f_idx, obs)]
-        psi_cat <- unique(psi_cat[lik > 0, .(f_idx, obs, lik)])
-      }
-    }
-    
-    # Put it together
-    psi_x <- rbind(psi_cnt, psi_cat)
-    if (!isTRUE(pure)) {
-      psi_x <- psi_x[, prod(lik), by = .(f_idx, obs)]
-      setnames(psi_x, 'V1', 'lik')
-    }
-    return(psi_x)
+    arf_lik_fold(fold, params, x, factor_cols, leaves, omega, preds,
+                 batch_idx, pure, !is.null(arf))
   }
-  if (isTRUE(parallel)) {
+  # Parallelism is across folds: a single fold is inherently serial. mirai only
+  # for k > 1.
+  use_mirai <- FALSE
+  if (k > 1) {
+    backend <- arf_select_backend(parallel)
+    use_mirai <- identical(backend, 'mirai')
+  }
+  if (use_mirai) {
+    arf_load_on_daemons()  # daemons need arf (worker uses bare data.table verbs)
+    out <- arf_mirai_tree_map(k, arf_lik_fold, list(
+      params = mori::share(params), x = mori::share(x),
+      factor_cols = factor_cols, leaves = leaves, omega = mori::share(omega),
+      preds = if (!is.null(preds)) mori::share(preds) else NULL,
+      batch_idx = batch_idx, pure = pure, has_arf = !is.null(arf)))
+  } else if (isTRUE(parallel) && k > 1) {
     out <- foreach(fold = seq_len(k), .combine = rbind) %dopar% lik_fn(fold, arf)
   } else {
     out <- foreach(fold = seq_len(k), .combine = rbind) %do% lik_fn(fold, arf)
