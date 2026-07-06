@@ -216,8 +216,15 @@ adversarial_rf <- function(
         lapply(trees, worker, child_nodeIDs = child_nodeIDs,
                pred = pred, min_node_size = min_node_size)
       }
+      # Both functions are base-R with explicit args: strip their environments
+      # before shipping. chunk_fn's would otherwise be THIS frame (rf0, dat,
+      # x_real: hundreds of MB serialized into every task); arf_prune_tree's
+      # namespace env would force daemons to load arf.
+      environment(chunk_fn) <- globalenv()
+      prune_worker <- arf_prune_tree
+      environment(prune_worker) <- globalenv()
       res <- mirai::mirai_map(chunks, chunk_fn,
-                              .args = list(worker = arf_prune_tree,
+                              .args = list(worker = prune_worker,
                                            child_nodeIDs = child_shared,
                                            pred = pred_shared,
                                            min_node_size = min_node_size))[]

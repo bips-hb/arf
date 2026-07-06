@@ -84,8 +84,9 @@ for (n in n_grid) {
             n_evidence = if (op %in% c("forge", "expct")) n_evidence else NA_integer_,
             n_synth = if (op == "forge") n_synth else NA_integer_,
             n_folds = if (op == "lik") n_folds else NA_integer_)
-          message(sprintf("  %-14s n=%-6d w=%-3s %-10s %8.2fs %9.1f MB",
-                          op, n, if (be == "sequential") "-" else as.character(w),
+          message(sprintf("  %-14s n=%-6d trees=%-4d w=%-3s %-10s %8.2fs %9.1f MB",
+                          op, n, trees,
+                          if (be == "sequential") "-" else as.character(w),
                           be, m$seconds, m$peak_mb))
         }
       }

@@ -155,6 +155,11 @@ arf_check_mirai_ready <- function() {
 # expct pass a rbind-based combine so the object class matches their serial foreach
 # .combine="rbind" output (data.table vs data.frame is otherwise a parity break;
 # values are identical either way).
+# CAUTION on closures: serializing a function serializes its enclosing
+# environment. A closure defined inside a caller's frame drags that whole frame
+# (params, evidence, training data, ...) into EVERY task, defeating mori
+# sharing. Pass package-level functions (serialized as a namespace reference)
+# or strip base-R-only closures to globalenv() before shipping.
 arf_mirai_tree_map <- function(num_trees, worker_fn, shared_args,
                                combine = data.table::rbindlist) {
   st <- mirai::status()
@@ -168,6 +173,9 @@ arf_mirai_tree_map <- function(num_trees, worker_fn, shared_args,
     })
     combine(parts)
   }
+  # base-R body, all inputs explicit args: strip so this frame (chunks,
+  # shared_args, combine, ...) is not serialized into every task
+  environment(chunk_runner) <- globalenv()
   res <- mirai::mirai_map(
     chunks,
     chunk_runner,
@@ -175,4 +183,14 @@ arf_mirai_tree_map <- function(num_trees, worker_fn, shared_args,
                  combine = combine)
   )[]
   combine(res)
+}
+
+# Combine for forge/expct step results: matches serial foreach .combine="rbind"
+# (same class, clean 1..n row.names). Package-level on purpose: an inline
+# closure in forge()/expct() would serialize their whole frame, params
+# included, into every task (see note above).
+arf_rbind_steps <- function(parts) {
+  r <- do.call(rbind, parts)
+  rownames(r) <- NULL
+  r
 }
