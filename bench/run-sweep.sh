@@ -60,7 +60,7 @@ echo "  ranger.threads = $ARF_BENCH_RANGER_THREADS"
 echo "  iters          = $ARF_BENCH_ITERS"
 if [ "$SCRIPT" = "bench/sweep-ops.R" ]; then
   echo "  ops            = ${ARF_BENCH_OPS:-forde,forge,expct,lik,adversarial_rf (default)}"
-  echo "  n_evidence     = ${ARF_BENCH_NEVIDENCE:-2000 (default)}"
+  echo "  n_evidence     = ${ARF_BENCH_NEVIDENCE:-100 (default)}"
   echo "  n_synth        = ${ARF_BENCH_NSYNTH:-1 (default)}"
   echo "  n_folds        = ${ARF_BENCH_NFOLDS:-8 (default)}"
 fi

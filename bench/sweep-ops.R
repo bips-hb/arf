@@ -14,7 +14,7 @@
 # Usage (env-overridable, comma-separated grids):
 #   ARF_BENCH_OPS=forde,forge,expct,lik,adversarial_rf \
 #   ARF_BENCH_WORKERS=1,2,4,8,16 ARF_BENCH_N=5000,20000 ARF_BENCH_TREES=100 \
-#   ARF_BENCH_NEVIDENCE=2000 ARF_BENCH_NSYNTH=1 ARF_BENCH_NFOLDS=8 \
+#   ARF_BENCH_NEVIDENCE=100 ARF_BENCH_NSYNTH=1 ARF_BENCH_NFOLDS=8 \
 #   ARF_BENCH_DT_THREADS=1 ARF_BENCH_ITERS=1 Rscript bench/sweep-ops.R
 
 source("bench/bench-helpers.R")
@@ -31,15 +31,19 @@ p           <- as.integer(Sys.getenv("ARF_BENCH_P", "30"))
 n_evidence  <- as.integer(Sys.getenv("ARF_BENCH_NEVIDENCE", "100"))
 n_synth     <- as.integer(Sys.getenv("ARF_BENCH_NSYNTH", "1"))
 n_folds     <- as.integer(Sys.getenv("ARF_BENCH_NFOLDS", "8"))
+# evidence_row_mode for forge/expct: "separate" parallelizes forge/expct over
+# steps; "or" delegates parallelism to cforde (benchmarks the cforde backend).
+rowmode     <- match.arg(Sys.getenv("ARF_BENCH_ROWMODE", "separate"),
+                         c("separate", "or"))
 ops_grid    <- strsplit(Sys.getenv("ARF_BENCH_OPS",
                  "forde,forge,expct,lik,adversarial_rf"), ",")[[1]]
 backends    <- c("sequential", "foreach", "mirai")
 
 message(sprintf(
-  "Ops sweep | ops {%s} | workers {%s} | n {%s} | trees {%s} | p %d | n_evidence %d | n_synth %d | n_folds %d | metric %s",
+  "Ops sweep | ops {%s} | workers {%s} | n {%s} | trees {%s} | p %d | n_evidence %d | n_synth %d | n_folds %d | rowmode %s | metric %s",
   paste(ops_grid, collapse = ","), paste(worker_grid, collapse = ","),
   paste(n_grid, collapse = ","), paste(trees_grid, collapse = ","),
-  p, n_evidence, n_synth, n_folds, BENCH_METRIC))
+  p, n_evidence, n_synth, n_folds, rowmode, BENCH_METRIC))
 
 cores <- as.integer(Sys.getenv("ARF_BENCH_CORES", parallel::detectCores()))
 if (max(worker_grid) * dt_threads > cores) {
@@ -50,8 +54,8 @@ if (max(worker_grid) * dt_threads > cores) {
 
 # op-specific knobs (stepsize/batch left auto -> sized to worker count).
 op_args_for <- function(op, trees, n) switch(op,
-  forge          = list(n_synth = n_synth, stepsize = 0L),
-  expct          = list(stepsize = 0L),
+  forge          = list(n_synth = n_synth, stepsize = 0L, rowmode = rowmode),
+  expct          = list(stepsize = 0L, rowmode = rowmode),
   lik            = list(batch = ceiling(n / n_folds)),
   adversarial_rf = list(trees = trees),
   list())
@@ -83,7 +87,8 @@ for (n in n_grid) {
             # op-scale knobs recorded per row (NA where an op ignores them)
             n_evidence = if (op %in% c("forge", "expct")) n_evidence else NA_integer_,
             n_synth = if (op == "forge") n_synth else NA_integer_,
-            n_folds = if (op == "lik") n_folds else NA_integer_)
+            n_folds = if (op == "lik") n_folds else NA_integer_,
+            rowmode = if (op %in% c("forge", "expct")) rowmode else NA_character_)
           message(sprintf("  %-14s n=%-6d trees=%-4d w=%-3s %-10s %8.2fs %9.1f MB",
                           op, n, trees,
                           if (be == "sequential") "-" else as.character(w),
