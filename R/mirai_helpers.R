@@ -87,8 +87,23 @@ arf_select_backend <- function(parallel) {
 # lik workers use cforde/resample/post_x, unlike forde's self-contained per-tree
 # workers). No-op on daemons where arf is already loaded (e.g. dev-loaded in
 # tests; see tests/testthat/helper-mirai.R).
+#
+# everywhere() round-trips all daemons on every call, which is dead cost for a
+# workflow doing many small forge/expct/lik calls against one pool. Register the
+# load once per pool and skip on repeat. The pool key is the dispatcher URL
+# (status()$daemons), which is minted fresh by every daemons() call: a
+# teardown+rebuild yields a new key so the cache self-invalidates, and daemons
+# joining an existing pool auto-run the registered everywhere() expression, so
+# one call per pool suffices. If status() is unavailable (key NULL) we fall back
+# to the old always-load behavior.
 arf_load_on_daemons <- function() {
+  key <- tryCatch(mirai::status()$daemons, error = function(e) NULL)
+  cached <- get0("arf_loaded_key", envir = .arf_env, ifnotfound = NULL)
+  if (!is.null(key) && identical(key, cached)) {
+    return(invisible(FALSE))
+  }
   mirai::everywhere(suppressMessages(loadNamespace("arf")))
+  assign("arf_loaded_key", key, envir = .arf_env)
   invisible(TRUE)
 }
 
