@@ -39,51 +39,81 @@ arf_expct_step <- function(step_, params, evidence, query, factor_cols,
   omega <- omega[wt > 0, ]
   omega[, idx := .I]
 
-  synth_cnt <- synth_cat <- NULL
-  # Continuous data
-  if (any(!factor_cols)) {
-    if (is.null(cparams) || nrow(cparams$cnt) == 0) {
-      psi_cond <- data.table::data.table()
-    } else {
-      psi_cond <- merge(omega, cparams$cnt[variable %in% query, -c("cvg_factor", "f_idx_uncond")], by = c('c_idx', 'f_idx'),
-                        sort = FALSE, allow.cartesian = TRUE)[prob > 0, ]
-      if (any(psi_cond[, prob != 1])) {
-        psi_cond[, wt := wt * prob]
-        psi_cond[, I := seq_len(.N), by = .(variable, idx)]
+  # Synthesize expectations for one block of conditions (subset of omega
+  # rows; cparams/params merges below self-restrict via the c_idx join keys).
+  synth_block <- function(omega_) {
+    synth_cnt <- synth_cat <- NULL
+    # Continuous data
+    if (any(!factor_cols)) {
+      if (is.null(cparams) || nrow(cparams$cnt) == 0) {
+        psi_cond <- data.table::data.table()
       } else {
-        psi_cond[, I := 1]
+        psi_cond <- merge(omega_, cparams$cnt[variable %in% query, -c("cvg_factor", "f_idx_uncond")], by = c('c_idx', 'f_idx'),
+                          sort = FALSE, allow.cartesian = TRUE)[prob > 0, ]
+        if (any(psi_cond[, prob != 1])) {
+          psi_cond[, wt := wt * prob]
+          psi_cond[, I := seq_len(.N), by = .(variable, idx)]
+        } else {
+          psi_cond[, I := 1]
+        }
+        psi_cond[, prob := NULL]
       }
-      psi_cond[, prob := NULL]
+      psi <- unique(rbind(psi_cond,
+                          merge(omega_, params$cnt[variable %in% query, ], by.x = 'f_idx_uncond', by.y = 'f_idx',
+                                sort = FALSE, allow.cartesian = TRUE)[, `:=`(val = NA_real_, I = 1)]), by = c("c_idx", "f_idx", "variable", "I"))[, I := NULL]
+      psi[NA_share == 1, wt := 0]
+      cnt <- psi[is.na(val), val := sum(wt * mu) / sum(wt), by = .(c_idx, variable)]
+      cnt <- unique(cnt[, .(c_idx, variable, val)])
+      synth_cnt <- data.table::dcast(cnt, c_idx ~ variable, value.var = 'val')[, c_idx := NULL]
     }
-    psi <- unique(rbind(psi_cond,
-                        merge(omega, params$cnt[variable %in% query, ], by.x = 'f_idx_uncond', by.y = 'f_idx',
-                              sort = FALSE, allow.cartesian = TRUE)[, `:=`(val = NA_real_, I = 1)]), by = c("c_idx", "f_idx", "variable", "I"))[, I := NULL]
-    psi[NA_share == 1, wt := 0]
-    cnt <- psi[is.na(val), val := sum(wt * mu) / sum(wt), by = .(c_idx, variable)]
-    cnt <- unique(cnt[, .(c_idx, variable, val)])
-    synth_cnt <- data.table::dcast(cnt, c_idx ~ variable, value.var = 'val')[, c_idx := NULL]
+
+    # Categorical data
+    if (any(factor_cols)) {
+      if (is.null(cparams) || nrow(cparams$cat) == 0) {
+        psi <- merge(omega_, params$cat[variable %in% query, ], by.x = 'f_idx_uncond', by.y = 'f_idx', sort = FALSE, allow.cartesian = TRUE)
+      } else {
+        psi_cond <- merge(omega_, cparams$cat[variable %in% query, -c("cvg_factor", "f_idx_uncond")], by = c('c_idx', 'f_idx'),
+                          sort = FALSE, allow.cartesian = TRUE)
+        psi_uncond <- merge(omega_, params$cat[variable %in% query, ], by.x = 'f_idx_uncond', by.y = 'f_idx',
+                            sort = FALSE, allow.cartesian = TRUE)
+        psi_uncond_relevant <- psi_uncond[!psi_cond, on = .(idx, variable)]
+        psi <- rbind(psi_cond, psi_uncond_relevant)
+      }
+      psi[NA_share == 1, wt := 0]
+      cat <- psi[, sum(wt * prob), by = .(c_idx, variable, val)]
+      cat <- data.table::setDT(cat)[, .SD[which.max.random(V1)], by = .(c_idx, variable)]
+      synth_cat <- data.table::dcast(cat, c_idx ~ variable, value.var = 'val')[, c_idx := NULL]
+    }
+    cbind(synth_cnt, synth_cat)
   }
 
-  # Categorical data
-  if (any(factor_cols)) {
-    if (is.null(cparams) || nrow(cparams$cat) == 0) {
-      psi <- merge(omega, params$cat[variable %in% query, ], by.x = 'f_idx_uncond', by.y = 'f_idx', sort = FALSE, allow.cartesian = TRUE)
-    } else {
-      psi_cond <- merge(omega, cparams$cat[variable %in% query, -c("cvg_factor", "f_idx_uncond")], by = c('c_idx', 'f_idx'),
-                        sort = FALSE, allow.cartesian = TRUE)
-      psi_uncond <- merge(omega, params$cat[variable %in% query, ], by.x = 'f_idx_uncond', by.y = 'f_idx',
-                          sort = FALSE, allow.cartesian = TRUE)
-      psi_uncond_relevant <- psi_uncond[!psi_cond, on = .(idx, variable)]
-      psi <- rbind(psi_cond, psi_uncond_relevant)
+  # The merges in synth_block materialize (#matched leaves x #query variables)
+  # rows PER CONDITION -- all at once for the step, three times over via
+  # merge/rbind/unique. That product is what blew expct up to ~220GB in the
+  # cluster benchmark, on every backend alike. Conditions are independent here
+  # (every aggregation groups by c_idx, omega arrives sorted by c_idx, and the
+  # per-group RNG order of which.max.random is ascending c_idx either way), so
+  # when the estimated join size is large, process conditions in blocks that
+  # keep each materialization bounded. A single condition cannot be split;
+  # its leaves x variables product is the floor of this algorithm.
+  block_cap <- 5e6  # rows per materialization; ~a few hundred MB transient
+  n_vars <- max(1L, length(query))
+  if (nrow(omega) * n_vars <= block_cap || omega[, data.table::uniqueN(c_idx)] == 1L) {
+    x_synth <- synth_block(omega)
+  } else {
+    sizes <- omega[, .N, by = c_idx]  # ascending c_idx
+    g <- integer(nrow(sizes)); gi <- 1L; acc <- 0
+    for (i in seq_len(nrow(sizes))) {
+      r <- sizes$N[i] * n_vars
+      if (acc > 0 && acc + r > block_cap) { gi <- gi + 1L; acc <- 0 }
+      g[i] <- gi; acc <- acc + r
     }
-    psi[NA_share == 1, wt := 0]
-    cat <- psi[, sum(wt * prob), by = .(c_idx, variable, val)]
-    cat <- data.table::setDT(cat)[, .SD[which.max.random(V1)], by = .(c_idx, variable)]
-    synth_cat <- data.table::dcast(cat, c_idx ~ variable, value.var = 'val')[, c_idx := NULL]
+    x_synth <- data.table::rbindlist(lapply(split(sizes$c_idx, g), function(cs) {
+      synth_block(omega[c_idx %in% cs])
+    }))
   }
 
   # Create dataset with expectations
-  x_synth <- cbind(synth_cnt, synth_cat)
   x_synth <- post_x(x_synth, params, round)
 
   if (evidence_row_mode == "separate" & any(omega[, is.na(f_idx)])) {
