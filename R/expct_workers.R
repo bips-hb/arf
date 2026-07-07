@@ -96,7 +96,9 @@ arf_expct_step <- function(step_, params, evidence, query, factor_cols,
   # when the estimated join size is large, process conditions in blocks that
   # keep each materialization bounded. A single condition cannot be split;
   # its leaves x variables product is the floor of this algorithm.
-  block_cap <- 5e6  # rows per materialization; ~a few hundred MB transient
+  # rows per materialization; the default keeps transients to a few hundred MB.
+  # Lower via options(arf.block_rows) for tight-memory runs; see ?arf-options.
+  block_cap <- max(1, as.numeric(getOption("arf.block_rows", 5e6)))
   n_vars <- max(1L, length(query))
   if (nrow(omega) * n_vars <= block_cap || omega[, data.table::uniqueN(c_idx)] == 1L) {
     x_synth <- synth_block(omega)

@@ -181,12 +181,17 @@ arf_check_mirai_ready <- function() {
 # because our shipped functions are pure base R with all inputs as explicit
 # arguments: there is nothing to crate, and environment(fn) <- globalenv()
 # gets the same zero-payload serialization without adding a carrier dependency.
-# Split trees into one contiguous block per worker. Contiguous (sort()) is
-# load-bearing: rbindlist/c concatenate blocks in chunk order, so interleaved
-# chunks would scramble positional output. Shared by arf_mirai_tree_map() and
-# the prune dispatch in adversarial_rf(); the invariant lives here once.
+# Split trees into contiguous blocks: one per worker by default, more when
+# options(arf.chunk_factor) > 1. Finer chunks shrink what each daemon holds at
+# once (its chunk's accumulated results) and smooth out stragglers, at the
+# cost of more result round-trips -- a speed-for-memory knob for tight-memory
+# runs. See ?arf-options. Contiguous (sort()) is load-bearing: rbindlist/c
+# concatenate blocks in chunk order, so interleaved chunks would scramble
+# positional output. Shared by arf_mirai_tree_map() and the prune dispatch in
+# adversarial_rf(); the invariant lives here once.
 arf_tree_chunks <- function(num_trees, n_workers) {
-  n_chunks <- max(1L, min(as.integer(n_workers), num_trees))
+  chunk_factor <- max(1L, as.integer(getOption("arf.chunk_factor", 1L)))
+  n_chunks <- max(1L, min(as.integer(n_workers) * chunk_factor, num_trees))
   split(seq_len(num_trees),
         sort(rep(seq_len(n_chunks), length.out = num_trees)))
 }
