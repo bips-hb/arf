@@ -21,11 +21,13 @@ Default \code{TRUE}; set \code{FALSE} to silence.}
 The \code{"foreach"} backend uses whatever adapter is registered (e.g.
 \code{doParallel}, \code{doFuture}). The \code{"mirai"} backend uses
 \code{mirai} daemons and shares the learned circuit across workers via
-\code{mori}, so workers do not each copy it. This keeps memory roughly flat in
-the number of workers, where \code{foreach} grows with it. Speed is otherwise
-comparable. Prefer \code{"mirai"} for many workers or large circuits; either
-is fine otherwise. All backend packages are in Suggests; install the ones you
-use.
+\code{mori}, so workers do not each copy it. Speed is comparable between the
+backends. The memory benefit is largest for \code{\link{forde}} on large
+forests with many workers, where \code{foreach} memory grows with the worker
+count and \code{mirai} stays much flatter. For small workloads the daemon
+pool adds a fixed overhead that can outweigh the sharing, so prefer
+\code{"mirai"} at scale and either backend otherwise. All backend packages
+are in Suggests; install the ones you use.
 }
 \examples{
 \dontrun{

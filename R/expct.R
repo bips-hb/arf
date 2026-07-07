@@ -28,9 +28,13 @@
 #'   \code{parallel == TRUE}.
 #' @param parallel Compute in parallel? Requires a registered \code{foreach}
 #'   backend (\code{doParallel}, \code{doFuture}) or active \code{mirai}
-#'   daemons. See \code{\link{arf-options}}.
-#'   
-#' @details 
+#'   daemons. See \code{\link{arf-options}}. With
+#'   \code{evidence_row_mode = "or"}, parallelization happens inside the
+#'   conditional circuit computation; in benchmarks this gave little speedup
+#'   while raising peak memory, so consider \code{parallel = FALSE} for large
+#'   \code{"or"} queries.
+#'
+#' @details
 #' This function computes expected values for any subset of features, optionally 
 #' conditioned on some event(s). 
 #' 

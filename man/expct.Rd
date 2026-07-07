@@ -50,7 +50,11 @@ Defaults to \code{nrow(evidence) / num_registered_workers} for
 
 \item{parallel}{Compute in parallel? Requires a registered \code{foreach}
 backend (\code{doParallel}, \code{doFuture}) or active \code{mirai}
-daemons. See \code{\link{arf-options}}.}
+daemons. See \code{\link{arf-options}}. With
+\code{evidence_row_mode = "or"}, parallelization happens inside the
+conditional circuit computation; in benchmarks this gave little speedup
+while raising peak memory, so consider \code{parallel = FALSE} for large
+\code{"or"} queries.}
 }
 \value{
 A one row data frame with values for all query variables.
