@@ -181,13 +181,21 @@ arf_check_mirai_ready <- function() {
 # because our shipped functions are pure base R with all inputs as explicit
 # arguments: there is nothing to crate, and environment(fn) <- globalenv()
 # gets the same zero-payload serialization without adding a carrier dependency.
+# Split trees into one contiguous block per worker. Contiguous (sort()) is
+# load-bearing: rbindlist/c concatenate blocks in chunk order, so interleaved
+# chunks would scramble positional output. Shared by arf_mirai_tree_map() and
+# the prune dispatch in adversarial_rf(); the invariant lives here once.
+arf_tree_chunks <- function(num_trees, n_workers) {
+  n_chunks <- max(1L, min(as.integer(n_workers), num_trees))
+  split(seq_len(num_trees),
+        sort(rep(seq_len(n_chunks), length.out = num_trees)))
+}
+
 arf_mirai_tree_map <- function(num_trees, worker_fn, shared_args,
                                combine = data.table::rbindlist) {
   st <- mirai::status()
   n_workers <- max(1L, as.integer(st$connections))
-  n_chunks <- max(1L, min(n_workers, num_trees))
-  chunks <- split(seq_len(num_trees),
-                   sort(rep(seq_len(n_chunks), length.out = num_trees)))
+  chunks <- arf_tree_chunks(num_trees, n_workers)
   chunk_runner <- function(trees, worker_fn, shared_args, combine) {
     parts <- lapply(trees, function(tr) {
       do.call(worker_fn, c(list(tr), shared_args))

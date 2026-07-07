@@ -209,9 +209,7 @@ adversarial_rf <- function(
       # chunks, but child.nodeIDs must stay an unnamed list).
       pred_shared <- mori::share(pred)
       child_shared <- mori::share(rf0$forest$child.nodeIDs)
-      n_chunks <- max(1L, min(as.integer(mirai::status()$connections), num_trees))
-      chunks <- split(seq_len(num_trees),
-                      sort(rep(seq_len(n_chunks), length.out = num_trees)))
+      chunks <- arf_tree_chunks(num_trees, mirai::status()$connections)
       chunk_fn <- function(trees, worker, child_nodeIDs, pred, min_node_size) {
         lapply(trees, worker, child_nodeIDs = child_nodeIDs,
                pred = pred, min_node_size = min_node_size)
