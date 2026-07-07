@@ -223,3 +223,13 @@ arf_rbind_steps <- function(parts) {
   rownames(r) <- NULL
   r
 }
+
+# Combine for forde's fused psi worker (arf_psi_fn returns list(cnt, cat) per
+# tree): stack each component across parts. Safe under arf_mirai_tree_map's
+# two-level application because the output has the same shape as each input.
+# rbindlist drops the NULL component of the branch not taken. Package-level
+# for the same closure-hygiene reason as arf_rbind_steps.
+arf_combine_psi <- function(parts) {
+  list(cnt = data.table::rbindlist(lapply(parts, `[[`, "cnt")),
+       cat = data.table::rbindlist(lapply(parts, `[[`, "cat")))
+}
