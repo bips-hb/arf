@@ -44,6 +44,14 @@ files <- if (nzchar(files)) {
 }
 
 res <- rbindlist(lapply(files, fread), fill = TRUE)
+# Guard against apples/oranges: warn when the loaded CSVs mix memory metrics
+# (PSS vs cgroup-anon) or arf code states (commit column, incl. +dirty).
+for (col in c("metric", "commit")) {
+  if (col %in% names(res) && uniqueN(res[[col]], na.rm = TRUE) > 1) {
+    warning("mixing ", col, "s across CSVs: ",
+            paste(unique(na.omit(res[[col]])), collapse = ", "), call. = FALSE)
+  }
+}
 if (!"op" %in% names(res)) {
   res[, op := NA_character_]
 }

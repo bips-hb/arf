@@ -63,7 +63,7 @@ for (n in n_grid) {
           workers = if (be == "sequential") NA_integer_ else w,
           dt_threads = dt_threads, ranger_threads = rgr_threads, backend = be,
           seconds = round(m$seconds, 2), peak_mb = round(m$peak_mb, 1),
-          metric = BENCH_METRIC)
+          metric = BENCH_METRIC, commit = BENCH_COMMIT)
         message(sprintf("  n=%-6d trees=%-4d w=%-3s %-10s %8.1fs %9.1f MB",
                         n, trees, if (be == "sequential") "-" else as.character(w),
                         be, m$seconds, m$peak_mb))

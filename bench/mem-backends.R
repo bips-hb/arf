@@ -33,7 +33,8 @@ out <- do.call(rbind, lapply(c("sequential", "foreach", "mirai"), function(be) {
   m <- bench_measure_cell(be, data_path, n_workers, dt_threads, pkgdir,
                           ranger_threads = rgr_threads, iters = iters)
   data.frame(backend = be, seconds = round(m$seconds, 2),
-             peak_mb = round(m$peak_mb, 1), metric = BENCH_METRIC)
+             peak_mb = round(m$peak_mb, 1), metric = BENCH_METRIC,
+             commit = BENCH_COMMIT)
 }))
 unlink(data_path)
 cat(sprintf("\n=== forde() backend peak memory (%s) ===\n", BENCH_METRIC))

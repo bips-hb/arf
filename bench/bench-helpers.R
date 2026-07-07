@@ -32,6 +32,23 @@ bench_ints <- function(env, default) {
   if (nzchar(v)) as.integer(strsplit(v, ",")[[1]]) else as.integer(default)
 }
 
+# Short commit hash of the benchmarked arf tree, "+dirty" if it has uncommitted
+# changes -- recorded per CSV row so results from different code states are
+# never silently compared. "unknown" outside a git checkout.
+bench_git_commit <- function() {
+  hash <- tryCatch(
+    system2("git", c("rev-parse", "--short", "HEAD"),
+            stdout = TRUE, stderr = FALSE)[1],
+    error = function(e) NA_character_, warning = function(w) NA_character_)
+  if (is.na(hash) || !nzchar(hash)) return("unknown")
+  dirty <- tryCatch(
+    length(system2("git", c("status", "--porcelain", "--untracked-files=no"),
+                   stdout = TRUE, stderr = FALSE)) > 0L,
+    error = function(e) FALSE, warning = function(w) FALSE)
+  paste0(hash, if (dirty) "+dirty" else "")
+}
+BENCH_COMMIT <- bench_git_commit()
+
 bench_make_data <- function(n, p) {
   X <- as.data.frame(matrix(stats::rnorm(n * p), n, p))
   X$grp <- factor(sample(letters[1:6], n, replace = TRUE))

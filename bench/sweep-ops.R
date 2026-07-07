@@ -84,6 +84,7 @@ for (n in n_grid) {
             workers = if (be == "sequential") NA_integer_ else w,
             backend = be, seconds = round(m$seconds, 2),
             peak_mb = round(m$peak_mb, 1), metric = BENCH_METRIC,
+            commit = BENCH_COMMIT,
             # op-scale knobs recorded per row (NA where an op ignores them)
             n_evidence = if (op %in% c("forge", "expct")) n_evidence else NA_integer_,
             n_synth = if (op == "forge") n_synth else NA_integer_,
