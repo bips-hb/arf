@@ -6,11 +6,16 @@
 # arguments; nothing captured from enclosing scope. This is what makes
 # the mirai backend possible — daemons run in clean environments.
 
-# Worker 1: compute leaf bounds for one tree.
+# Worker 1: compute leaf bounds AND coverage for one tree. Coverage lives here
+# (not on the calling process) because it is per-tree: tabulating this tree's
+# pred column and joining locally replaces the old n x num_trees `keep` table
+# plus global merge, which dominated the caller's memory at large n * trees.
+# The oob/inbag branches replicate the original op sequence exactly (including
+# the cvg/sum(cvg) renormalization) so results stay bit-identical.
 arf_bnd_fn <- function(tree, forest, d, finite_bounds, factor_cols,
-                       x, epsilon, colnames_x) {
+                       x, epsilon, colnames_x, pred, inbag.counts, n, oob) {
   # data.table NSE silencing
-  variable <- NULL  # nolint
+  variable <- leaf <- cvg <- cnt <- NULL  # nolint
 
   num_nodes <- length(forest$split.varIDs[[tree]])
   lb <- matrix(-Inf, nrow = num_nodes, ncol = d)
@@ -39,7 +44,7 @@ arf_bnd_fn <- function(tree, forest, d, finite_bounds, factor_cols,
   }
   leaves <- which(forest$child.nodeIDs[[tree]][[1]] == 0L)
   colnames(lb) <- colnames(ub) <- colnames_x
-  data.table::merge.data.table(
+  bnd <- data.table::merge.data.table(
     data.table::melt(
       data.table::data.table(tree = tree, leaf = leaves,
                              lb[leaves, , drop = FALSE]),
@@ -49,6 +54,51 @@ arf_bnd_fn <- function(tree, forest, d, finite_bounds, factor_cols,
                              ub[leaves, , drop = FALSE]),
       id.vars = c("tree", "leaf"), value.name = "max"),
     by = c("tree", "leaf", "variable"), sort = FALSE)
+
+  # Coverage of this tree's observed leaves; unobserved leaves drop out via
+  # the inner join, as they did in the old caller-side merge.
+  leaf_pred <- pred[, tree]
+  if (isTRUE(oob)) {
+    leaf_pred <- leaf_pred[inbag.counts[[tree]][seq_len(n)] == 0L]
+  } else if (identical(oob, "inbag")) {
+    leaf_pred <- leaf_pred[inbag.counts[[tree]][seq_len(n)] > 0L]
+  }
+  keep <- data.table::data.table(tree = tree, leaf = leaf_pred)
+  keep <- unique(keep[, cnt := .N, by = leaf])
+  if (isTRUE(oob) || identical(oob, "inbag")) {
+    # NB: the original divided by sum(oob) taken AFTER unique() -- i.e. the
+    # number of distinct leaves, not of oob rows. It cancels in the
+    # renormalization below, but replicate the exact op sequence so the
+    # floating-point results stay bit-identical.
+    keep[, cvg := cnt / .N][, cnt := NULL]
+    keep[, cvg := cvg / sum(cvg)]
+  } else {
+    keep[, cvg := cnt / n][, cnt := NULL]
+  }
+  data.table::merge.data.table(bnd, keep, by = c("tree", "leaf"), sort = FALSE)
+}
+
+# Workers 2+3 fused: one dispatch per tree computes both continuous and
+# categorical params (they share every input: x, pred, bnds). Halves the
+# round-trips and shared-table touches vs dispatching them separately.
+# Combined across trees by arf_combine_psi() (mirai_helpers.R).
+# The sub-workers arrive as ARGUMENTS (cnt_fn/cat_fn), not by name: a bare
+# `arf_psi_cnt_fn(...)` call would need the arf namespace resolved on the
+# daemon, and deserialization loads the INSTALLED arf there -- stale relative
+# to a dev tree. Passing the functions keeps forde's workers fully
+# self-contained, as before the fusion.
+arf_psi_fn <- function(tree, cnt_fn, cat_fn, x, factor_cols, pred,
+                       inbag.counts, n, oob, bnds, finite_bounds, epsilon,
+                       family, lvl_df_rf, alpha) {
+  list(
+    cnt = if (any(!factor_cols)) {
+      cnt_fn(tree, x, factor_cols, pred, inbag.counts, n, oob, bnds,
+             finite_bounds, epsilon, family)
+    },
+    cat = if (any(factor_cols)) {
+      cat_fn(tree, x, factor_cols, pred, bnds, oob, lvl_df_rf, alpha)
+    }
+  )
 }
 
 # Worker 2: compute continuous-variable distribution params for one tree.

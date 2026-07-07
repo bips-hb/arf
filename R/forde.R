@@ -205,109 +205,83 @@ forde <- function(
     # (e.g. `[.data.table`) are registered for the worker bodies.
     mirai::everywhere(requireNamespace('data.table', quietly = TRUE))
   }
+  # Leaf assignments first: the per-tree bounds worker computes its tree's
+  # coverage from its pred column, replacing the old n x num_trees `keep`
+  # table and global merge on this process (a large-grid memory hog).
+  # predict() needs prep_x's column names (the forest was trained on them).
+  pred <- stats::predict(arf, x, type = 'terminalNodes')$predictions + 1L
+  # Restore original column names before x is shared with workers: the psi
+  # workers match x's melted column names against bnds$variable, which uses
+  # colnames_x (the bounds worker accesses x by index, never by name). The old
+  # code renamed only after the bounds pass, so mirai's x_shared kept prep
+  # names -- a latent variable-name mismatch for pathologically named columns.
+  setnames(x, colnames_x)
   # Per-tree workers live once in forde_workers.R, shared by all backends; the
   # closures below adapt them to foreach's one-argument iteration.
   bnd_fn <- function(tree) {
     arf_bnd_fn(tree, arf$forest, d, finite_bounds, factor_cols, x, epsilon,
-               colnames_x)
+               colnames_x, pred, arf$inbag.counts, n, oob)
   }
   if (use_mirai) {
     forest_slice <- mori::share(
       arf$forest[c('split.varIDs', 'child.nodeIDs', 'split.values')])
     x_shared <- mori::share(x)
+    pred_shared <- mori::share(pred)
+    inbag_shared <- if (!is.null(arf$inbag.counts)) {
+      mori::share(arf$inbag.counts)
+    } else NULL
     bnds <- arf_mirai_tree_map(num_trees, arf_bnd_fn, list(
       forest = forest_slice, d = d, finite_bounds = finite_bounds,
       factor_cols = factor_cols, x = x_shared, epsilon = epsilon,
-      colnames_x = colnames_x))
+      colnames_x = colnames_x, pred = pred_shared,
+      inbag.counts = inbag_shared, n = n, oob = oob))
   } else if (isTRUE(parallel)) {
     bnds <- foreach(tree = seq_len(num_trees), .combine = rbind) %dopar% bnd_fn(tree)
   } else {
     bnds <- foreach(tree = seq_len(num_trees), .combine = rbind) %do% bnd_fn(tree)
   }
-  # Compute coverage
-  pred <- stats::predict(arf, x, type = 'terminalNodes')$predictions + 1L
-  keep <- data.table('tree' = rep(seq_len(num_trees), each = n), 
-                     'leaf' = as.vector(pred))
-  if (isTRUE(oob)) {
-    keep[, oob := as.vector(sapply(seq_len(num_trees), function(b) {
-      arf$inbag.counts[[b]][seq_len(n)] == 0L
-    }))]
-    keep <- keep[oob == TRUE]
-    keep <- unique(keep[, cnt := .N, by = .(tree, leaf)])
-    keep[, n_oob := sum(oob), by = tree]
-    keep[, cvg := cnt / n_oob][, c('oob', 'cnt', 'n_oob') := NULL]
-    keep[, cvg := cvg/sum(cvg), by = tree]
-  } else if (oob == "inbag") {
-    keep[, inbag := as.vector(sapply(seq_len(num_trees), function(b) {
-      arf$inbag.counts[[b]][seq_len(n)] > 0L
-    }))]
-    keep <- keep[inbag == TRUE]
-    keep <- unique(keep[, cnt := .N, by = .(tree, leaf)])
-    keep[, n_inbag := sum(inbag), by = tree]
-    keep[, cvg := cnt / n_inbag][, c('inbag', 'cnt', 'n_inbag') := NULL]
-    keep[, cvg := cvg/sum(cvg), by = tree]
-  } else {
-    keep <- unique(keep[, cnt := .N, by = .(tree, leaf)])
-    keep[, cvg := cnt / n][, cnt := NULL]
-  }
-  bnds <- merge(bnds, keep, by = c('tree', 'leaf'), sort = FALSE)
-  rm(keep)
   # Create forest index
   setkey(bnds, tree, leaf)
   bnds[, f_idx := .GRP, by = key(bnds)]
   
-  # Calculate distribution parameters for each variable
-  setnames(x, colnames_x)
+  # Calculate distribution parameters for each variable: one fused dispatch
+  # per tree computes continuous and categorical params together (they share
+  # every input), halving the round-trips of the old separate cnt/cat passes.
+  psi_fn <- function(tree) {
+    arf_psi_fn(tree, arf_psi_cnt_fn, arf_psi_cat_fn, x, factor_cols, pred,
+               arf$inbag.counts, n, oob, bnds, finite_bounds, epsilon, family,
+               lvl_df_rf, alpha)
+  }
   if (use_mirai) {
-    pred_shared <- mori::share(pred)
     bnds_shared <- mori::share(bnds)
-    inbag_shared <- if (!is.null(arf$inbag.counts)) {
-      mori::share(arf$inbag.counts)
-    } else NULL
+    psi_pair <- arf_mirai_tree_map(num_trees, arf_psi_fn, list(
+      cnt_fn = arf_psi_cnt_fn, cat_fn = arf_psi_cat_fn,
+      x = x_shared, factor_cols = factor_cols, pred = pred_shared,
+      inbag.counts = inbag_shared, n = n, oob = oob,
+      bnds = bnds_shared, finite_bounds = finite_bounds,
+      epsilon = epsilon, family = family,
+      lvl_df_rf = mori::share(lvl_df_rf), alpha = alpha),
+      combine = arf_combine_psi)
+  } else if (isTRUE(parallel)) {
+    psi_pair <- arf_combine_psi(
+      foreach(tree = seq_len(num_trees)) %dopar% psi_fn(tree))
+  } else {
+    psi_pair <- arf_combine_psi(
+      foreach(tree = seq_len(num_trees)) %do% psi_fn(tree))
   }
   # Continuous case
   if (any(!factor_cols)) {
-    psi_cnt_fn <- function(tree) {
-      arf_psi_cnt_fn(tree, x, factor_cols, pred, arf$inbag.counts, n, oob, bnds,
-                     finite_bounds, epsilon, family)
-    }
-    if (use_mirai) {
-      psi_cnt <- arf_mirai_tree_map(num_trees, arf_psi_cnt_fn, list(
-        x = x_shared, factor_cols = factor_cols, pred = pred_shared,
-        inbag.counts = inbag_shared, n = n, oob = oob,
-        bnds = bnds_shared, finite_bounds = finite_bounds,
-        epsilon = epsilon, family = family))
-    } else if (isTRUE(parallel)) {
-      psi_cnt <- foreach(tree = seq_len(num_trees), .combine = rbind) %dopar%
-        psi_cnt_fn(tree)
-    } else {
-      psi_cnt <- foreach(tree = seq_len(num_trees), .combine = rbind) %do%
-        psi_cnt_fn(tree)
-    }
+    psi_cnt <- psi_pair$cnt
     setkey(psi_cnt, f_idx, variable)
     setcolorder(psi_cnt, c('f_idx', 'variable'))
   } else {
-    psi_cnt <- data.table(f_idx = integer(), variable = character(), min = numeric(), max = numeric(), 
+    psi_cnt <- data.table(f_idx = integer(), variable = character(), min = numeric(), max = numeric(),
                           mu = numeric(), sigma = numeric(), NA_share = numeric())
   }
-  
+
   # Categorical case
   if (any(factor_cols)) {
-    psi_cat_fn <- function(tree) {
-      arf_psi_cat_fn(tree, x, factor_cols, pred, bnds, oob, lvl_df_rf, alpha)
-    }
-    if (use_mirai) {
-      psi_cat <- arf_mirai_tree_map(num_trees, arf_psi_cat_fn, list(
-        x = x_shared, factor_cols = factor_cols, pred = pred_shared,
-        bnds = bnds_shared, oob = oob,
-        lvl_df_rf = mori::share(lvl_df_rf), alpha = alpha))
-    } else if (isTRUE(parallel)) {
-      psi_cat <- foreach(tree = seq_len(num_trees), .combine = rbind) %dopar%
-        psi_cat_fn(tree)
-    } else {
-      psi_cat <- foreach(tree = seq_len(num_trees), .combine = rbind) %do%
-        psi_cat_fn(tree)
-    }
+    psi_cat <- psi_pair$cat
     lvl_df_rf[, level := NULL]
     setkey(psi_cat, f_idx, variable)
     setcolorder(psi_cat, c('f_idx', 'variable'))
