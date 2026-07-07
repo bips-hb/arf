@@ -133,5 +133,14 @@ arf_lik_fold <- function(fold, params, x, factor_cols, leaves, omega, preds,
     psi_x <- psi_x[, prod(lik), by = .(f_idx, obs)]
     setnames(psi_x, 'V1', 'lik')
   }
+
+  # Reduce to per-observation log-likelihoods here rather than on the calling
+  # process: folds cover disjoint obs and omega is a worker argument, so the
+  # reduction is fold-local. This shrinks the returned object from one row per
+  # (obs, leaf) to one per obs (less to serialize back under mirai) and
+  # parallelizes what used to be a serial post-pass over every obs x leaf pair.
+  psi_x <- merge(psi_x, omega, by = 'f_idx', sort = FALSE)
+  psi_x <- psi_x[, log(crossprod(wt, lik)), by = obs]
+  setnames(psi_x, 'V1', 'lik')
   psi_x
 }

@@ -206,11 +206,9 @@ lik <- function(
     out <- foreach(fold = seq_len(k), .combine = rbind) %do% lik_fn(fold, arf)
   }
   
-  # Compute per-sample likelihoods
-  out <- merge(out, omega, by = 'f_idx', sort = FALSE)
-  out <- out[, log(crossprod(wt, lik)), by = obs]
-  setnames(out, 'V1', 'lik')
-  
+  # Folds return per-obs log-likelihoods, already reduced against omega inside
+  # the worker (folds cover disjoint obs); nothing left to aggregate here.
+
   # Anybody missing?
   zeros <- setdiff(seq_len(n), out[, obs])
   if (length(zeros) > 0L) {
