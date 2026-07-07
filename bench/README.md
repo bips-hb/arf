@@ -8,7 +8,7 @@ Scripts here compare the parallel backends available to `forde()`:
 - **mirai** — `options(arf.backend = "mirai")` with `mirai::daemons()` set. Data
   is shared read-only via `mori`, so it is not copied per worker.
 
-Shared logic (backend checks, data generation, PSS memory sampling, the
+Shared logic (backend checks, data generation, memory sampling, the
 subprocess runner) lives in `bench-helpers.R`, sourced by the scripts below.
 All backend packages (`doParallel`, `mirai`, `mori`) are required: every script
 aborts up front — before the model fit — if any is missing, since a backend
@@ -99,19 +99,29 @@ throughput — mirai in particular looks worse cold than warm. (The child is
 timed only around `forde()`; the one-time daemon/cluster setup is excluded from
 every iteration.)
 
-## Why PSS, and why manual sampling
+## How memory is measured
 
-Memory is measured as peak total **PSS (Proportional Set Size)** across this
-user's R process tree, from `/proc/<pid>/smaps_rollup` on Linux. PSS divides
-shared pages among the processes mapping them, so mori's shared data counts once
-(split), not once per daemon — the fair way to compare a copy-per-worker backend
-(foreach) against a shared-memory one (mirai+mori).
+Preferred metric: **cgroup-anon** — the `anon` counter of the cgroup v2
+`memory.stat`, sampled at 5ms and reported as a delta against the pre-cell
+baseline. The kernel charges each page once per cgroup, so COW pages shared by
+fork workers and mori-shared pages count exactly once — the fair way to compare
+a copy-per-worker backend (foreach) against a shared-memory one (mirai+mori),
+and *exact* where summed PSS only approximates. Every process a cell spawns
+inherits the cgroup, so short-lived fork workers are always counted, and `anon`
+excludes page cache noise. Slurm gives each job its own cgroup, so cluster
+measurements are isolated by construction.
+
+Fallback (no cgroup v2 memory accounting): peak summed **PSS** across the
+cell's process group, from `/proc/<pid>/smaps_rollup`, sampled at 50ms. Beware
+its limits: each read forces a kernel VMA walk, so sweeps slow down as memory
+grows, and workers that spawn and die between sweeps are missed. Last resort
+without smaps_rollup is **RSS**, which double-counts shared pages and would
+*understate* mori's advantage.
 
 We sample manually because there is no better R option: `bench` can't profile
-parallel code, and the `ps` package (cleaner, cross-platform) only exposes
-**RSS**, which double-counts shared pages and would *understate* mori's
-advantage. PSS is Linux-only; elsewhere the scripts fall back to RSS and label
-the column accordingly.
+parallel code, and the `ps` package (cleaner, cross-platform) only exposes RSS.
+The `metric` column in every CSV records which measurement was used — don't
+compare peak_mb across CSVs with different metrics.
 
 Note the mori memory advantage is **scale-dependent**: at small data the fixed
 per-daemon/mori overhead can exceed the per-worker copy it saves (mirai may use

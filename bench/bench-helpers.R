@@ -38,9 +38,28 @@ bench_make_data <- function(n, p) {
   X
 }
 
-## ---- memory: peak PSS (Linux) / RSS across a process subtree ---------------
-BENCH_USE_PSS <- file.exists("/proc/self/smaps_rollup")
-BENCH_METRIC  <- if (BENCH_USE_PSS) "PSS" else "RSS"
+## ---- memory metric ----------------------------------------------------------
+# Preference order:
+# 1. "cgroup-anon": sample the `anon` counter of our cgroup v2 memory.stat.
+#    The kernel charges each page ONCE per cgroup, so COW pages shared by fork
+#    workers and mori-shared pages count once -- exactly the unique-memory total
+#    we want, and fairer than summed PSS (which only approximates sharing).
+#    Every process a cell spawns (callr child, mirai dispatcher + daemons,
+#    foreach fork workers) inherits the cgroup, so short-lived workers cannot
+#    escape the measurement and no pgid matching is needed. `anon` excludes
+#    page cache (readRDS pulling the data file in would otherwise inflate small
+#    cells). One small file read per sample, so we can poll at 5ms instead of
+#    the >=50ms-plus-VMA-walk sweeps of the PSS path, shrinking the missed-
+#    spike window. Measured as a delta against the pre-spawn baseline because
+#    the orchestrator shares the cgroup (slurm gives each job one cgroup).
+#    Upgrade path (not needed yet): a dedicated per-cell child cgroup would
+#    give kernel-exact memory.peak with no sampling at all, but requires
+#    cgroupfs write delegation, which cluster nodes rarely grant.
+# 2. "PSS": sum Pss over the child's process group, sampled. smaps_rollup
+#    reads force VMA walks, so the effective sampling interval grows with
+#    memory size and forked workers can spawn and die between sweeps.
+#    Fallback for hosts without cgroup v2 memory accounting.
+# 3. "RSS": last resort without smaps_rollup; overcounts shared pages.
 
 # Read a /proc file, quietly tolerating the race where a pid vanishes between
 # being listed and being read (returns character(0) then).
@@ -48,6 +67,25 @@ BENCH_METRIC  <- if (BENCH_USE_PSS) "PSS" else "RSS"
   tryCatch(suppressWarnings(readLines(path, warn = FALSE)),
            error = function(e) character(0))
 }
+
+# cgroup v2 dir of this process, or NULL if memory accounting is unavailable.
+.bench_cgroup_dir <- function() {
+  cg <- .bench_read("/proc/self/cgroup")
+  line <- cg[startsWith(cg, "0::")]
+  if (!length(line)) return(NULL)
+  dir <- file.path("/sys/fs/cgroup", sub("^0::/?", "", line[1]))
+  if (file.exists(file.path(dir, "memory.stat"))) dir else NULL
+}
+.bench_cgroup_anon_kb <- function(dir) {
+  st <- .bench_read(file.path(dir, "memory.stat"))
+  x <- st[startsWith(st, "anon ")]
+  if (!length(x)) return(NA_real_)
+  as.numeric(sub("^anon ", "", x[1])) / 1024  # bytes -> kB
+}
+
+BENCH_CGROUP  <- .bench_cgroup_dir()
+BENCH_USE_PSS <- file.exists("/proc/self/smaps_rollup")
+BENCH_METRIC  <- if (!is.null(BENCH_CGROUP)) "cgroup-anon" else if (BENCH_USE_PSS) "PSS" else "RSS"
 .bench_pid_kb <- function(pp) {
   if (BENCH_USE_PSS) {
     l <- .bench_read(sprintf("/proc/%d/smaps_rollup", pp))
@@ -143,11 +181,21 @@ BENCH_METRIC  <- if (BENCH_USE_PSS) "PSS" else "RSS"
 }
 `%||%` <- function(a, b) if (is.null(a)) b else a
 
-# Parent-side: launch a cell in a fresh subprocess and sample its peak memory
-# via /proc while it runs. Returns list(seconds = median, peak_mb).
+# Parent-side: launch a cell in a fresh subprocess and track its peak memory
+# while it runs (cgroup-anon delta when available, else /proc PSS/RSS sweeps;
+# see the metric note above). Returns list(seconds = median, peak_mb).
 bench_measure_cell <- function(backend, data_path, n_workers, dt_threads,
                                pkgdir, ranger_threads = 1L, iters = 1L,
                                interval = 0.05, op = "forde", op_args = list()) {
+  use_cgroup <- !is.null(BENCH_CGROUP)
+  if (use_cgroup) {
+    # Stabilize the orchestrator's share before taking the baseline: a GC
+    # during the cell would deflate the delta's floor (harmless for a max),
+    # but unreclaimed garbage at baseline time would inflate every sample.
+    invisible(gc(FALSE))
+    baseline_kb <- .bench_cgroup_anon_kb(BENCH_CGROUP)
+    interval <- 0.005  # one counter read per sample; poll fast
+  }
   proc <- callr::r_bg(.bench_cell_fn,
                       args = list(pkgdir, data_path, backend, n_workers,
                                   dt_threads, ranger_threads, iters, op, op_args))
@@ -155,7 +203,12 @@ bench_measure_cell <- function(backend, data_path, n_workers, dt_threads,
   peak_kb <- 0
   repeat {
     alive <- proc$is_alive()
-    peak_kb <- max(peak_kb, .bench_tree_kb(pid))
+    cur_kb <- if (use_cgroup) {
+      .bench_cgroup_anon_kb(BENCH_CGROUP) - baseline_kb
+    } else {
+      .bench_tree_kb(pid)
+    }
+    if (!is.na(cur_kb)) peak_kb <- max(peak_kb, cur_kb)
     if (!alive) break
     Sys.sleep(interval)
   }
