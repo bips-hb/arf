@@ -1,8 +1,9 @@
 #' @keywords internal
 #' @noRd
 
-# Internal helpers for the experimental mirai+mori backend.
-# Activated by getOption("arf.backend", "foreach") == "mirai".
+# Internal helpers for the mirai+mori backend.
+# Activated by options(arf.backend = "mirai"), or automatically when mirai
+# daemons are running and the option is unset; see arf_select_backend().
 # Hidden from public API; mirai and mori in Suggests only.
 
 # Session-scoped state for once-per-run notifications.
@@ -23,7 +24,9 @@ arf_backend_inform <- function(msg, key) {
   invisible(TRUE)
 }
 
-# Decide which parallel backend forde() should use, and tell the user.
+# Decide which parallel backend to use (called from all parallelized
+# operations: forde, forge, expct, lik, cforde, adversarial_rf), and tell
+# the user.
 # Only meaningful when parallel = TRUE. Precedence:
 #   1. explicit options(arf.backend = "foreach" | "mirai")  (validated)
 #   2. active mirai daemons                                  -> "mirai"
@@ -83,10 +86,10 @@ arf_select_backend <- function(parallel) {
   backend
 }
 
-# Load arf on all mirai daemons so workers can call its internals (forge/expct/
-# lik workers use cforde/resample/post_x, unlike forde's self-contained per-tree
-# workers). No-op on daemons where arf is already loaded (e.g. dev-loaded in
-# tests; see tests/testthat/helper-mirai.R).
+# Load arf on all mirai daemons so workers can call its internals (e.g.
+# cforde/resample/post_x in the forge/expct/lik workers) and data.table's S3
+# methods are registered. No-op on daemons where arf is already loaded (e.g.
+# dev-loaded in tests; see tests/testthat/helper-mirai.R).
 #
 # everywhere() round-trips all daemons on every call, which is dead cost for a
 # workflow doing many small forge/expct/lik calls against one pool. Register the
@@ -112,8 +115,6 @@ arf_load_on_daemons <- function() {
 # re-deriving backend-selection precedence. Needed because stepsize was sized via
 # foreach::getDoParWorkers() alone, which is 1 under a pure mirai backend (daemons
 # set, no foreach registered) -> step_no 1 -> mirai never engages.
-# ponytail: sizing hint only; the dispatch gate governs real parallelism, so a
-# slight over/under-split when both backends are up is harmless.
 arf_n_workers <- function() {
   mirai_conns <- if (requireNamespace("mirai", quietly = TRUE)) {
     st <- tryCatch(mirai::status(), error = function(e) NULL)
@@ -143,7 +144,7 @@ arf_check_mirai_ready <- function() {
   status <- mirai::status()
   if (is.null(status$connections) || status$connections < 1L) {
     stop("arf.backend = 'mirai' requires daemons() to be set. ",
-         "Call mirai::daemons(n) before forde().",
+         "Call mirai::daemons(n) first.",
          call. = FALSE)
   }
   invisible(TRUE)
@@ -155,46 +156,32 @@ arf_check_mirai_ready <- function() {
 # because workers only read the shared tables and build fresh data.tables
 # from the results.
 
-# Dispatch a per-tree worker over mirai daemons. Trees are split into
-# one chunk per daemon; each task loops the per-tree worker over its
-# block and rbinds locally (e.g. 100 trees -> 4 tasks on 4 daemons).
-# At small scale this is timing-neutral vs one-task-per-tree, but it
-# bounds the number of result objects serialized back to n_workers
-# rather than num_trees, which matters for the large-grid cases.
-# Chunks MUST be contiguous (sort()): rbindlist concatenates them in chunk
-# order, so interleaved chunks would scramble positional output (forge/expct
-# rows are per-evidence-row; forde is keyed so order-independent, but we can't
-# rely on that here). See test "mirai preserves row order".
-# `combine` stacks per-item results within a chunk and then across chunks. Default
-# rbindlist returns a data.table (forde wants that; results are re-keyed). forge/
-# expct pass a rbind-based combine so the object class matches their serial foreach
-# .combine="rbind" output (data.table vs data.frame is otherwise a parity break;
-# values are identical either way).
-# CAUTION on closures: serializing a function serializes its enclosing
-# environment. A closure defined inside a caller's frame drags that whole frame
-# (params, evidence, training data, ...) into EVERY task, defeating mori
-# sharing. Pass package-level functions (serialized as a namespace reference)
-# or strip base-R-only closures to globalenv() before shipping.
-# This is a documented mirai gotcha, see the Community FAQ:
-# https://mirai.r-lib.org/articles/v07-questions.html
-# The FAQ recommends carrier::crate() for the general case. We skip it here
-# because our shipped functions are pure base R with all inputs as explicit
-# arguments: there is nothing to crate, and environment(fn) <- globalenv()
-# gets the same zero-payload serialization without adding a carrier dependency.
 # Split trees into one contiguous block per worker. Contiguous (sort()) is
 # load-bearing: rbindlist/c concatenate blocks in chunk order, so interleaved
-# chunks would scramble positional output. Shared by arf_mirai_tree_map() and
-# the prune dispatch in adversarial_rf(); the invariant lives here once.
-# A finer-chunks knob (chunks per worker > 1) was benchmarked and REMOVED:
-# it increased adversarial_rf memory (more result objects in flight) and was
-# flat for forde; step/fold-parallel ops control granularity via their
-# stepsize/batch arguments instead.
+# chunks would scramble positional output (forge/expct rows are
+# per-evidence-row). Shared by arf_mirai_tree_map() and the prune dispatch in
+# adversarial_rf(); the invariant lives here once. A finer-chunks knob (chunks
+# per worker > 1) was benchmarked and removed: it increased memory (more
+# result objects in flight) without speed gains; step/fold-parallel ops
+# control granularity via their stepsize/batch arguments instead.
 arf_tree_chunks <- function(num_trees, n_workers) {
   n_chunks <- max(1L, min(as.integer(n_workers), num_trees))
   split(seq_len(num_trees),
         sort(rep(seq_len(n_chunks), length.out = num_trees)))
 }
 
+# Dispatch a per-tree worker over mirai daemons: one contiguous chunk per
+# daemon (arf_tree_chunks); each task loops the worker over its block and
+# combines locally, so at most n_workers (not num_trees) result objects are
+# serialized back. `combine` stacks per-tree results within a chunk and again
+# across chunks; the default rbindlist returns a data.table (forde re-keys),
+# forge/expct pass an rbind-based combine to match the class of their serial
+# foreach .combine = "rbind" output.
+# CAUTION on closures: serializing a function serializes its enclosing
+# environment, so a closure defined in a caller's frame drags that whole frame
+# into every task, defeating mori sharing. Ship package-level functions, or
+# strip base-R-only closures to globalenv() first. See the mirai FAQ:
+# https://mirai.r-lib.org/articles/v07-questions.html
 arf_mirai_tree_map <- function(num_trees, worker_fn, shared_args,
                                combine = data.table::rbindlist) {
   st <- mirai::status()
@@ -215,7 +202,21 @@ arf_mirai_tree_map <- function(num_trees, worker_fn, shared_args,
     .args = list(worker_fn = worker_fn, shared_args = shared_args,
                  combine = combine)
   )[]
+  arf_stop_on_mirai_error(res)
   combine(res)
+}
+
+# A failed task comes back from mirai_map as an error object inside the
+# results list; without this check it would be rbind/c-ed into the output and
+# corrupt it silently. Covers errors, interrupts and timeouts.
+arf_stop_on_mirai_error <- function(res) {
+  failed <- which(vapply(res, mirai::is_error_value, logical(1)))
+  if (length(failed)) {
+    err <- res[[failed[1]]]
+    msg <- if (mirai::is_mirai_error(err)) conditionMessage(err) else as.character(err)
+    stop("arf: mirai worker error in chunk ", failed[1], ": ", msg, call. = FALSE)
+  }
+  invisible(TRUE)
 }
 
 # Combine for forge/expct step results: matches serial foreach .combine="rbind"

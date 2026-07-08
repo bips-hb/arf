@@ -16,9 +16,10 @@
 #' @param prune Impose \code{min_node_size} by pruning? 
 #' @param verbose Print discriminator accuracy after each round? Will also show 
 #'   additional warnings.
-#' @param parallel Compute in parallel? Requires a registered \code{foreach}
-#'   backend (\code{doParallel}, \code{doFuture}) or active \code{mirai}
-#'   daemons. See \code{\link{arf-options}}.
+#' @param parallel Compute in parallel? Enables multithreaded ranger training
+#'   (no backend needed) and parallelizes the pruning step, which requires a
+#'   registered \code{foreach} backend (\code{doParallel}, \code{doFuture}) or
+#'   active \code{mirai} daemons. See \code{\link{arf-options}}.
 #' @param ... Extra parameters to be passed to \code{ranger}.
 #' 
 #' @details 
@@ -94,7 +95,7 @@
 #' doFuture::registerDoFuture()
 #' future::plan("multisession", workers = 4)
 #'
-#' # ... or with mirai (shares the learned circuit across workers via mori)
+#' # ... or with mirai (shares large read-only inputs across workers via mori)
 #' mirai::daemons(4)
 #' }
 #' 
@@ -227,6 +228,7 @@ adversarial_rf <- function(
                                            child_nodeIDs = child_shared,
                                            pred = pred_shared,
                                            min_node_size = min_node_size))[]
+      arf_stop_on_mirai_error(res)
       rf0$forest$child.nodeIDs <- unname(do.call(c, res))
     } else if (isTRUE(parallel) && num_trees > 1) {
       rf0$forest$child.nodeIDs <- foreach(b = seq_len(num_trees)) %dopar% prune_one(b)

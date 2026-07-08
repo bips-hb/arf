@@ -7,14 +7,16 @@
 arf_expct_step <- function(step_, params, evidence, query, factor_cols,
                            evidence_row_mode, nomatch, verbose, round,
                            stepsize, stepsize_cforde, parallel_cforde) {
-  # data.table NSE silencing
+  # To avoid data.table check issues
   variable <- tree <- f_idx <- cvg <- wt <- V1 <- value <- val <- family <-
     mu <- sigma <- obs <- prob <- f_idx_uncond <- c_idx <- idx <- NA_share <-
     . <- I <- NULL
 
+  # Prepare the event space
   if (is.null(evidence) || (ncol(evidence) == 2 && all(colnames(evidence) == c("f_idx", "wt")))) {
     cparams <- NULL
   } else {
+    # Call cforde with part of the evidence for this step
     index_start <- (step_ - 1) * stepsize + 1
     index_end <- min(step_ * stepsize, nrow(evidence))
     evidence_part <- evidence[index_start:index_end, ]
@@ -22,6 +24,7 @@ arf_expct_step <- function(step_, params, evidence, query, factor_cols,
                       stepsize_cforde, parallel_cforde)
   }
 
+  # omega contains the weight (wt) for each leaf (f_idx) for each condition (c_idx)
   if (is.null(cparams)) {
     if (is.null(evidence)) {
       num_trees <- params$forest[, max(tree)]
@@ -29,7 +32,7 @@ arf_expct_step <- function(step_, params, evidence, query, factor_cols,
       omega[, `:=`(c_idx = 1, wt = cvg / num_trees)]
       omega[, cvg := NULL]
     } else {
-      omega <- data.table::copy(evidence)
+      omega <- copy(evidence)
       omega[, f_idx_uncond := f_idx]
       omega[, c_idx := 1]
     }
@@ -46,10 +49,11 @@ arf_expct_step <- function(step_, params, evidence, query, factor_cols,
     # Continuous data
     if (any(!factor_cols)) {
       if (is.null(cparams) || nrow(cparams$cnt) == 0) {
-        psi_cond <- data.table::data.table()
+        psi_cond <- data.table()
       } else {
         psi_cond <- merge(omega_, cparams$cnt[variable %in% query, -c("cvg_factor", "f_idx_uncond")], by = c('c_idx', 'f_idx'),
                           sort = FALSE, allow.cartesian = TRUE)[prob > 0, ]
+        # calculate absolute weights for sub-leaf areas (resulting from within-row or-conditions)
         if (any(psi_cond[, prob != 1])) {
           psi_cond[, wt := wt * prob]
           psi_cond[, I := seq_len(.N), by = .(variable, idx)]
@@ -64,7 +68,7 @@ arf_expct_step <- function(step_, params, evidence, query, factor_cols,
       psi[NA_share == 1, wt := 0]
       cnt <- psi[is.na(val), val := sum(wt * mu) / sum(wt), by = .(c_idx, variable)]
       cnt <- unique(cnt[, .(c_idx, variable, val)])
-      synth_cnt <- data.table::dcast(cnt, c_idx ~ variable, value.var = 'val')[, c_idx := NULL]
+      synth_cnt <- dcast(cnt, c_idx ~ variable, value.var = 'val')[, c_idx := NULL]
     }
 
     # Categorical data
@@ -81,26 +85,27 @@ arf_expct_step <- function(step_, params, evidence, query, factor_cols,
       }
       psi[NA_share == 1, wt := 0]
       cat <- psi[, sum(wt * prob), by = .(c_idx, variable, val)]
-      cat <- data.table::setDT(cat)[, .SD[which.max.random(V1)], by = .(c_idx, variable)]
-      synth_cat <- data.table::dcast(cat, c_idx ~ variable, value.var = 'val')[, c_idx := NULL]
+      cat <- setDT(cat)[, .SD[which.max.random(V1)], by = .(c_idx, variable)]
+      synth_cat <- dcast(cat, c_idx ~ variable, value.var = 'val')[, c_idx := NULL]
     }
     cbind(synth_cnt, synth_cat)
   }
 
   # The merges in synth_block materialize (#matched leaves x #query variables)
   # rows PER CONDITION -- all at once for the step, three times over via
-  # merge/rbind/unique. That product is what blew expct up to ~220GB in the
-  # cluster benchmark, on every backend alike. Conditions are independent here
+  # merge/rbind/unique, on every backend alike; at large forest x condition
+  # counts this reaches tens of GB. Conditions are independent here
   # (every aggregation groups by c_idx, omega arrives sorted by c_idx, and the
   # per-group RNG order of which.max.random is ascending c_idx either way), so
-  # when the estimated join size is large, process conditions in blocks that
-  # keep each materialization bounded. A single condition cannot be split;
-  # its leaves x variables product is the floor of this algorithm.
-  # rows per materialization; the default keeps transients to a few hundred MB.
+  # when the estimated join size exceeds block_cap rows, process conditions in
+  # blocks that keep each materialization bounded. A single condition cannot be
+  # split; its leaves x variables product is the floor of this algorithm.
   # Lower via options(arf.block_rows) for tight-memory runs; see ?arf-options.
   block_cap <- max(1, as.numeric(getOption("arf.block_rows", 5e6)))
   n_vars <- max(1L, length(query))
-  if (nrow(omega) * n_vars <= block_cap || omega[, data.table::uniqueN(c_idx)] == 1L) {
+  # as.double: nrow * n_vars overflows integer arithmetic exactly in the
+  # large-forest regime the blocking exists for
+  if (as.double(nrow(omega)) * n_vars <= block_cap || omega[, uniqueN(c_idx)] == 1L) {
     x_synth <- synth_block(omega)
   } else {
     sizes <- omega[, .N, by = c_idx]  # ascending c_idx
@@ -110,7 +115,7 @@ arf_expct_step <- function(step_, params, evidence, query, factor_cols,
       if (acc > 0 && acc + r > block_cap) { gi <- gi + 1L; acc <- 0 }
       g[i] <- gi; acc <- acc + r
     }
-    x_synth <- data.table::rbindlist(lapply(split(sizes$c_idx, g), function(cs) {
+    x_synth <- rbindlist(lapply(split(sizes$c_idx, g), function(cs) {
       synth_block(omega[c_idx %in% cs])
     }))
   }
@@ -119,13 +124,13 @@ arf_expct_step <- function(step_, params, evidence, query, factor_cols,
   x_synth <- post_x(x_synth, params, round)
 
   if (evidence_row_mode == "separate" & any(omega[, is.na(f_idx)])) {
-    data.table::setDT(x_synth)
+    setDT(x_synth)
     indices_na <- cparams$forest[is.na(f_idx), c_idx]
     indices_sampled <- cparams$forest[!is.na(f_idx), unique(c_idx)]
-    rows_na <- data.table::dcast(rbind(data.table::data.table(c_idx = 0, variable = params$meta[, variable]),
-                                       cparams$evidence_prepped[c_idx %in% indices_na, ],
-                                       fill = TRUE),
-                                 c_idx ~ variable, value.var = "val")[c_idx != 0, ]
+    rows_na <- dcast(rbind(data.table(c_idx = 0, variable = params$meta[, variable]),
+                           cparams$evidence_prepped[c_idx %in% indices_na, ],
+                           fill = TRUE),
+                     c_idx ~ variable, value.var = "val")[c_idx != 0, ]
     if (nomatch == "force") {
       # nested recovery runs serial (a worker must not spawn its own backend)
       rows_na_sampled <- expct(params, parallel = FALSE)
@@ -133,7 +138,7 @@ arf_expct_step <- function(step_, params, evidence, query, factor_cols,
     }
     x_synth[, c_idx := indices_sampled]
     x_synth <- rbind(x_synth, rows_na, fill = TRUE)
-    data.table::setorder(x_synth, c_idx)[, c_idx := NULL]
+    setorder(x_synth, c_idx)[, c_idx := NULL]
     x_synth <- post_x(x_synth, params, round)
   }
 

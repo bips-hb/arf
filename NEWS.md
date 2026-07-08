@@ -1,8 +1,8 @@
 # arf 0.3.0
-* Add mirai/mori parallel backend as an alternative to foreach/doParallel
-	* Shares the learned parameters across workers via mori, lowering memory use in `adversarial_rf()`, `forde()`, `forge()`, `expct()`, and `lik()`
+* Add mirai/mori parallel backend as an alternative to foreach/doParallel (#62)
+	* Shares large read-only inputs (training data, forest, learned parameters) across workers via mori, lowering memory use in `adversarial_rf()`, `forde()`, `forge()`, `expct()`, and `lik()`
 	* Enable with active mirai daemons or `options(arf.backend)`, see `?arf-options`
-* Reduce peak memory of `expct()` by processing conditions in bounded blocks (up to ~16x lower on large forests with many conditions, tune via `options(arf.block_rows)`, see `?arf-options`)
+* Reduce peak memory of `expct()` by processing conditions in bounded blocks (up to ~16x lower in internal benchmarks on large forests with many conditions, tune via `options(arf.block_rows)`, see `?arf-options`)
 * Reduce memory and dispatch overhead in `forde()` (fused per-tree parameter pass, per-tree coverage) and `lik()` (per-batch reduction)
 
 # arf 0.2.5

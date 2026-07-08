@@ -1,5 +1,5 @@
-# Correctness gate for the experimental mirai+mori backend.
-# Prototype-scope: one dataset, equality vs the foreach path.
+# Correctness gate for the mirai+mori backend:
+# equality vs the sequential/foreach paths on one dataset.
 
 test_that("mirai backend produces equal forde output on iris", {
   skip_if_not_installed("mirai")
@@ -40,7 +40,8 @@ test_that("mirai backend produces structurally consistent forge() output", {
   # forge() is stochastic, so compare structure (not values) across backends.
   arf <- adversarial_rf(iris, verbose = FALSE, parallel = FALSE)
   psi <- forde(arf, iris, parallel = FALSE)
-  evi <- iris[1:20, "Species", drop = FALSE]  # 20 separate conditions -> multi-step
+  # 21 separate exact conditions (mixed species) -> multi-step
+  evi <- iris[c(1:7, 51:57, 101:107), "Species", drop = FALSE]
 
   old <- options(arf.backend = "foreach")
   on.exit(options(old), add = TRUE)
@@ -56,7 +57,10 @@ test_that("mirai backend produces structurally consistent forge() output", {
   expect_equal(nrow(x_mirai), nrow(x_foreach))
   expect_equal(colnames(x_mirai), colnames(x_foreach))
   expect_equal(sapply(x_mirai, class), sapply(x_foreach, class))
-  expect_true(all(as.character(x_mirai$Species) %in% levels(iris$Species)))
+  # exact conditions must map onto their output rows in evidence order:
+  # catches scrambled step-to-row assembly that structural checks miss
+  expect_equal(as.character(x_mirai$Species),
+               as.character(rep(evi$Species, each = 3)))
 })
 
 test_that("mirai backend gives identical lik() (deterministic)", {
@@ -101,6 +105,7 @@ test_that("mirai backend gives structurally consistent expct()", {
 
 test_that("arf_n_workers reflects active mirai daemons (stepsize sizing)", {
   skip_if_not_installed("mirai")
+  skip_on_cran()
 
   mirai::daemons(0)
   n_idle <- arf_n_workers()  # no mirai, no foreach -> 1
@@ -162,35 +167,23 @@ test_that("mirai backend gives identical adversarial_rf() pruning (deterministic
   skip_if_not_installed("mirai")
   skip_if_not_installed("mori")
 
-  # Prune is deterministic given a forest. Build one unpruned forest, then prune
-  # it both ways and compare (can't compare full adversarial_rf across backends:
-  # ranger threading makes the forest itself non-reproducible).
+  # ranger draws per-tree seeds from the R RNG, so training is reproducible
+  # under set.seed() regardless of threading; prune is deterministic given a
+  # forest. That makes the full run comparable end to end, exercising the
+  # actual mirai prune dispatch in adversarial_rf().
   set.seed(7)
-  a0 <- adversarial_rf(iris, num_trees = 50, prune = FALSE, parallel = FALSE,
-                       verbose = FALSE)
-  pred <- stats::predict(a0, prep_x(iris), type = "terminalNodes")$predictions + 1L
-  nt <- 50L
-  serial <- lapply(seq_len(nt), arf_prune_tree,
-                   child_nodeIDs = a0$forest$child.nodeIDs, pred = pred,
-                   min_node_size = 2L)
+  a_serial <- adversarial_rf(iris, num_trees = 50, parallel = FALSE,
+                             verbose = FALSE)
 
+  old <- options(arf.backend = "mirai")
+  on.exit(options(old), add = TRUE)
   setup_mirai_daemons(2)
   on.exit(mirai::daemons(0), add = TRUE)
-  child_shared <- mori::share(a0$forest$child.nodeIDs)
-  pred_shared <- mori::share(pred)
-  n_chunks <- max(1L, min(as.integer(mirai::status()$connections), nt))
-  chunks <- split(seq_len(nt), sort(rep(seq_len(n_chunks), length.out = nt)))
-  res <- mirai::mirai_map(
-    chunks,
-    function(trees, worker, child_nodeIDs, pred, min_node_size) {
-      lapply(trees, worker, child_nodeIDs = child_nodeIDs, pred = pred,
-             min_node_size = min_node_size)
-    },
-    .args = list(worker = arf_prune_tree, child_nodeIDs = child_shared,
-                 pred = pred_shared, min_node_size = 2L))[]
-  mirai_out <- unname(do.call(c, res))
+  set.seed(7)
+  a_mirai <- adversarial_rf(iris, num_trees = 50, parallel = TRUE,
+                            verbose = FALSE)
 
-  expect_identical(mirai_out, serial)
+  expect_identical(a_mirai$forest$child.nodeIDs, a_serial$forest$child.nodeIDs)
 })
 
 test_that("mirai backend runs adversarial_rf() end to end", {
@@ -211,14 +204,113 @@ test_that("arf.block_rows caps expct blocks without changing results", {
   a <- adversarial_rf(iris, num_trees = 10, parallel = FALSE, verbose = FALSE)
   psi <- forde(a, iris, parallel = FALSE)
   evi <- data.frame(Species = sample(levels(iris$Species), 6, replace = TRUE))
+  evi1 <- evi[1, , drop = FALSE]
 
   set.seed(1)
   ref <- expct(psi, evidence = evi, parallel = FALSE)
+  set.seed(2)
+  ref1 <- expct(psi, evidence = evi1, parallel = FALSE)
 
   old <- options(arf.block_rows = 1)  # force one condition per block
   on.exit(options(old), add = TRUE)
   set.seed(1)
   blocked <- expct(psi, evidence = evi, parallel = FALSE)
-
   expect_identical(blocked, ref)
+
+  # single condition: cannot be split, must take the unblocked path
+  set.seed(2)
+  blocked1 <- expct(psi, evidence = evi1, parallel = FALSE)
+  expect_identical(blocked1, ref1)
+})
+
+test_that("arf_tree_chunks yields contiguous in-order blocks covering all trees", {
+  for (nt in c(1L, 5L, 7L)) {
+    for (nw in c(1L, 3L, 10L)) {
+      ch <- arf_tree_chunks(nt, nw)
+      # concatenating chunks in chunk order must reproduce 1..nt exactly:
+      # this is the contiguity invariant positional ops rely on
+      expect_identical(unlist(ch, use.names = FALSE), seq_len(nt))
+      expect_lte(length(ch), max(1L, min(nw, nt)))
+    }
+  }
+})
+
+test_that("arf_select_backend applies the documented precedence", {
+  skip_if_not_installed("mirai")
+  skip_if_not_installed("mori")
+  skip_on_cran()
+
+  old <- options(arf.backend = NULL, arf.verbose = FALSE)
+  on.exit(options(old), add = TRUE)
+
+  expect_identical(arf_select_backend(FALSE), "sequential")
+
+  mirai::daemons(0)
+  expect_identical(arf_select_backend(TRUE), "foreach")  # no daemons, option unset
+
+  setup_mirai_daemons(2)
+  on.exit(mirai::daemons(0), add = TRUE)
+  expect_identical(arf_select_backend(TRUE), "mirai")  # daemons auto-detected
+
+  options(arf.backend = "foreach")
+  expect_identical(arf_select_backend(TRUE), "foreach")  # explicit option wins
+
+  options(arf.backend = "bogus")
+  expect_error(arf_select_backend(TRUE))
+})
+
+test_that("arf_load_on_daemons caches per daemon pool and self-invalidates", {
+  skip_if_not_installed("mirai")
+
+  setup_mirai_daemons(2)
+  on.exit(mirai::daemons(0), add = TRUE)
+  assign("arf_loaded_key", NULL, envir = arf:::.arf_env)
+
+  expect_true(arf_load_on_daemons())    # first call loads
+  expect_false(arf_load_on_daemons())   # same pool -> cached
+
+  mirai::daemons(0)
+  setup_mirai_daemons(2)                # rebuilt pool mints a new key
+  expect_true(arf_load_on_daemons())
+})
+
+test_that("mirai worker errors propagate instead of corrupting results", {
+  skip_if_not_installed("mirai")
+  skip_if_not_installed("mori")
+
+  setup_mirai_daemons(2)
+  on.exit(mirai::daemons(0), add = TRUE)
+
+  boom <- function(tree) stop("boom")
+  environment(boom) <- globalenv()
+  expect_error(arf_mirai_tree_map(4, boom, list()), "boom")
+})
+
+test_that("foreach doParallel backend gives equal forde output", {
+  skip_if_not_installed("doParallel")
+  skip_on_cran()
+
+  a <- adversarial_rf(iris, verbose = FALSE, parallel = FALSE)
+  psi_seq <- forde(a, iris, parallel = FALSE)
+
+  # PSOCK, not fork: forking after mirai/nanonext threads exist is unsafe
+  cl <- parallel::makeCluster(2)
+  on.exit(parallel::stopCluster(cl), add = TRUE)
+  if (requireNamespace("pkgload", quietly = TRUE) &&
+      isTRUE(tryCatch(pkgload::is_dev_package("arf"), error = function(e) FALSE))) {
+    pdir <- pkgload::pkg_path()
+    parallel::clusterCall(cl, function(p) {
+      suppressMessages(pkgload::load_all(p, quiet = TRUE))
+    }, pdir)
+  }
+  doParallel::registerDoParallel(cl)
+  on.exit(foreach::registerDoSEQ(), add = TRUE)
+  old <- options(arf.backend = "foreach")
+  on.exit(options(old), add = TRUE)
+
+  psi_par <- forde(a, iris, parallel = TRUE)
+
+  expect_equal(psi_par$cnt, psi_seq$cnt, ignore_attr = TRUE)
+  expect_equal(psi_par$cat, psi_seq$cat, ignore_attr = TRUE)
+  expect_equal(psi_par$forest, psi_seq$forest, ignore_attr = TRUE)
 })

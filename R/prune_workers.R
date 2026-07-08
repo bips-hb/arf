@@ -6,8 +6,8 @@
 # mirai daemons need no package loaded. Returns the pruned child.nodeIDs for one
 # tree: a list of two integer vectors (left, right children).
 arf_prune_tree <- function(tree, child_nodeIDs, pred, min_node_size) {
+  # Nodes to prune are leaves which contain fewer than min_node_size real samples
   out <- child_nodeIDs[[tree]]
-  # Nodes to prune are leaves with fewer than min_node_size real samples
   leaves <- which(out[[1]] == 0L)
   to_prune <- leaves[!(leaves %in% which(tabulate(pred[, tree]) >= min_node_size))]
   while (length(to_prune) > 0) {
@@ -16,17 +16,19 @@ arf_prune_tree <- function(tree, child_nodeIDs, pred, min_node_size) {
       break
     }
     for (tp in to_prune) {
+      # Find parent
       parent <- which((out[[1]] + 1L) == tp)
       if (length(parent) > 0) {
-        # tp is the left child of parent: replace left with right
+        # If node to prune (tp) is the left child of parent, replace left child with right child
         out[[1]][parent] <- out[[2]][parent]
       } else {
-        # tp is the right child of parent: replace right with left
+        # If node to prune (tp) is the right child of parent, replace right child with left child
         parent <- which((out[[2]] + 1L) == tp)
         out[[2]][parent] <- out[[1]][parent]
       }
     }
-    # If both children of a parent are pruned, prune the parent next round
+    # If both children of a parent are to be pruned, prune the parent in the next round
+    # This happens if both children have been pruned
     to_prune <- which((out[[1]] + 1L) %in% to_prune)
   }
   out

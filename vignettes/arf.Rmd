@@ -76,7 +76,7 @@ In either case, we can now execute in parallel.
 arf_iris <- adversarial_rf(iris, num_trees = 100)
 ```
 
-As an alternative to `foreach`, arf can use the `mirai` backend. Start daemons and arf uses them automatically, with no `foreach` registration needed. The learned circuit is shared across workers via `mori`, so workers do not each copy it. Speed is comparable between the backends. The memory benefit is largest for the tree-parallel operations (`forde`, `adversarial_rf`) on large forests with many workers, where `foreach` memory grows with the worker count and `mirai` stays much flatter. For small workloads the daemon pool adds a fixed overhead that can outweigh the sharing, so prefer `mirai` at scale and either backend otherwise.
+As an alternative to `foreach`, arf can use the `mirai` backend. Start daemons and arf uses them automatically, with no `foreach` registration needed. Large read-only inputs (training data, forest, learned parameters) are shared across workers via `mori`, so workers do not each copy them. Speed is comparable between the backends. The memory benefit is largest for the tree-parallel operations (`forde`, `adversarial_rf`) on large forests with many workers, where `foreach` memory grows with the worker count and `mirai` stays much flatter. For small workloads the daemon pool adds a fixed overhead that can outweigh the sharing, so prefer `mirai` at scale and either backend otherwise.
 
 ```{r mirai, eval=FALSE}
 # mirai backend: start daemons, then call arf as usual

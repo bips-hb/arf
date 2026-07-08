@@ -24,7 +24,8 @@
 #'   \code{NA} (\code{"na"}). The default is \code{"force"}.
 #' @param verbose Show warnings, e.g. when no leaf matches a condition?   
 #' @param stepsize How many rows of evidence should be handled at each step? 
-#'   Defaults to \code{nrow(evidence) / num_registered_workers} for 
+#'   Defaults to \code{nrow(evidence)} divided by the number of registered
+#'   workers or daemons for 
 #'   \code{parallel == TRUE}.
 #' @param parallel Compute in parallel? Requires a registered \code{foreach}
 #'   backend (\code{doParallel}, \code{doFuture}) or active \code{mirai}
@@ -34,7 +35,7 @@
 #'   while raising peak memory, so consider \code{parallel = FALSE} for large
 #'   \code{"or"} queries.
 #'
-#' @details
+#' @details 
 #' This function computes expected values for any subset of features, optionally 
 #' conditioned on some event(s). 
 #' 
@@ -96,7 +97,7 @@
 #' doFuture::registerDoFuture()
 #' future::plan("multisession", workers = 4)
 #'
-#' # ... or with mirai (shares the learned circuit across workers via mori)
+#' # ... or with mirai (shares large read-only inputs across workers via mori)
 #' mirai::daemons(4)
 #' }
 #' 
@@ -126,7 +127,7 @@ expct <- function(
   
   # To avoid data.table check issues
   variable <- tree <- f_idx <- cvg <- wt <- V1 <- value <- val <- family <-
-    mu <- sigma <- obs <- prob <- f_idx_uncond <- step <- c_idx <- idx <-
+    mu <- sigma <- obs <- prob <- f_idx_uncond <- step <- c_idx <- idx <- 
     NA_share <- . <- NULL
 
   # Defaults so the extracted per-step worker always receives these (set below
@@ -183,14 +184,14 @@ expct <- function(
     arf_expct_step(step_, params, evidence, query, factor_cols,
                    evidence_row_mode, nomatch, verbose, round, stepsize,
                    stepsize_cforde, parallel_cforde)
-  }
+  } 
   # Parallelism is across steps: 1 step is inherently serial for any backend.
   # mirai only for step_no > 1; "or" mode already set parallel <- FALSE.
   use_mirai <- FALSE
   if (step_no > 1) {
     backend <- arf_select_backend(parallel)
     use_mirai <- identical(backend, 'mirai')
-  }
+  } 
   if (use_mirai) {
     arf_load_on_daemons()  # daemons need arf: worker calls cforde/post_x/which.max.random
     params_shared <- mori::share(params)
@@ -209,6 +210,6 @@ expct <- function(
   } else {
     x_synth_ <- foreach(step = 1:step_no, .combine = "rbind") %do% par_fun(step)
   }
-
+  
   return(x_synth_)
 }

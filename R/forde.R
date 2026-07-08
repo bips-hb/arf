@@ -98,7 +98,7 @@
 #' doFuture::registerDoFuture()
 #' future::plan("multisession", workers = 4)
 #'
-#' # ... or with mirai (shares the learned circuit across workers via mori)
+#' # ... or with mirai (shares large read-only inputs across workers via mori)
 #' mirai::daemons(4)
 #' }
 #' 
@@ -114,7 +114,7 @@
 #' @importFrom stats predict runif
 #' @importFrom foreach foreach %do% %dopar%
 #' 
-
+  
 forde <- function(
     arf, 
     x, 
@@ -201,20 +201,17 @@ forde <- function(
   backend <- arf_select_backend(parallel)
   use_mirai <- identical(backend, 'mirai')
   if (use_mirai) {
-    # Load (not attach) data.table on every daemon so its S3 methods
-    # (e.g. `[.data.table`) are registered for the worker bodies.
-    mirai::everywhere(requireNamespace('data.table', quietly = TRUE))
+    # Load arf (and via Imports, data.table with its S3 methods) on the
+    # daemons; cached once per pool, see arf_load_on_daemons().
+    arf_load_on_daemons()
   }
   # Leaf assignments first: the per-tree bounds worker computes its tree's
-  # coverage from its pred column, replacing the old n x num_trees `keep`
-  # table and global merge on this process (a large-grid memory hog).
-  # predict() needs prep_x's column names (the forest was trained on them).
+  # coverage from its pred column. predict() needs prep_x's column names
+  # (the forest was trained on them).
   pred <- stats::predict(arf, x, type = 'terminalNodes')$predictions + 1L
   # Restore original column names before x is shared with workers: the psi
   # workers match x's melted column names against bnds$variable, which uses
-  # colnames_x (the bounds worker accesses x by index, never by name). The old
-  # code renamed only after the bounds pass, so mirai's x_shared kept prep
-  # names -- a latent variable-name mismatch for pathologically named columns.
+  # colnames_x (the bounds worker accesses x by index, never by name).
   setnames(x, colnames_x)
   # Per-tree workers live once in forde_workers.R, shared by all backends; the
   # closures below adapt them to foreach's one-argument iteration.
@@ -246,7 +243,7 @@ forde <- function(
   
   # Calculate distribution parameters for each variable: one fused dispatch
   # per tree computes continuous and categorical params together (they share
-  # every input), halving the round-trips of the old separate cnt/cat passes.
+  # every input).
   psi_fn <- function(tree) {
     arf_psi_fn(tree, arf_psi_cnt_fn, arf_psi_cat_fn, x, factor_cols, pred,
                arf$inbag.counts, n, oob, bnds, finite_bounds, epsilon, family,
@@ -275,10 +272,10 @@ forde <- function(
     setkey(psi_cnt, f_idx, variable)
     setcolorder(psi_cnt, c('f_idx', 'variable'))
   } else {
-    psi_cnt <- data.table(f_idx = integer(), variable = character(), min = numeric(), max = numeric(),
+    psi_cnt <- data.table(f_idx = integer(), variable = character(), min = numeric(), max = numeric(), 
                           mu = numeric(), sigma = numeric(), NA_share = numeric())
   }
-
+  
   # Categorical case
   if (any(factor_cols)) {
     psi_cat <- psi_pair$cat

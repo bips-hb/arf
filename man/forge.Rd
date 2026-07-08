@@ -45,7 +45,8 @@ Options are to force sampling from a random leaf (\code{"force"}) or return
 \item{verbose}{Show warnings, e.g. when no leaf matches a condition?}
 
 \item{stepsize}{How many rows of evidence should be handled at each step?
-Defaults to \code{nrow(evidence) / num_registered_workers} for
+Defaults to \code{nrow(evidence)} divided by the number of registered
+workers or daemons for
 \code{parallel == TRUE}.}
 
 \item{parallel}{Compute in parallel? Requires a registered \code{foreach}
@@ -125,7 +126,7 @@ doParallel::registerDoParallel(cores = 4)
 doFuture::registerDoFuture()
 future::plan("multisession", workers = 4)
 
-# ... or with mirai (shares the learned circuit across workers via mori)
+# ... or with mirai (shares large read-only inputs across workers via mori)
 mirai::daemons(4)
 }
 

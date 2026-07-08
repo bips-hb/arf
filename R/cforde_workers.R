@@ -7,7 +7,7 @@
 arf_cforde_step <- function(step_, condition_long, conds_conditioned,
                             nconds_conditioned, stepsize, cat_cols, cnt_cols,
                             params, family) {
-  # data.table NSE silencing
+  # To avoid data.table check issues
   . <- c_idx <- cvg <- cvg_arf <- cvg_factor <- f_idx <- f_idx_uncond <- i.max <-
     i.min <- leaf <- max.x <- max.y <- min.x <- min.y <- mu <- prob <- sigma <-
     tree <- V1 <- val <- variable <- min <- max <- NULL

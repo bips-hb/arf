@@ -307,6 +307,7 @@ cforde <- function(params,
                    nconds_conditioned = nconds_conditioned, stepsize = stepsize,
                    cat_cols = cat_cols, cnt_cols = cnt_cols,
                    params = params_shared, family = family))[]
+    arf_stop_on_mirai_error(res)
     updates_relevant_leaves <- list(
       cnt_new = rbindlist(lapply(res, `[[`, "cnt_new")),
       cat_new = rbindlist(lapply(res, `[[`, "cat_new")),

@@ -4,6 +4,7 @@
 \alias{arf-options}
 \alias{arf.backend}
 \alias{arf.verbose}
+\alias{arf.block_rows}
 \title{arf package options}
 \description{
 Options controlling the parallel backend and its messaging, set via
@@ -14,8 +15,9 @@ Options controlling the parallel backend and its messaging, set via
 \item{\code{arf.backend}}{Parallel backend used when \code{parallel = TRUE}:
 \code{"foreach"} or \code{"mirai"}. If unset, arf uses \code{"mirai"} when
 mirai daemons are running and \code{"foreach"} otherwise.}
-\item{\code{arf.verbose}}{Report the selected backend once per session?
-Default \code{TRUE}; set \code{FALSE} to silence.}
+\item{\code{arf.verbose}}{Report the selected backend once per backend
+configuration per session? Default \code{TRUE}; set \code{FALSE} to
+silence.}
 \item{\code{arf.block_rows}}{Cap on rows materialized per block of
 conditions in \code{\link{expct}}. Default \code{5e6}. Lower it to
 trade speed for memory on large forests with many conditions.}
@@ -28,16 +30,21 @@ For memory-constrained hardware, combine a small daemon count with a lower
 
 The \code{"foreach"} backend uses whatever adapter is registered (e.g.
 \code{doParallel}, \code{doFuture}). The \code{"mirai"} backend uses
-\code{mirai} daemons and shares the learned circuit across workers via
-\code{mori}, so workers do not each copy it. Speed is comparable between the
-backends. The memory benefit is largest for the tree-parallel operations
-(\code{\link{forde}}, \code{\link{adversarial_rf}}) on large forests with
-many workers, where \code{foreach} memory grows with the worker count and
-\code{mirai} stays much flatter (roughly half to a third at 16 workers in
-our benchmarks). For small workloads the daemon pool adds a fixed overhead
-that can outweigh the sharing, so prefer \code{"mirai"} at scale and either
-backend otherwise. All backend packages
-are in Suggests; install the ones you use.
+\code{mirai} daemons and shares large read-only inputs (training data,
+forest, learned parameters) across workers via \code{mori}, so workers do
+not each copy them. Speed is comparable between the backends. The memory
+benefit is largest for the tree-parallel operations (\code{\link{forde}},
+\code{\link{adversarial_rf}}) on large forests with many workers, where
+\code{foreach} memory grows with the worker count and \code{mirai} stays
+much flatter (roughly half to a third at 16 workers in internal benchmarks).
+For small workloads the daemon pool adds a fixed overhead that can outweigh
+the sharing, so prefer \code{"mirai"} at scale and either backend otherwise.
+All backend packages are in Suggests; install the ones you use.
+
+Under the \code{"mirai"} backend, stochastic operations
+(\code{\link{forge}}, categorical \code{\link{expct}}) are not reproducible
+via \code{\link{set.seed}}, matching the behavior of parallel
+\code{foreach} adapters without dedicated RNG streams.
 }
 \examples{
 \dontrun{
@@ -55,7 +62,7 @@ mirai::daemons(0)  # shut down when done
 # force a backend regardless of what is registered
 options(arf.backend = "mirai")
 
-# silence the once-per-session backend message
+# silence the backend message
 options(arf.verbose = FALSE)
 }
 

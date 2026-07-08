@@ -8,11 +8,12 @@
 # daemons must have arf loaded (arf imports data.table).
 arf_lik_fold <- function(fold, params, x, factor_cols, leaves, omega, preds,
                          batch_idx, pure, has_arf) {
-  # data.table NSE silencing
+  # To avoid data.table check issues
   tree <- cvg <- leaf <- variable <- mu <- sigma <- value <- obs <- prob <-
     V1 <- relation <- f_idx <- wt <- val <- family <- f_idx_uncond <- . <-
     lik <- s_idx <- min <- max <- NULL
 
+  # Prep work
   psi_cnt <- psi_cat <- NULL
   if (!has_arf & !isTRUE(pure)) {
     omega_tmp <- rbindlist(lapply(batch_idx[[fold]], function(i) {
@@ -66,6 +67,7 @@ arf_lik_fold <- function(fold, params, x, factor_cols, leaves, omega, preds,
       data.table(obs = batch_idx[[fold]], x_tmp),
       id.vars = 'obs', value.name = 'val', variable.factor = FALSE
     )
+    # Speedups are possible if there are many duplicates
     is_unique <- !duplicated(x_tmp)
     if (all(is_unique)) {
       x_unique <- x_long
