@@ -16,23 +16,14 @@ Options controlling the parallel backend and its messaging, set via
 mirai daemons are running and \code{"foreach"} otherwise.}
 \item{\code{arf.verbose}}{Report the selected backend once per session?
 Default \code{TRUE}; set \code{FALSE} to silence.}
-\item{\code{arf.chunk_factor}}{Chunks per worker for \code{mirai} tree
-maps (\code{\link{forde}}, \code{\link{adversarial_rf}} pruning).
-Default \code{1}. Values above 1 split the trees into smaller chunks,
-trading more result transfers for smaller per-daemon accumulation.
-Only these tree maps are affected: \code{\link{forge}}, \code{\link{expct}}
-and \code{\link{lik}} already dispatch one evidence step (or batch fold)
-per worker, so their granularity is controlled by their \code{stepsize}
-and \code{batch} arguments instead.}
 \item{\code{arf.block_rows}}{Cap on rows materialized per block of
 conditions in \code{\link{expct}}. Default \code{5e6}. Lower it to
 trade speed for memory on large forests with many conditions.}
 }
 
-\code{arf.chunk_factor} and \code{arf.block_rows} do not affect results,
-only peak memory and speed. For memory-constrained hardware, combine a
-small daemon count with \code{arf.chunk_factor} above 1, a lower
-\code{arf.block_rows}, and the \code{batch}/\code{stepsize} arguments of
+\code{arf.block_rows} does not affect results, only peak memory and speed.
+For memory-constrained hardware, combine a small daemon count with a lower
+\code{arf.block_rows} and the \code{batch}/\code{stepsize} arguments of
 \code{\link{lik}}, \code{\link{forge}} and \code{\link{expct}}.
 
 The \code{"foreach"} backend uses whatever adapter is registered (e.g.

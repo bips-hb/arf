@@ -65,4 +65,9 @@ Authors:
   \item Jan Kapar (\href{https://orcid.org/0009-0000-6408-2840}{ORCID})
 }
 
+Other contributors:
+\itemize{
+  \item Lukas Burk \email{cran@lukasburk.de} (\href{https://orcid.org/0000-0001-7528-3795}{ORCID}) [contributor]
+}
+
 }
