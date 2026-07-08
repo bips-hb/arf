@@ -9,7 +9,9 @@ Authors@R: c(
     person("Kristin", "Blesch", role = "aut",
            comment = c(ORCID = "0000-0001-6241-3079")),
     person("Jan", "Kapar", role = "aut",
-           comment = c(ORCID = "0009-0000-6408-2840"))
+           comment = c(ORCID = "0009-0000-6408-2840")),
+    person("Lukas", "Burk", , "cran@lukasburk.de", role = "ctb",
+           comment = c(ORCID = "0000-0001-7528-3795"))
   )
 Description: Adversarial random forests (ARFs) recursively partition data
     into fully factorized leaves, where features are jointly independent.
@@ -48,7 +50,7 @@ Suggests:
     tibble
 VignetteBuilder:
     knitr
+Config/roxygen2/version: 8.0.0
 Config/testthat/edition: 3
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-Config/roxygen2/version: 8.0.0
