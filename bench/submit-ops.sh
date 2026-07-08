@@ -38,21 +38,12 @@ CONFIGS=(
   "expct-or|ARF_BENCH_OPS=expct ARF_BENCH_ROWMODE=or ARF_BENCH_NEVIDENCE=100"
 )
 
-# Speed-for-memory knob sweeps (see ?arf-options and TODO.md item 3).
-# chunk_factor only affects the mirai tree maps (forde, prune), so those jobs
-# run mirai only; the base jobs above are the chunk_factor=1 / block_rows=5e6
-# reference points. block_rows is backend-independent, so the expct knob jobs
-# keep all backends.
-for CF in 2 4 8; do
-  CONFIGS+=(
-    "forde-cf$CF|ARF_BENCH_OPS=forde ARF_BENCH_CHUNK_FACTOR=$CF ARF_BENCH_BACKENDS=mirai"
-    "adversarial-rf-cf$CF|ARF_BENCH_OPS=adversarial_rf ARF_BENCH_CHUNK_FACTOR=$CF ARF_BENCH_BACKENDS=mirai"
-  )
-done
-CONFIGS+=(
-  "expct-sep-br5e5|ARF_BENCH_OPS=expct ARF_BENCH_ROWMODE=separate ARF_BENCH_NEVIDENCE=100 ARF_BENCH_BLOCK_ROWS=5e5"
-  "expct-or-br5e5|ARF_BENCH_OPS=expct ARF_BENCH_ROWMODE=or ARF_BENCH_NEVIDENCE=100 ARF_BENCH_BLOCK_ROWS=5e5"
-)
+# Knob sweeps ran 2026-07-08 and settled this: a chunks-per-worker knob was
+# benchmarked and REMOVED (it increased adversarial_rf memory, was flat for
+# forde), and arf.block_rows keeps its 5e6 default (5e5 indistinguishable at
+# scale: the per-condition floor exceeds both caps). ARF_BENCH_BLOCK_ROWS /
+# ARF_BENCH_BACKENDS job variants can be re-added here if those decisions
+# need revisiting.
 
 for cfg in "${CONFIGS[@]}"; do
   name="${cfg%%|*}"

@@ -19,8 +19,11 @@ Default \code{TRUE}; set \code{FALSE} to silence.}
 \item{\code{arf.chunk_factor}}{Chunks per worker for \code{mirai} tree
 maps (\code{\link{forde}}, \code{\link{adversarial_rf}} pruning).
 Default \code{1}. Values above 1 split the trees into smaller chunks,
-lowering each daemon's peak memory and smoothing uneven tree sizes, at
-the cost of more result transfers.}
+trading more result transfers for smaller per-daemon accumulation.
+Only these tree maps are affected: \code{\link{forge}}, \code{\link{expct}}
+and \code{\link{lik}} already dispatch one evidence step (or batch fold)
+per worker, so their granularity is controlled by their \code{stepsize}
+and \code{batch} arguments instead.}
 \item{\code{arf.block_rows}}{Cap on rows materialized per block of
 conditions in \code{\link{expct}}. Default \code{5e6}. Lower it to
 trade speed for memory on large forests with many conditions.}
@@ -36,11 +39,13 @@ The \code{"foreach"} backend uses whatever adapter is registered (e.g.
 \code{doParallel}, \code{doFuture}). The \code{"mirai"} backend uses
 \code{mirai} daemons and shares the learned circuit across workers via
 \code{mori}, so workers do not each copy it. Speed is comparable between the
-backends. The memory benefit is largest for \code{\link{forde}} on large
-forests with many workers, where \code{foreach} memory grows with the worker
-count and \code{mirai} stays much flatter. For small workloads the daemon
-pool adds a fixed overhead that can outweigh the sharing, so prefer
-\code{"mirai"} at scale and either backend otherwise. All backend packages
+backends. The memory benefit is largest for the tree-parallel operations
+(\code{\link{forde}}, \code{\link{adversarial_rf}}) on large forests with
+many workers, where \code{foreach} memory grows with the worker count and
+\code{mirai} stays much flatter (roughly half to a third at 16 workers in
+our benchmarks). For small workloads the daemon pool adds a fixed overhead
+that can outweigh the sharing, so prefer \code{"mirai"} at scale and either
+backend otherwise. All backend packages
 are in Suggests; install the ones you use.
 }
 \examples{

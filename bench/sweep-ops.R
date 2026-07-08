@@ -37,8 +37,8 @@ rowmode     <- match.arg(Sys.getenv("ARF_BENCH_ROWMODE", "separate"),
                          c("separate", "or"))
 ops_grid    <- strsplit(Sys.getenv("ARF_BENCH_OPS",
                  "forde,forge,expct,lik,adversarial_rf"), ",")[[1]]
-# Restrict backends for knob sweeps (e.g. ARF_BENCH_BACKENDS=mirai for
-# chunk-factor jobs: the knob only affects mirai, rerunning the rest is waste).
+# Restrict backends for targeted sweeps (e.g. ARF_BENCH_BACKENDS=mirai when a
+# change only affects mirai; rerunning the other backends would be waste).
 backends    <- strsplit(Sys.getenv("ARF_BENCH_BACKENDS",
                  "sequential,foreach,mirai"), ",")[[1]]
 
@@ -88,7 +88,6 @@ for (n in n_grid) {
             backend = be, seconds = round(m$seconds, 2),
             peak_mb = round(m$peak_mb, 1), metric = BENCH_METRIC,
             commit = BENCH_COMMIT,
-            chunk_factor = as.integer(Sys.getenv("ARF_BENCH_CHUNK_FACTOR", "1")),
             block_rows = as.numeric(Sys.getenv("ARF_BENCH_BLOCK_ROWS", "5e6")),
             # op-scale knobs recorded per row (NA where an op ignores them)
             n_evidence = if (op %in% c("forge", "expct")) n_evidence else NA_integer_,

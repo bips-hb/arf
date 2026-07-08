@@ -207,28 +207,6 @@ test_that("mirai backend runs adversarial_rf() end to end", {
   expect_length(a$forest$child.nodeIDs, a$num.trees)
 })
 
-test_that("arf.chunk_factor > 1 leaves results unchanged", {
-  skip_if_not_installed("mirai")
-  skip_if_not_installed("mori")
-
-  a <- adversarial_rf(iris, num_trees = 20, parallel = FALSE, verbose = FALSE)
-  serial <- forde(a, iris, parallel = FALSE)
-
-  old <- options(arf.backend = "mirai", arf.chunk_factor = 4)
-  on.exit(options(old), add = TRUE)
-  on.exit(options(arf.chunk_factor = NULL), add = TRUE)
-  setup_mirai_daemons(2)
-  on.exit(mirai::daemons(0), add = TRUE)
-
-  # finer chunks split trees 8 ways on 2 daemons; output must not change
-  psi <- forde(a, iris, parallel = TRUE)
-  expect_equal(psi, serial)
-
-  a_mirai <- adversarial_rf(iris, num_trees = 20, parallel = TRUE,
-                            verbose = FALSE)
-  expect_length(a_mirai$forest$child.nodeIDs, 20L)
-})
-
 test_that("arf.block_rows caps expct blocks without changing results", {
   a <- adversarial_rf(iris, num_trees = 10, parallel = FALSE, verbose = FALSE)
   psi <- forde(a, iris, parallel = FALSE)

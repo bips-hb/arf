@@ -63,7 +63,6 @@ if [ "$SCRIPT" = "bench/sweep-ops.R" ]; then
   echo "  n_evidence     = ${ARF_BENCH_NEVIDENCE:-100 (default)}"
   echo "  n_synth        = ${ARF_BENCH_NSYNTH:-1 (default)}"
   echo "  n_folds        = ${ARF_BENCH_NFOLDS:-8 (default)}"
-  echo "  chunk_factor   = ${ARF_BENCH_CHUNK_FACTOR:-1 (default)}"
   echo "  block_rows     = ${ARF_BENCH_BLOCK_ROWS:-5e6 (default)}"
 fi
 exec Rscript "$SCRIPT"

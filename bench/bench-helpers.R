@@ -157,9 +157,7 @@ BENCH_METRIC  <- if (!is.null(BENCH_CGROUP)) "cgroup-anon" else if (BENCH_USE_PS
   suppressWarnings(suppressMessages(pkgload::load_all(pkgdir, quiet = TRUE)))
   data.table::setDTthreads(dt_threads)
   options(ranger.num.threads = ranger_threads)
-  # speed-for-memory knobs (see ?arf-options), gridable via env
-  cf <- Sys.getenv("ARF_BENCH_CHUNK_FACTOR", "")
-  if (nzchar(cf)) options(arf.chunk_factor = as.integer(cf))
+  # speed-for-memory knob (see ?arf-options), gridable via env
   br <- Sys.getenv("ARF_BENCH_BLOCK_ROWS", "")
   if (nzchar(br)) options(arf.block_rows = as.numeric(br))
   d <- readRDS(data_path)
