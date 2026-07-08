@@ -34,10 +34,19 @@
 #' the sharing, so prefer \code{"mirai"} at scale and either backend otherwise.
 #' All backend packages are in Suggests; install the ones you use.
 #'
-#' Under the \code{"mirai"} backend, stochastic operations
-#' (\code{\link{forge}}, categorical \code{\link{expct}}) are not reproducible
-#' via \code{\link{set.seed}}, matching the behavior of parallel
-#' \code{foreach} adapters without dedicated RNG streams.
+#' Reproducibility of stochastic operations (\code{\link{forge}}, categorical
+#' \code{\link{expct}}) under parallel execution: \code{\link{set.seed}} only
+#' governs the calling process, not the workers. With the \code{"mirai"}
+#' backend, seed the daemons instead: \code{mirai::daemons(n, seed = 42)}
+#' gives reproducible results provided the daemon count, the seed and the
+#' sequence of calls on a fresh daemon pool are kept fixed (changing the
+#' daemon count changes how work is chunked and therefore the random stream
+#' assignment). For the \code{"foreach"} backend, register \code{doRNG} on top
+#' of the adapter (\code{doRNG::registerDoRNG(42)} after
+#' \code{registerDoParallel()}): results are then reproducible and independent
+#' of the worker count, provided \code{stepsize} is set explicitly (its
+#' default depends on the worker count). Sequential execution
+#' (\code{parallel = FALSE}) with \code{set.seed} is exact as always.
 #'
 #' @examples
 #' \dontrun{

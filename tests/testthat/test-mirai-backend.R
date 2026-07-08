@@ -286,6 +286,31 @@ test_that("mirai worker errors propagate instead of corrupting results", {
   expect_error(arf_mirai_tree_map(4, boom, list()), "boom")
 })
 
+test_that("seeded daemons make stochastic mirai results reproducible", {
+  skip_if_not_installed("mirai")
+  skip_if_not_installed("mori")
+
+  # set.seed() only governs the calling process; the documented recipe for
+  # reproducible forge()/expct() under mirai is daemons(n, seed = ) with a
+  # fixed daemon count and call sequence on a fresh pool (see ?arf-options).
+  arf <- adversarial_rf(iris, verbose = FALSE, parallel = FALSE)
+  psi <- forde(arf, iris, parallel = FALSE)
+  evi <- iris[c(1:7, 51:57, 101:107), "Species", drop = FALSE]
+
+  old <- options(arf.backend = "mirai")
+  on.exit(options(old), add = TRUE)
+  on.exit(mirai::daemons(0), add = TRUE)
+
+  run_once <- function() {
+    setup_mirai_daemons(2, seed = 42)
+    x <- forge(psi, n_synth = 3, evidence = evi, parallel = TRUE,
+               stepsize = 5, verbose = FALSE)
+    mirai::daemons(0)
+    x
+  }
+  expect_identical(run_once(), run_once())
+})
+
 test_that("foreach doParallel backend gives equal forde output", {
   skip_if_not_installed("doParallel")
   skip_on_cran()
