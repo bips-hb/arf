@@ -86,7 +86,27 @@ arf_iris <- adversarial_rf(iris, num_trees = 100)
 daemons(0)  # shut down when done
 ```
 
-If both are available, set `options(arf.backend = "foreach")` or `"mirai"` to choose explicitly. See `?"arf-options"` for details. The same backend is used by `forde`, `forge`, `expct`, and `lik`. For reproducible parallel sampling, start seeded daemons with `daemons(2, seed = 42)` and keep the daemon count fixed; see `?"arf-options"`.
+If both are available, set `options(arf.backend = "foreach")` or `"mirai"` to choose explicitly. See `?"arf-options"` for details. The same backend is used by `forde`, `forge`, `expct`, and `lik`. Daemons started via `future.mirai` (e.g. `plan(future.mirai::mirai_multisession)`) are detected automatically, so futureverse users get the `mirai` backend without extra setup.
+
+Stochastic operations (`forge`, categorical `expct`) are not governed by `set.seed()` under parallel execution. Both backends offer a reproducible setup:
+
+```{r repro, eval=FALSE}
+# params_iris is the forde() output introduced in the next section;
+# stepsize is the number of evidence rows per parallel step (default:
+# evidence rows / workers), made explicit here for reproducibility
+evi <- data.frame(Species = sample(levels(iris$Species), 100, replace = TRUE))
+
+# mirai: seeded daemons; keep the daemon count fixed
+daemons(2, seed = 42)
+x_synth <- forge(params_iris, n_synth = 1, evidence = evi, stepsize = 25)
+daemons(0)
+
+# foreach: doRNG on top of the adapter; set stepsize explicitly
+# (its default depends on the worker count)
+doParallel::registerDoParallel(2)
+doRNG::registerDoRNG(42)
+x_synth <- forge(params_iris, n_synth = 1, evidence = evi, stepsize = 25)
+```
 
 **Nested parallelism**: ARF splits work across workers, and `data.table` also threads within each worker. These multiply (`workers × threads`), so a product above your core count oversubscribes, which slows things down and inflates load average, since `data.table`'s idle OpenMP threads busy-wait by default. If parallel performance disappoints, cap per-worker threads with `data.table::setDTthreads()` and set `OMP_WAIT_POLICY=passive` before starting R so idle threads sleep. The best split of workers and threads depends on the data and hardware.
 
