@@ -199,7 +199,7 @@ forde <- function(
   # and report the choice. Only relevant when parallel = TRUE; see
   # arf_select_backend() in mirai_helpers.R.
   backend <- arf_select_backend(parallel)
-  use_mirai <- identical(backend, 'mirai')
+  use_mirai <- identical(backend, "mirai")
   if (use_mirai) {
     # Load arf (and via Imports, data.table with its S3 methods) on the
     # daemons; cached once per pool, see arf_load_on_daemons().
@@ -221,7 +221,7 @@ forde <- function(
   }
   if (use_mirai) {
     forest_slice <- mori::share(
-      arf$forest[c('split.varIDs', 'child.nodeIDs', 'split.values')])
+      arf$forest[c("split.varIDs", "child.nodeIDs", "split.values")])
     x_shared <- mori::share(x)
     pred_shared <- mori::share(pred)
     inbag_shared <- if (!is.null(arf$inbag.counts)) {

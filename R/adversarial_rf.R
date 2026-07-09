@@ -200,7 +200,7 @@ adversarial_rf <- function(
     use_mirai <- FALSE
     if (num_trees > 1) {
       backend <- arf_select_backend(parallel)
-      use_mirai <- identical(backend, 'mirai')
+      use_mirai <- identical(backend, "mirai")
     }
     if (use_mirai) {
       # arf_prune_tree's body is base-R, so pass it as an object (daemons need no

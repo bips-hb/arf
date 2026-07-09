@@ -291,7 +291,7 @@ cforde <- function(params,
   use_mirai <- FALSE
   if (step_no > 1) {
     backend <- arf_select_backend(parallel)
-    use_mirai <- identical(backend, 'mirai')
+    use_mirai <- identical(backend, "mirai")
   }
   if (use_mirai) {
     arf_load_on_daemons()  # daemons call arf/data.table internals via bare names
