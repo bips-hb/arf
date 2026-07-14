@@ -20,10 +20,16 @@
 #'   \code{NA} (\code{"na"}). The default is \code{"force"}.
 #' @param verbose Show warnings, e.g. when no leaf matches a condition?   
 #' @param stepsize How many rows of evidence should be handled at each step? 
-#'   Defaults to \code{nrow(evidence) / num_registered_workers} for 
+#'   Defaults to \code{nrow(evidence)} divided by the number of registered
+#'   workers or daemons for 
 #'   \code{parallel == TRUE}.
-#' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
-#'   via \code{doParallel} or \code{doFuture}; see examples.
+#' @param parallel Compute in parallel? Requires a registered \code{foreach}
+#'   backend (\code{doParallel}, \code{doFuture}) or active \code{mirai}
+#'   daemons. See \code{\link{arf-options}}. With
+#'   \code{evidence_row_mode = "or"}, parallelization happens inside the
+#'   conditional circuit computation; in benchmarks this gave little speedup
+#'   while raising peak memory, so consider \code{parallel = FALSE} for large
+#'   \code{"or"} queries.
 #' @param n_synth Number of synthetic samples to generate.
 #'
 #' @details  
@@ -99,6 +105,9 @@
 #' # ... or with doFuture
 #' doFuture::registerDoFuture()
 #' future::plan("multisession", workers = 4)
+#' 
+#' # ... or with mirai (shares large read-only inputs across workers via mori)
+#' mirai::daemons(4)
 #' }
 #'
 #' @seealso
@@ -131,7 +140,12 @@ forge <- function(
   tree <- cvg <- leaf <- idx <- family <- mu <- sigma <- prob <- dat <- 
     variable <- relation <- wt <- j <- f_idx <- val <- . <- step_ <- c_idx <-
     f_idx_uncond <- N <- step <- V1 <- NULL
-  
+
+  # Defaults so the extracted per-step worker always receives these (the
+  # evidence branches below set them for the conditional cases).
+  stepsize_cforde <- 0L
+  parallel_cforde <- FALSE
+
   factor_cols <- params$meta[, family == 'multinom']
   
   # Prepare evidence and stepsize
@@ -141,7 +155,7 @@ forge <- function(
     evidence <- as.data.table(evidence)
     if (stepsize == 0) {
       if (parallel) {
-        stepsize <- ceiling(nrow(evidence)/foreach::getDoParWorkers())
+        stepsize <- ceiling(nrow(evidence)/arf_n_workers())
       } else {
         stepsize <- nrow(evidence)
       }
@@ -162,143 +176,37 @@ forge <- function(
     step_no <- ceiling(nrow(evidence)/stepsize)
   } 
   
-  # Run in parallel for each step
+  # Per-step work lives once in arf_forge_step() (forge_workers.R), shared by all
+  # backends; this closure adapts it to foreach's one-argument iteration.
   par_fun <- function(step_) {
-    
-    # Prepare the event space
-    if (is.null(evidence) || ( ncol(evidence) == 2 && all(colnames(evidence) == c("f_idx", "wt")))) {
-      cparams <- NULL
-    } else {
-      # Call cforde with part of the evidence for this step
-      index_start <- (step_-1)*stepsize + 1
-      index_end <- min(step_*stepsize, nrow(evidence))
-      evidence_part <- evidence[index_start:index_end,]
-      cparams <- cforde(params, evidence_part, evidence_row_mode, nomatch, verbose, 
-                        stepsize_cforde, parallel_cforde)
-      if (is.null(cparams)) {
-        n_synth <- n_synth * nrow(evidence_part)
-      }
-    } 
-
-    # omega contains the weight (wt) for each leaf (f_idx) for each condition (c_idx)
-    if (is.null(cparams)) {
-      if (is.null(evidence)) {
-        num_trees <- params$forest[, max(tree)]
-        omega <- params$forest[, .(f_idx, f_idx_uncond = f_idx, cvg)]
-        omega[, `:=` (c_idx = 1, wt = cvg / num_trees)]
-        omega[, cvg := NULL]
-      } else {
-        omega <- copy(evidence)
-        omega[, f_idx_uncond := f_idx]
-        omega[, c_idx := 1]
-      }
-    } else {
-      omega <- cparams$forest[, .(c_idx, f_idx, f_idx_uncond, wt = cvg)]
-    } 
-    omega <- omega[wt > 0, ]
-    
-    # For each synthetic sample and condition, draw a leaf according to the leaf weights
-    if (nrow(omega) == 1) {
-      omega <- omega[rep(1, n_synth),][, idx := .I]
-    } else {
-      if (evidence_row_mode == "or") {
-        draws <- omega[, .(f_idx = resample(f_idx, size = n_synth, replace = TRUE, prob = wt))]
-        omega <- merge(draws, omega, by = "f_idx", sort = FALSE)[, idx := .I]
-      } else {
-        draws <- omega[, .(f_idx = resample(f_idx, size = n_synth, replace = TRUE, prob = wt)), by = c_idx]
-        omega <- merge(draws, omega, by = c("c_idx", "f_idx"), sort = FALSE)[, idx := .I]
-      }
-      setcolorder(omega, "idx")
-    }
-    
-    # Simulate continuous data
-    synth_cnt <- synth_cat <- NULL
-    if (any(!factor_cols)) {
-      fam <- params$meta[family != 'multinom', unique(family)]
-      if (is.null(cparams)) {
-        psi_cond <- data.table()
-      } else {
-        psi_cond <- merge(omega, cparams$cnt[,-c("cvg_factor", "f_idx_uncond")], by = c('c_idx', 'f_idx'), 
-                          sort = FALSE, allow.cartesian = TRUE)[prob > 0,]
-        # draw sub-leaf areas (resulting from within-row or-conditions)
-        if(any(psi_cond[,prob != 1])) {
-          psi_cond[, I := .I]
-          psi_cond <- psi_cond[sort(c(psi_cond[prob == 1, I],
-                          psi_cond[prob > 0 & prob < 1, fifelse(.N > 1, resample(I, 1, prob = prob), 0), by = .(variable, idx)][,V1])), -"I"]
-        }
-        psi_cond[, prob := NULL]
-      } 
-      psi <- unique(rbind(psi_cond,
-                          merge(omega, params$cnt, by.x = 'f_idx_uncond', by.y = 'f_idx',
-                                sort = FALSE, allow.cartesian = TRUE)[,val := NA_real_]), 
-                    by = c("idx", "variable"))
-      if (fam == 'truncnorm') {
-        psi[is.na(val), val := truncnorm::rtruncnorm(.N, a = min, b = max, mean = mu, sd = sigma)]
-        psi[is.na(val), val := mu]
-      } else if (fam == 'unif') {
-        psi[is.na(val), val := stats::runif(.N, min = min, max = max)]
-      }
-      NA_share_cnt <- psi[,.(idx, variable, NA_share)]
-      synth_cnt <- dcast(psi, idx ~ variable, value.var = 'val')[, idx := NULL]
-    }
-    
-    # Simulate categorical data
-    if (any(factor_cols)) {
-      if (is.null(cparams)) {
-        psi <- merge(omega, params$cat, by.x = 'f_idx_uncond', by.y = 'f_idx', sort = FALSE, allow.cartesian = TRUE)
-      } else {
-        psi_cond <- merge(omega, cparams$cat[,-c("cvg_factor", "f_idx_uncond")], by = c('c_idx', 'f_idx'), 
-                          sort = FALSE, allow.cartesian = TRUE)
-        psi_uncond <- merge(omega, params$cat, by.x = 'f_idx_uncond', by.y = 'f_idx',
-                            sort = FALSE, allow.cartesian = TRUE)
-        psi_uncond_relevant <- psi_uncond[!psi_cond, on = .(idx, variable)]
-        psi <- rbind(psi_cond, psi_uncond_relevant)
-      }
-      psi[prob < 1, val := sample(val, 1, prob = prob), by = .(variable, idx)]
-      
-      psi <- unique(psi[, .(idx, variable, val, NA_share)])
-      NA_share_cat <- psi[,.(idx, variable, NA_share)]
-      synth_cat <- dcast(psi, idx ~ variable, value.var = 'val')[, idx := NULL]
-    }
-    
-    # Combine, optionally impose constraint(s)
-    x_synth <- cbind(synth_cnt, synth_cat)
-    if (length(x_synth) == 0) {
-      x_synth <- evidence_part[FALSE,]
-    }
-    
-    # Clean up, export
-    x_synth <- post_x(x_synth, params, round)
-    
-    if (sample_NAs) {
-      setDT(x_synth)
-      NA_share <- rbind(NA_share_cnt, NA_share_cat)
-      setorder(NA_share[,variable := factor(variable, levels = params$meta[,variable])], variable, idx)
-      NA_share[,dat := rbinom(.N, 1, prob = NA_share)]
-      x_synth[dcast(NA_share, formula = idx ~ variable, value.var = "dat")[,-"idx"] == 1] <- NA
-      x_synth <- post_x(x_synth, params, round)
-    }
-    if (evidence_row_mode == "separate" & any(omega[, is.na(f_idx)])) {
-      setDT(x_synth)
-      indices_na <- cparams$forest[is.na(f_idx), c_idx]
-      indices_sampled <- cparams$forest[!is.na(f_idx), unique(c_idx)]
-      rows_na <- dcast(rbind(data.table(c_idx = 0, variable = params$meta[,variable]),
-                                        cparams$evidence_prepped[c_idx %in% indices_na,],
-                                        fill = TRUE),
-                                  c_idx ~ variable, value.var = "val")[c_idx != 0,]
-      rows_na <- rbindlist(replicate(n_synth, rows_na, simplify = FALSE))
-      if (nomatch == "force") {
-        rows_na_sampled <- forge(params, n_synth = nrow(rows_na), sample_NAs = sample_NAs, parallel = parallel, stepsize = stepsize)
-        rows_na[is.na(rows_na)] <- rows_na_sampled[is.na(rows_na[,-1])]
-      }
-      x_synth[, c_idx := rep(indices_sampled, each = n_synth)]
-      x_synth <- rbind(x_synth, rows_na, fill = TRUE)
-      setorder(x_synth, c_idx)[, c_idx :=  NULL]
-      x_synth <- post_x(x_synth, params, round)
-    }
-    x_synth
-  }
-  if (isTRUE(parallel)) {
+    arf_forge_step(step_, params, evidence, n_synth, factor_cols,
+                   evidence_row_mode, nomatch, verbose, round, sample_NAs,
+                   stepsize, stepsize_cforde, parallel_cforde)
+  } 
+  # Parallelism is across steps, so a single step is inherently serial regardless
+  # of backend (1-task %dopar% is pure overhead). Only pick a backend when
+  # step_no > 1; the "or" branch already set parallel <- FALSE (cforde
+  # parallelizes there instead).
+  use_mirai <- FALSE
+  if (step_no > 1) {
+    backend <- arf_select_backend(parallel)
+    use_mirai <- identical(backend, "mirai")
+  } 
+  if (use_mirai) {
+    arf_load_on_daemons()  # daemons need arf: worker calls cforde/post_x/resample
+    params_shared <- mori::share(params)
+    evidence_shared <- if (!is.null(evidence)) mori::share(evidence) else NULL
+    x_synth_ <- arf_mirai_tree_map(step_no, arf_forge_step, list(
+      params = params_shared, evidence = evidence_shared, n_synth = n_synth,
+      factor_cols = factor_cols, evidence_row_mode = evidence_row_mode,
+      nomatch = nomatch, verbose = verbose, round = round,
+      sample_NAs = sample_NAs, stepsize = stepsize,
+      stepsize_cforde = stepsize_cforde, parallel_cforde = parallel_cforde),
+      # package-level combine: an inline closure here would serialize forge's
+      # whole frame (params included) into every task
+      # See the closure note in mirai_helpers.R.
+      combine = arf_rbind_steps)
+  } else if (isTRUE(parallel) && step_no > 1) {
     x_synth_ <- foreach(step = 1:step_no, .combine = "rbind") %dopar% par_fun(step)
   } else {
     x_synth_ <- foreach(step = 1:step_no, .combine = "rbind") %do% par_fun(step)

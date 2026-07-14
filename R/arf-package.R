@@ -36,6 +36,9 @@
 #' # ... or with doFuture
 #' doFuture::registerDoFuture()
 #' future::plan("multisession", workers = 4)
+#'
+#' # ... or with mirai (shares large read-only inputs across workers via mori)
+#' mirai::daemons(4)
 #' }
 "_PACKAGE"
 

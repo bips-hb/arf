@@ -1,6 +1,6 @@
 Package: arf
 Title: Adversarial Random Forests
-Version: 0.2.5
+Version: 0.3.0
 Authors@R: c(
     person("Marvin N.", "Wright", , "cran@wrig.de", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-8542-6291")),
@@ -9,7 +9,9 @@ Authors@R: c(
     person("Kristin", "Blesch", role = "aut",
            comment = c(ORCID = "0000-0001-6241-3079")),
     person("Jan", "Kapar", role = "aut",
-           comment = c(ORCID = "0009-0000-6408-2840"))
+           comment = c(ORCID = "0009-0000-6408-2840")),
+    person("Lukas", "Burk", , "cran@lukasburk.de", role = "ctb",
+           comment = c(ORCID = "0000-0001-7528-3795"))
   )
 Description: Adversarial random forests (ARFs) recursively partition data
     into fully factorized leaves, where features are jointly independent.
@@ -33,19 +35,22 @@ Imports:
     ranger,
     stringr,
     truncnorm
-Suggests: 
+Suggests:
     doFuture,
     doParallel,
     ggplot2,
     knitr,
+    mirai,
     mlbench,
+    mori,
     palmerpenguins,
+    pkgload,
     rmarkdown,
     testthat (>= 3.0.0),
     tibble
-VignetteBuilder: 
+VignetteBuilder:
     knitr
+Config/roxygen2/version: 8.0.0
 Config/testthat/edition: 3
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.2

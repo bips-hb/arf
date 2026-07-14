@@ -14,3 +14,5 @@ attic/
 branch/
 /doc/
 /Meta/
+bench/logs/
+bench/results/

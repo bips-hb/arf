@@ -38,6 +38,9 @@ doParallel::registerDoParallel(cores = 4)
 # ... or with doFuture
 doFuture::registerDoFuture()
 future::plan("multisession", workers = 4)
+
+# ... or with mirai (shares large read-only inputs across workers via mori)
+mirai::daemons(4)
 }
 }
 \seealso{
@@ -56,9 +59,15 @@ Useful links:
 
 Authors:
 \itemize{
+  \item Marvin N. Wright \email{cran@wrig.de} (\href{https://orcid.org/0000-0002-8542-6291}{ORCID})
   \item David S. Watson \email{david.s.watson11@gmail.com} (\href{https://orcid.org/0000-0001-9632-2159}{ORCID})
   \item Kristin Blesch (\href{https://orcid.org/0000-0001-6241-3079}{ORCID})
   \item Jan Kapar (\href{https://orcid.org/0009-0000-6408-2840}{ORCID})
+}
+
+Other contributors:
+\itemize{
+  \item Lukas Burk \email{cran@lukasburk.de} (\href{https://orcid.org/0000-0001-7528-3795}{ORCID}) [contributor]
 }
 
 }

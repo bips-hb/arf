@@ -45,11 +45,17 @@ Options are to force sampling from a random leaf (\code{"force"}) or return
 \item{verbose}{Show warnings, e.g. when no leaf matches a condition?}
 
 \item{stepsize}{How many rows of evidence should be handled at each step?
-Defaults to \code{nrow(evidence) / num_registered_workers} for
+Defaults to \code{nrow(evidence)} divided by the number of registered
+workers or daemons for
 \code{parallel == TRUE}.}
 
-\item{parallel}{Compute in parallel? Must register backend beforehand, e.g.
-via \code{doParallel} or \code{doFuture}; see Examples.}
+\item{parallel}{Compute in parallel? Requires a registered \code{foreach}
+backend (\code{doParallel}, \code{doFuture}) or active \code{mirai}
+daemons. See \code{\link{arf-options}}. With
+\code{evidence_row_mode = "or"}, parallelization happens inside the
+conditional circuit computation; in benchmarks this gave little speedup
+while raising peak memory, so consider \code{parallel = FALSE} for large
+\code{"or"} queries.}
 }
 \value{
 A one row data frame with values for all query variables.
@@ -108,6 +114,9 @@ doParallel::registerDoParallel(cores = 4)
 # ... or with doFuture
 doFuture::registerDoFuture()
 future::plan("multisession", workers = 4)
+
+# ... or with mirai (shares large read-only inputs across workers via mori)
+mirai::daemons(4)
 }
 
 }

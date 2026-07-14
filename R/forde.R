@@ -25,8 +25,9 @@
 #'   \code{finite_bounds != "no"}. This avoids zero-density points when test 
 #'   data fall outside the support of training data. The gap between lower and 
 #'   upper bounds is expanded by a factor of \code{1 + epsilon}. 
-#' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
-#'   via \code{doParallel} or \code{doFuture}; see examples.
+#' @param parallel Compute in parallel? Requires a registered \code{foreach}
+#'   backend (\code{doParallel}, \code{doFuture}) or active \code{mirai}
+#'   daemons. See \code{\link{arf-options}}.
 #'   
 #'   
 #' @details 
@@ -96,6 +97,9 @@
 #' # ... or with doFuture
 #' doFuture::registerDoFuture()
 #' future::plan("multisession", workers = 4)
+#'
+#' # ... or with mirai (shares large read-only inputs across workers via mori)
+#' mirai::daemons(4)
 #' }
 #' 
 #' 
@@ -110,7 +114,7 @@
 #' @importFrom stats predict runif
 #' @importFrom foreach foreach %do% %dopar%
 #' 
-
+  
 forde <- function(
     arf, 
     x, 
@@ -191,139 +195,80 @@ forde <- function(
   
   # Compute leaf bounds and coverage
   num_trees <- arf$num.trees
-  bnd_fn <- function(tree) {
-    num_nodes <- length(arf$forest$split.varIDs[[tree]])
-    lb <- matrix(-Inf, nrow = num_nodes, ncol = d)
-    ub <- matrix(Inf, nrow = num_nodes, ncol = d)
-    if (finite_bounds == 'global' & any(!factor_cols)) {
-      for (j in which(!factor_cols)) {
-        min_j <- min(x[[j]], na.rm = TRUE)
-        max_j <- max(x[[j]], na.rm = TRUE)
-        gap <- max_j - min_j
-        lb[, j] <- min_j - epsilon / 2 * gap
-        ub[, j] <- max_j + epsilon / 2 * gap
-      }
-    }
-    for (i in 1:num_nodes) {
-      left_child <- arf$forest$child.nodeIDs[[tree]][[1]][i] + 1L
-      right_child <- arf$forest$child.nodeIDs[[tree]][[2]][i] + 1L
-      splitvarID <- arf$forest$split.varIDs[[tree]][i] + 1L
-      splitval <- arf$forest$split.values[[tree]][i]
-      if (left_child > 1) {
-        ub[left_child, ] <- ub[right_child, ] <- ub[i, ]
-        lb[left_child, ] <- lb[right_child, ] <- lb[i, ]
-        if (left_child != right_child) {
-          # If no pruned node, split changes bounds
-          ub[left_child, splitvarID] <- lb[right_child, splitvarID] <- splitval
-        }
-      }
-    }
-    leaves <- which(arf$forest$child.nodeIDs[[tree]][[1]] == 0L) 
-    colnames(lb) <- colnames(ub) <- colnames_x
-    merge(melt(data.table(tree = tree, leaf = leaves, lb[leaves, , drop = FALSE]), 
-               id.vars = c('tree', 'leaf'), value.name = 'min'), 
-          melt(data.table(tree = tree, leaf = leaves, ub[leaves, , drop = FALSE]), 
-               id.vars = c('tree', 'leaf'), value.name = 'max'), 
-          by = c('tree', 'leaf', 'variable'), sort = FALSE)
+  # Pick the parallel backend (mirai daemons vs a registered foreach backend)
+  # and report the choice. Only relevant when parallel = TRUE; see
+  # arf_select_backend() in mirai_helpers.R.
+  backend <- arf_select_backend(parallel)
+  use_mirai <- identical(backend, "mirai")
+  if (use_mirai) {
+    # Load arf (and via Imports, data.table with its S3 methods) on the
+    # daemons; cached once per pool, see arf_load_on_daemons().
+    arf_load_on_daemons()
   }
-  if (isTRUE(parallel)) {
+  # Leaf assignments first: the per-tree bounds worker computes its tree's
+  # coverage from its pred column. predict() needs prep_x's column names
+  # (the forest was trained on them).
+  pred <- stats::predict(arf, x, type = 'terminalNodes')$predictions + 1L
+  # Restore original column names before x is shared with workers: the psi
+  # workers match x's melted column names against bnds$variable, which uses
+  # colnames_x (the bounds worker accesses x by index, never by name).
+  setnames(x, colnames_x)
+  # Per-tree workers live once in forde_workers.R, shared by all backends; the
+  # closures below adapt them to foreach's one-argument iteration.
+  bnd_fn <- function(tree) {
+    arf_bnd_fn(tree, arf$forest, d, finite_bounds, factor_cols, x, epsilon,
+               colnames_x, pred, arf$inbag.counts, n, oob)
+  }
+  if (use_mirai) {
+    forest_slice <- mori::share(
+      arf$forest[c("split.varIDs", "child.nodeIDs", "split.values")])
+    x_shared <- mori::share(x)
+    pred_shared <- mori::share(pred)
+    inbag_shared <- if (!is.null(arf$inbag.counts)) {
+      mori::share(arf$inbag.counts)
+    } else NULL
+    bnds <- arf_mirai_tree_map(num_trees, arf_bnd_fn, list(
+      forest = forest_slice, d = d, finite_bounds = finite_bounds,
+      factor_cols = factor_cols, x = x_shared, epsilon = epsilon,
+      colnames_x = colnames_x, pred = pred_shared,
+      inbag.counts = inbag_shared, n = n, oob = oob))
+  } else if (isTRUE(parallel)) {
     bnds <- foreach(tree = seq_len(num_trees), .combine = rbind) %dopar% bnd_fn(tree)
   } else {
     bnds <- foreach(tree = seq_len(num_trees), .combine = rbind) %do% bnd_fn(tree)
   }
-  # Compute coverage
-  pred <- stats::predict(arf, x, type = 'terminalNodes')$predictions + 1L
-  keep <- data.table('tree' = rep(seq_len(num_trees), each = n), 
-                     'leaf' = as.vector(pred))
-  if (isTRUE(oob)) {
-    keep[, oob := as.vector(sapply(seq_len(num_trees), function(b) {
-      arf$inbag.counts[[b]][seq_len(n)] == 0L
-    }))]
-    keep <- keep[oob == TRUE]
-    keep <- unique(keep[, cnt := .N, by = .(tree, leaf)])
-    keep[, n_oob := sum(oob), by = tree]
-    keep[, cvg := cnt / n_oob][, c('oob', 'cnt', 'n_oob') := NULL]
-    keep[, cvg := cvg/sum(cvg), by = tree]
-  } else if (oob == "inbag") {
-    keep[, inbag := as.vector(sapply(seq_len(num_trees), function(b) {
-      arf$inbag.counts[[b]][seq_len(n)] > 0L
-    }))]
-    keep <- keep[inbag == TRUE]
-    keep <- unique(keep[, cnt := .N, by = .(tree, leaf)])
-    keep[, n_inbag := sum(inbag), by = tree]
-    keep[, cvg := cnt / n_inbag][, c('inbag', 'cnt', 'n_inbag') := NULL]
-    keep[, cvg := cvg/sum(cvg), by = tree]
-  } else {
-    keep <- unique(keep[, cnt := .N, by = .(tree, leaf)])
-    keep[, cvg := cnt / n][, cnt := NULL]
-  }
-  bnds <- merge(bnds, keep, by = c('tree', 'leaf'), sort = FALSE)
-  rm(keep)
   # Create forest index
   setkey(bnds, tree, leaf)
   bnds[, f_idx := .GRP, by = key(bnds)]
   
-  # Calculate distribution parameters for each variable
-  setnames(x, colnames_x)
+  # Calculate distribution parameters for each variable: one fused dispatch
+  # per tree computes continuous and categorical params together (they share
+  # every input).
+  psi_fn <- function(tree) {
+    arf_psi_fn(tree, arf_psi_cnt_fn, arf_psi_cat_fn, x, factor_cols, pred,
+               arf$inbag.counts, n, oob, bnds, finite_bounds, epsilon, family,
+               lvl_df_rf, alpha)
+  }
+  if (use_mirai) {
+    bnds_shared <- mori::share(bnds)
+    psi_pair <- arf_mirai_tree_map(num_trees, arf_psi_fn, list(
+      cnt_fn = arf_psi_cnt_fn, cat_fn = arf_psi_cat_fn,
+      x = x_shared, factor_cols = factor_cols, pred = pred_shared,
+      inbag.counts = inbag_shared, n = n, oob = oob,
+      bnds = bnds_shared, finite_bounds = finite_bounds,
+      epsilon = epsilon, family = family,
+      lvl_df_rf = mori::share(lvl_df_rf), alpha = alpha),
+      combine = arf_combine_psi)
+  } else if (isTRUE(parallel)) {
+    psi_pair <- arf_combine_psi(
+      foreach(tree = seq_len(num_trees)) %dopar% psi_fn(tree))
+  } else {
+    psi_pair <- arf_combine_psi(
+      foreach(tree = seq_len(num_trees)) %do% psi_fn(tree))
+  }
   # Continuous case
   if (any(!factor_cols)) {
-    psi_cnt_fn <- function(tree) {
-      dt <- data.table(x[, !factor_cols, drop = FALSE], leaf = pred[, tree])
-      if (isTRUE(oob)) {
-        dt <- dt[arf$inbag.counts[[tree]][1:n] == 0L, ]
-        dt <- dt[!is.na(leaf)]
-      } else if (oob == "inbag") {
-        dt <- dt[arf$inbag.counts[[tree]][1:n] > 0L, ]
-        dt <- dt[!is.na(leaf)]
-      }
-      dt <- melt(dt, id.vars = 'leaf', variable.factor = FALSE)[, tree := tree]
-      dt <- merge(dt, bnds[, .(tree, leaf, variable, min, max, f_idx)],
-                  by = c('tree', 'leaf', 'variable'), sort = FALSE)
-      # Caculate bounds for finite_bounds == 'local'
-      if (finite_bounds == 'local') {
-        dt[, c('min_emp', 'max_emp') := .(min(value, na.rm = TRUE), max(value, na.rm = TRUE)), by = .(leaf, variable)]
-        dt[, length_emp := max_emp - min_emp]
-        # Calculate bounds if min_emp == max_emp in order to be able to sample from cont. distribution
-        length_emp_0_replace <- min(dt[length_emp > 0, min(length_emp, na.rm = TRUE)], max(epsilon, 1e-12))
-        dt[length_emp == 0, c('min_emp', 'max_emp', 'length_emp') := .(min_emp - length_emp_0_replace/2, max_emp + length_emp_0_replace/2, length_emp_0_replace)]
-        dt[, c('min', 'max', 'min_emp', 'max_emp', 'length_emp') := .(fifelse(!is.finite(min) & !is.na(min_emp), min_emp - length_emp*(epsilon/2), min),
-                                                                      fifelse(!is.finite(max) & !is.na(max_emp), max_emp + length_emp*(epsilon/2), max),
-                                                                      NULL, NULL, NULL)]
-      }
-      if (family == 'truncnorm') {
-        dt[, c('mu', 'sigma', 'NA_share') := .(mean(value, na.rm = TRUE), sd(value, na.rm = TRUE), sum(is.na(value))/.N),
-           by = .(leaf, variable)]
-        dt[, c('min_emp', 'max_emp') := .(min(value, na.rm = TRUE), max(value, na.rm = TRUE)), by = variable]
-        dt[NA_share == 1, c('min', 'max') := .(fifelse(is.infinite(min), min_emp, min),
-                                               fifelse(is.infinite(max), max_emp, max))]
-        dt[, c("min_emp", "max_emp") := NULL]
-        dt[NA_share == 1, mu := (max + min) / 2]
-        dt[is.na(sigma), sigma := 0]
-        if (any(dt[, sigma == 0])) {
-          dt[, new_min := fifelse(!is.finite(min), min(value, na.rm = TRUE), min), by = variable]
-          dt[, new_max := fifelse(!is.finite(max), max(value, na.rm = TRUE), max), by = variable]
-          dt[, mid := (new_min + new_max) / 2]
-          dt[, sigma0 := (new_max - mid) / stats::qnorm(0.975)] 
-          # This prior places 95% of the density within the bounding box.
-          # In addition, we set the prior degrees of freedom at nu0 = 2. 
-          # Since the mode of a chisq is max(df-2, 0), this means that
-          # (1) with a single observation, the posterior reduces to the prior; and
-          # (2) with more invariant observations, the posterior tends toward zero.
-          dt[sigma == 0, sigma := sqrt(2 / .N * sigma0^2), by = .(variable, leaf)]
-          dt[, c('new_min', 'new_max', 'mid', 'sigma0') := NULL]
-        }
-      } else if (family == 'unif') {
-        dt[, NA_share := sum(is.na(value))/.N, by = .(leaf, variable)]
-      }
-      return(unique(dt[, c('tree', 'leaf', 'value') := NULL]))
-    }
-    if (isTRUE(parallel)) {
-      psi_cnt <- foreach(tree = seq_len(num_trees), .combine = rbind) %dopar% 
-        psi_cnt_fn(tree)
-    } else {
-      psi_cnt <- foreach(tree = seq_len(num_trees), .combine = rbind) %do% 
-        psi_cnt_fn(tree)
-    }
+    psi_cnt <- psi_pair$cnt
     setkey(psi_cnt, f_idx, variable)
     setcolorder(psi_cnt, c('f_idx', 'variable'))
   } else {
@@ -333,75 +278,7 @@ forde <- function(
   
   # Categorical case
   if (any(factor_cols)) {
-    psi_cat_fn <- function(tree) {
-      dt <- data.table(x[, factor_cols, drop = FALSE], leaf = pred[, tree])
-      if (isTRUE(oob)) {
-        dt <- dt[!is.na(leaf)]
-      }
-      dt <- melt(dt, id.vars = 'leaf', variable.factor = FALSE,
-                 value.factor = FALSE, value.name = 'val')[, tree := tree]
-      dt[, NA_share := sum(is.na(val))/.N, by = .(leaf, variable)]
-      dt <- dt[!(is.na(val) & NA_share != 1)]
-      if (dt[, any(NA_share == 1)]) {
-        # Handle leaves where all values for a categorical variable are NA
-        all_na <- unique(dt[NA_share == 1, ])
-        dt <- dt[NA_share != 1, ]
-        all_na <- merge(all_na, bnds[, .(tree, leaf, variable, min, max, f_idx)],
-                        by = c('tree', 'leaf', 'variable'), sort = FALSE)
-        all_na[!is.finite(min), min := 0.5]
-        for (j in names(which(factor_cols))) {
-          all_na[!is.finite(max) & variable == j, max := lvl_df_rf[variable == j, max(level)]]
-        }
-        all_na[!grepl('\\.5', min), min := min + 0.5]
-        all_na[!grepl('\\.5', max), max := max + 0.5]
-        all_na[, min := min + 0.5][, max := max - 0.5]
-        all_na <- all_na[, .(level = seq(min, max), NA_share), by = .(leaf, variable)]
-        all_na <- merge(all_na, lvl_df_rf, by = c('variable', 'level'))
-        all_na[, level := NULL][, tree := tree]
-        setcolorder(all_na, colnames(dt))
-        dt <- rbind(dt, all_na)
-      }
-      dt[, count := .N, by = .(leaf, variable)]
-      dt <- merge(dt, bnds[, .(tree, leaf, variable, min, max, f_idx)], 
-                  by = c('tree', 'leaf', 'variable'), sort = FALSE)
-      dt[, c('tree', 'leaf') := NULL]
-      if (alpha == 0) {
-        dt <- unique(dt[, prob := .N / count, by = .(f_idx, variable, val)])
-      } else {
-        # Define the range of each variable in each leaf
-        dt <- unique(dt[, val_count := .N, by = .(f_idx, variable, val)])
-        dt <- merge(dt, lvl_df_rf[, .(k = .N), by = variable], by = "variable")
-        dt[!is.finite(min), min := 0.5][!is.finite(max), max := k + 0.5]
-        dt[!grepl('\\.5', min), min := min + 0.5][!grepl('\\.5', max), max := max + 0.5]
-        dt[, k := max - min]
-        # Enumerate each possible leaf-variable-value combo
-        tmp <- dt[, seq(min[1] + 0.5, max[1] - 0.5), by = .(f_idx, variable)]
-        setnames(tmp, 'V1', 'level')
-        tmp <- merge(tmp, lvl_df_rf, by = c('variable', 'level'), 
-                     sort = FALSE)[, level := NULL]
-        # Populate count, k
-        tmp <- merge(tmp, unique(dt[, .(f_idx, variable, count, k)]),
-                     by = c('f_idx', 'variable'), sort = FALSE)
-        # Merge with dt, set val_count = 0 for possible but unobserved levels
-        dt <- merge(tmp, dt, by = c('f_idx', 'variable', 'val', 'count', 'k'), 
-                    all.x = TRUE, sort = FALSE)
-        dt[is.na(val_count), val_count := 0]
-        dt[, NA_share := mean(NA_share, na.rm = TRUE), by = .(f_idx, variable)]
-        # Compute posterior probabilities
-        dt[, prob := (val_count + alpha) / (count + alpha * k), by = .(f_idx, variable, val)]
-        dt[, c('val_count', 'k') := NULL]
-      }
-      dt[, c('count', 'min', 'max') := NULL]
-      setcolorder(dt, c("f_idx", "variable", "val", "prob", "NA_share"))
-      dt
-    }
-    if (isTRUE(parallel)) {
-      psi_cat <- foreach(tree = seq_len(num_trees), .combine = rbind) %dopar% 
-        psi_cat_fn(tree)
-    } else {
-      psi_cat <- foreach(tree = seq_len(num_trees), .combine = rbind) %do% 
-        psi_cat_fn(tree)
-    }
+    psi_cat <- psi_pair$cat
     lvl_df_rf[, level := NULL]
     setkey(psi_cat, f_idx, variable)
     setcolorder(psi_cat, c('f_idx', 'variable'))
