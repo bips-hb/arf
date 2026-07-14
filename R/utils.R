@@ -303,7 +303,7 @@ cforde <- function(params,
       seq_len(step_no),
       arf_cforde_step,
       .args = list(condition_long = condition_long_shared,
-                   conds_conditioned = conds_conditioned,
+                   conds_conditioned = mori::share(conds_conditioned),
                    nconds_conditioned = nconds_conditioned, stepsize = stepsize,
                    cat_cols = cat_cols, cnt_cols = cnt_cols,
                    params = params_shared, family = family))[]

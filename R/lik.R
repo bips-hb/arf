@@ -197,9 +197,11 @@ lik <- function(
     arf_load_on_daemons()  # daemons need arf (worker uses bare data.table verbs)
     out <- arf_mirai_tree_map(k, arf_lik_fold, list(
       params = mori::share(params), x = mori::share(x),
-      factor_cols = factor_cols, leaves = leaves, omega = mori::share(omega),
+      factor_cols = factor_cols, leaves = mori::share(leaves),
+      omega = mori::share(omega),
       preds = if (!is.null(preds)) mori::share(preds) else NULL,
-      batch_idx = batch_idx, pure = pure, has_arf = !is.null(arf)))
+      batch_idx = mori::share(batch_idx), pure = pure,
+      has_arf = !is.null(arf)))
   } else if (isTRUE(parallel) && k > 1) {
     out <- foreach(fold = seq_len(k), .combine = rbind) %dopar% lik_fn(fold, arf)
   } else {
