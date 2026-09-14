@@ -68,6 +68,7 @@ sample_from_leaves <- function(arf, x_real, params = NULL, round = TRUE,
   if (is.null(factor_cols)) {
     factor_cols <- sapply(x_real, is.factor)
   }
+  factor_colnames <- names(x_real)[factor_cols]
   if (is.null(lvls)) {
     lvls <- lapply(x_real[factor_cols], levels)
   }
@@ -79,7 +80,7 @@ sample_from_leaves <- function(arf, x_real, params = NULL, round = TRUE,
   tmp2 <- unique(tmp2[, cnt := .N, by = .(tree, leaf)])
   draw_from <- rbindlist(lapply(seq_len(arf$num.trees), function(b) {
     x_real_b <- cbind(x_real, tmp[tree == b])
-    x_real_b[, factor_cols] <- lapply(x_real_b[, factor_cols, drop = FALSE], as.numeric)
+    x_real_b[, factor_colnames] <- lapply(x_real_b[, factor_colnames, drop = FALSE], as.numeric)
     merge(tmp2, x_real_b, by = c('tree', 'leaf'),
           sort = FALSE)[, N := .N, by = .(tree, leaf)]
   }))
