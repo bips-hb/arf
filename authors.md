@@ -11,6 +11,11 @@
 
 - **Jan Kapar**. Author. [](https://orcid.org/0009-0000-6408-2840)
 
+- **Lukas Burk**. Contributor. [](https://orcid.org/0000-0001-7528-3795)
+
+- **Martin Jullum**. Contributor.
+  [](https://orcid.org/0000-0003-3908-5155)
+
 ## Citation
 
 Source:
