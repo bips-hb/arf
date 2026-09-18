@@ -9,7 +9,11 @@ Authors@R: c(
     person("Kristin", "Blesch", role = "aut",
            comment = c(ORCID = "0000-0001-6241-3079")),
     person("Jan", "Kapar", role = "aut",
-           comment = c(ORCID = "0009-0000-6408-2840"))
+           comment = c(ORCID = "0009-0000-6408-2840")),
+    person("Lukas", "Burk", , "cran@lukasburk.de", role = c("ctb"),
+     comment = c(ORCID = "0000-0001-7528-3795")),
+    person("Martin", "Jullum", email = "Martin.Jullum@nr.no", role = c("ctb"), 
+     comment = c(ORCID = "0000-0003-3908-5155"))
   )
 Description: Adversarial random forests (ARFs) recursively partition data
     into fully factorized leaves, where features are jointly independent.
