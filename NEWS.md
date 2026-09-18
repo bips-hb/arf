@@ -6,7 +6,9 @@
 * Reduce memory and dispatch overhead in `forde()` (fused per-tree parameter pass, per-tree coverage) and `lik()` (per-batch reduction)
 
 # arf 0.2.5
+
 * Export sample_from_leaves() for intra-leaf marginal sampling
+* Avoid fractional recycling of factor column indices in sample_from_leaves()
 
 # arf 0.2.4
 * Let verbose=FALSE silence (some) warnings
