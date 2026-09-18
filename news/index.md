@@ -3,6 +3,8 @@
 ## arf 0.2.5
 
 - Export sample_from_leaves() for intra-leaf marginal sampling
+- Avoid fractional recycling of factor column indices in
+  sample_from_leaves()
 
 ## arf 0.2.4
 
