@@ -152,9 +152,7 @@ expct <- function(
     if (ncol(evidence) == 2 && all(colnames(evidence) == c("f_idx", "wt"))) {
       stepsize <- nrow(evidence)
     } else if (evidence_row_mode == "separate") {
-      # For "separate", parallelize in expct (not in cforde)
-      stepsize_cforde <- 0
-      parallel_cforde = FALSE
+      # For "separate", parallelize in expct (not in cforde): keep the defaults
     } else {
       # For "or", parallelize in cforde (not in expct)
       parallel_cforde <- parallel

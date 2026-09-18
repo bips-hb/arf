@@ -223,7 +223,17 @@ arf_stop_on_mirai_error <- function(res) {
 # (same class, clean 1..n row.names). Package-level on purpose: an inline
 # closure in forge()/expct() would serialize their whole frame, params
 # included, into every task (see note above).
+# rbind.data.frame matches by name and silently DROPS columns the first part
+# lacks, so ragged parts would return a quietly truncated result where the
+# serial path errors. rbindlist() would refuse them, but it also returns a
+# data.table and the serial path returns a data.frame; check instead.
 arf_rbind_steps <- function(parts) {
+  nms <- lapply(parts, names)
+  if (!all(vapply(nms, identical, logical(1), nms[[1]]))) {
+    stop("arf: parallel steps returned different columns, cannot combine. ",
+         "Known trigger: expct() with nomatch = 'force' and stepsize < nrow(evidence).",
+         call. = FALSE)
+  }
   r <- do.call(rbind, parts)
   rownames(r) <- NULL
   r

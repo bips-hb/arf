@@ -2,8 +2,7 @@
 # equality vs the sequential/foreach paths on one dataset.
 
 test_that("mirai backend produces equal forde output on iris", {
-  skip_if_not_installed("mirai")
-  skip_if_not_installed("mori")
+  skip_if_no_daemons()
 
   arf <- adversarial_rf(iris, verbose = FALSE, parallel = FALSE)
 
@@ -22,8 +21,7 @@ test_that("mirai backend produces equal forde output on iris", {
 })
 
 test_that("mirai backend errors clearly when daemons are not set", {
-  skip_if_not_installed("mirai")
-  skip_if_not_installed("mori")
+  skip_if_no_daemons()
 
   arf <- adversarial_rf(iris, verbose = FALSE, parallel = FALSE)
   mirai::daemons(0)
@@ -34,8 +32,7 @@ test_that("mirai backend errors clearly when daemons are not set", {
 })
 
 test_that("mirai backend produces structurally consistent forge() output", {
-  skip_if_not_installed("mirai")
-  skip_if_not_installed("mori")
+  skip_if_no_daemons()
 
   # forge() is stochastic, so compare structure (not values) across backends.
   arf <- adversarial_rf(iris, verbose = FALSE, parallel = FALSE)
@@ -64,8 +61,7 @@ test_that("mirai backend produces structurally consistent forge() output", {
 })
 
 test_that("mirai backend gives identical lik() (deterministic)", {
-  skip_if_not_installed("mirai")
-  skip_if_not_installed("mori")
+  skip_if_no_daemons()
 
   arf <- adversarial_rf(iris, verbose = FALSE, parallel = FALSE)
   psi <- forde(arf, iris, parallel = FALSE)
@@ -83,8 +79,7 @@ test_that("mirai backend gives identical lik() (deterministic)", {
 })
 
 test_that("mirai backend gives structurally consistent expct()", {
-  skip_if_not_installed("mirai")
-  skip_if_not_installed("mori")
+  skip_if_no_daemons()
 
   arf <- adversarial_rf(iris, verbose = FALSE, parallel = FALSE)
   psi <- forde(arf, iris, parallel = FALSE)
@@ -104,8 +99,7 @@ test_that("mirai backend gives structurally consistent expct()", {
 })
 
 test_that("arf_n_workers reflects active mirai daemons (stepsize sizing)", {
-  skip_if_not_installed("mirai")
-  skip_on_cran()
+  skip_if_no_daemons()
 
   mirai::daemons(0)
   n_idle <- arf_n_workers()  # no mirai, no foreach -> 1
@@ -117,8 +111,7 @@ test_that("arf_n_workers reflects active mirai daemons (stepsize sizing)", {
 })
 
 test_that("mirai backend gives identical cforde() (deterministic)", {
-  skip_if_not_installed("mirai")
-  skip_if_not_installed("mori")
+  skip_if_no_daemons()
 
   arf <- adversarial_rf(iris, verbose = FALSE, parallel = FALSE)
   psi <- forde(arf, iris, parallel = FALSE)
@@ -140,8 +133,7 @@ test_that("mirai backend gives identical cforde() (deterministic)", {
 })
 
 test_that("mirai backend preserves row order and class in expct() (regression)", {
-  skip_if_not_installed("mirai")
-  skip_if_not_installed("mori")
+  skip_if_no_daemons()
 
   # step_no (8) > n_workers (2): guards against interleaved-chunk row scrambling
   # and data.table-vs-data.frame class drift in arf_mirai_tree_map.
@@ -164,8 +156,7 @@ test_that("mirai backend preserves row order and class in expct() (regression)",
 })
 
 test_that("mirai backend gives identical adversarial_rf() pruning (deterministic)", {
-  skip_if_not_installed("mirai")
-  skip_if_not_installed("mori")
+  skip_if_no_daemons()
 
   # ranger draws per-tree seeds from the R RNG, so training is reproducible
   # under set.seed() regardless of threading; prune is deterministic given a
@@ -187,8 +178,7 @@ test_that("mirai backend gives identical adversarial_rf() pruning (deterministic
 })
 
 test_that("mirai backend runs adversarial_rf() end to end", {
-  skip_if_not_installed("mirai")
-  skip_if_not_installed("mori")
+  skip_if_no_daemons()
 
   old <- options(arf.backend = "mirai")
   on.exit(options(old), add = TRUE)
@@ -235,10 +225,19 @@ test_that("arf_tree_chunks yields contiguous in-order blocks covering all trees"
   }
 })
 
+test_that("arf_rbind_steps refuses ragged step results", {
+  # rbind.data.frame would silently drop `z` and return a truncated result,
+  # where the serial foreach path errors. Ragged steps are reachable today:
+  # expct() with nomatch = "force" and stepsize < nrow(evidence).
+  a <- data.frame(x = 1, y = 2)
+  b <- data.frame(x = 3, y = 4, z = 5)
+  expect_equal(arf_rbind_steps(list(a, a)),
+               data.frame(x = c(1, 1), y = c(2, 2)))
+  expect_error(arf_rbind_steps(list(a, b)), "different columns")
+})
+
 test_that("arf_select_backend applies the documented precedence", {
-  skip_if_not_installed("mirai")
-  skip_if_not_installed("mori")
-  skip_on_cran()
+  skip_if_no_daemons()
 
   old <- options(arf.backend = NULL, arf.verbose = FALSE)
   on.exit(options(old), add = TRUE)
@@ -260,7 +259,7 @@ test_that("arf_select_backend applies the documented precedence", {
 })
 
 test_that("arf_load_on_daemons caches per daemon pool and self-invalidates", {
-  skip_if_not_installed("mirai")
+  skip_if_no_daemons()
 
   setup_mirai_daemons(2)
   on.exit(mirai::daemons(0), add = TRUE)
@@ -275,8 +274,7 @@ test_that("arf_load_on_daemons caches per daemon pool and self-invalidates", {
 })
 
 test_that("mirai worker errors propagate instead of corrupting results", {
-  skip_if_not_installed("mirai")
-  skip_if_not_installed("mori")
+  skip_if_no_daemons()
 
   setup_mirai_daemons(2)
   on.exit(mirai::daemons(0), add = TRUE)
@@ -287,8 +285,7 @@ test_that("mirai worker errors propagate instead of corrupting results", {
 })
 
 test_that("seeded daemons make stochastic mirai results reproducible", {
-  skip_if_not_installed("mirai")
-  skip_if_not_installed("mori")
+  skip_if_no_daemons()
 
   # set.seed() only governs the calling process; the documented recipe for
   # reproducible forge()/expct() under mirai is daemons(n, seed = ) with a
