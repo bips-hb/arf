@@ -336,3 +336,22 @@ test_that("foreach doParallel backend gives equal forde output", {
   expect_equal(psi_par$cat, psi_seq$cat, ignore_attr = TRUE)
   expect_equal(psi_par$forest, psi_seq$forest, ignore_attr = TRUE)
 })
+
+test_that("fork-based foreach still works after mirai was used in the session", {
+  skip_if_no_daemons()
+  skip_if_not_installed("doParallel")
+  skip_on_os("windows")
+  arf <- adversarial_rf(iris, num_trees = 10, parallel = FALSE, verbose = FALSE)
+  psi <- forde(arf, iris, parallel = FALSE)
+  evi <- data.frame(Species = iris$Species[1:12])
+  ref <- expct(psi, evidence = evi, stepsize = 3, parallel = FALSE, verbose = FALSE)
+  setup_mirai_daemons(2)
+  invisible(forde(arf, iris, parallel = TRUE))
+  mirai::daemons(0)
+  # unfinalized mirai objects + fork = nng panic in the workers
+  doParallel::registerDoParallel(cores = 2)
+  on.exit(foreach::registerDoSEQ(), add = TRUE)
+  res <- expct(psi, evidence = evi, stepsize = 3, parallel = TRUE, verbose = FALSE)
+  expect_identical(nrow(res), nrow(ref))
+  expect_equal(res, ref, ignore_attr = TRUE)
+})

@@ -72,6 +72,12 @@ arf_select_backend <- function(parallel) {
              if (n != 1L) "s" else "", ")."),
       key = paste0("mirai:", n))
   } else if (dopar_workers > 1L) {
+    # nng (via mirai/nanonext) is not fork-safe: mirai objects left for the GC
+    # would be finalized inside fork-based foreach workers, which then abort
+    # and foreach silently returns a truncated result. Collect them first.
+    if ("nanonext" %in% loadedNamespaces()) {
+      gc()
+    }
     arf_backend_inform(
       paste0("arf: using 'foreach' backend (", foreach::getDoParName(),
              ", ", dopar_workers, " workers)."),
@@ -213,7 +219,13 @@ arf_stop_on_mirai_error <- function(res) {
   failed <- which(vapply(res, mirai::is_error_value, logical(1)))
   if (length(failed)) {
     err <- res[[failed[1]]]
-    msg <- if (mirai::is_mirai_error(err)) conditionMessage(err) else as.character(err)
+    msg <- if (mirai::is_mirai_error(err)) {
+      conditionMessage(err)
+    } else {
+      # bare errorValue (e.g. 19 = connection reset when a daemon died)
+      paste0("errorValue ", as.integer(err),
+             " (daemon lost, timed out or interrupted; see nanonext::nng_error)")
+    }
     stop("arf: mirai worker error in chunk ", failed[1], ": ", msg, call. = FALSE)
   }
   invisible(TRUE)
