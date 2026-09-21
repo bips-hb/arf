@@ -8,6 +8,7 @@ adversarial_rf(
   x,
   num_trees = 10L,
   min_node_size = 2L,
+  mtry = NULL,
   delta = 0,
   max_iters = 10L,
   early_stop = TRUE,
@@ -26,6 +27,11 @@ well for most generative modeling tasks, but should be increased for
 likelihood estimation. See Details.}
 
 \item{min_node_size}{Minimal number of real data samples in leaf nodes.}
+
+\item{mtry}{Number of candidate features at each split. Default is
+\code{max(2, floor(sqrt(p)))} for \code{p} features, capped at \code{p}.
+This differs from \code{ranger}'s \code{floor(sqrt(p))}, which yields
+1 for \code{p < 4} and weakens the discriminator.}
 
 \item{delta}{Tolerance parameter. Algorithm converges when OOB accuracy is
 < 0.5 + \code{delta}.}
