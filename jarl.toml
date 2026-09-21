@@ -1,0 +1,12 @@
+# Jarl (Just Another R Linter) configuration — https://jarl.etiennebacher.com
+#
+# Division of labour: air (air.toml) owns formatting/style; jarl owns
+# correctness/quality lints. We start from jarl's default rule set and add
+# `assignment` so `<-` is enforced consistently with air. Quote style is left
+# to air, not duplicated here. Tighten later, e.g. select = ["ALL"] + ignores.
+
+[lint]
+extend-select = ["assignment"]
+
+[lint.assignment]
+operator = "<-"

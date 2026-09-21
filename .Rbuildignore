@@ -11,3 +11,5 @@
 ^arf.*\.tgz$
 ^doc$
 ^Meta$
+^air\.toml$
+^jarl\.toml$
