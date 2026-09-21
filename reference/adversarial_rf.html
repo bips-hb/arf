@@ -43,6 +43,7 @@
 <span>  <span class="va">x</span>,</span>
 <span>  num_trees <span class="op">=</span> <span class="fl">10L</span>,</span>
 <span>  min_node_size <span class="op">=</span> <span class="fl">2L</span>,</span>
+<span>  mtry <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  delta <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  max_iters <span class="op">=</span> <span class="fl">10L</span>,</span>
 <span>  early_stop <span class="op">=</span> <span class="cn">TRUE</span>,</span>
@@ -70,6 +71,13 @@ likelihood estimation. See Details.</p></dd>
 
 <dt id="arg-min-node-size">min_node_size<a class="anchor" aria-label="anchor" href="#arg-min-node-size"></a></dt>
 <dd><p>Minimal number of real data samples in leaf nodes.</p></dd>
+
+
+<dt id="arg-mtry">mtry<a class="anchor" aria-label="anchor" href="#arg-mtry"></a></dt>
+<dd><p>Number of candidate features at each split. Default is
+<code>max(2, floor(sqrt(p)))</code> for <code>p</code> features, capped at <code>p</code>.
+This differs from <code>ranger</code>'s <code>floor(sqrt(p))</code>, which yields
+1 for <code>p &lt; 4</code> and weakens the discriminator.</p></dd>
 
 
 <dt id="arg-delta">delta<a class="anchor" aria-label="anchor" href="#arg-delta"></a></dt>

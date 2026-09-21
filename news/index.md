@@ -2,9 +2,16 @@
 
 ## arf 0.2.5 (in development)
 
-- Export sample_from_leaves() for intra-leaf marginal sampling
+- **Behavior change**: New `mtry` argument for
+  [`adversarial_rf()`](https://bips-hb.github.io/arf/reference/adversarial_rf.md)
+  with default `max(2, floor(sqrt(p)))` instead of ranger’s
+  `floor(sqrt(p))`, which gave `mtry = 1` for fewer than 4 features
+  ([\#59](https://github.com/bips-hb/arf/issues/59))
+- Export
+  [`sample_from_leaves()`](https://bips-hb.github.io/arf/reference/sample_from_leaves.md)
+  for intra-leaf marginal sampling
 - Avoid fractional recycling of factor column indices in
-  sample_from_leaves()
+  [`sample_from_leaves()`](https://bips-hb.github.io/arf/reference/sample_from_leaves.md)
 
 ## arf 0.2.4
 

@@ -10,6 +10,7 @@ adversarial_rf(
   x,
   num_trees = 10L,
   min_node_size = 2L,
+  mtry = NULL,
   delta = 0,
   max_iters = 10L,
   early_stop = TRUE,
@@ -36,6 +37,13 @@ adversarial_rf(
 - min_node_size:
 
   Minimal number of real data samples in leaf nodes.
+
+- mtry:
+
+  Number of candidate features at each split. Default is
+  `max(2, floor(sqrt(p)))` for `p` features, capped at `p`. This differs
+  from `ranger`'s `floor(sqrt(p))`, which yields 1 for `p < 4` and
+  weakens the discriminator.
 
 - delta:
 
