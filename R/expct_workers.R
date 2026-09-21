@@ -134,8 +134,10 @@ arf_expct_step <- function(step_, params, evidence, query, factor_cols,
     if (nomatch == "force") {
       # nested recovery runs serial (a worker must not spawn its own backend)
       rows_na_sampled <- expct(params, parallel = FALSE)
-      rows_na[is.na(rows_na)] <- rows_na_sampled[is.na(rows_na[, -1])]
+      rows_na <- fill_na_rows(rows_na, rows_na_sampled)
     }
+    # Keep only query columns so output shape matches the no-fallback case
+    rows_na <- rows_na[, c("c_idx", names(x_synth)), with = FALSE]
     x_synth[, c_idx := indices_sampled]
     x_synth <- rbind(x_synth, rows_na, fill = TRUE)
     setorder(x_synth, c_idx)[, c_idx := NULL]
