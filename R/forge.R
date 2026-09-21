@@ -289,7 +289,7 @@ forge <- function(
       rows_na <- rbindlist(replicate(n_synth, rows_na, simplify = FALSE))
       if (nomatch == "force") {
         rows_na_sampled <- forge(params, n_synth = nrow(rows_na), sample_NAs = sample_NAs, parallel = parallel, stepsize = stepsize)
-        rows_na[is.na(rows_na)] <- rows_na_sampled[is.na(rows_na[,-1])]
+        rows_na <- fill_na_rows(rows_na, rows_na_sampled)
       }
       x_synth[, c_idx := rep(indices_sampled, each = n_synth)]
       x_synth <- rbind(x_synth, rows_na, fill = TRUE)

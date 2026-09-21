@@ -621,3 +621,27 @@ prep_cond <- function(evidence, params, row_mode) {
   setorder(condition_long, c_idx)
   condition_long[]
 }
+
+#' Fill NA cells of impossible evidence rows
+#'
+#' Column-wise replacement: \code{DT[logical_matrix]} is unsupported by
+#' data.table, and \code{sampled} may have a single row (expct) that must be
+#' recycled. Mismatched classes go through character; post_x restores types.
+#'
+#' @param rows_na data.table with NA cells to fill.
+#' @param sampled data.frame/data.table of fill values, 1 or nrow(rows_na) rows.
+#' @keywords internal
+#' @noRd
+fill_na_rows <- function(rows_na, sampled) {
+  for (col in names(sampled)) {
+    v <- rows_na[[col]]
+    s <- rep_len(sampled[[col]], nrow(rows_na))
+    if (!identical(class(v), class(s))) {
+      v <- as.character(v)
+      s <- as.character(s)
+    }
+    v[is.na(v)] <- s[is.na(v)]
+    set(rows_na, j = col, value = v)
+  }
+  rows_na
+}
