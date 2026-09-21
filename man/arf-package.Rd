@@ -56,9 +56,16 @@ Useful links:
 
 Authors:
 \itemize{
+  \item Marvin N. Wright \email{cran@wrig.de} (\href{https://orcid.org/0000-0002-8542-6291}{ORCID})
   \item David S. Watson \email{david.s.watson11@gmail.com} (\href{https://orcid.org/0000-0001-9632-2159}{ORCID})
   \item Kristin Blesch (\href{https://orcid.org/0000-0001-6241-3079}{ORCID})
   \item Jan Kapar (\href{https://orcid.org/0009-0000-6408-2840}{ORCID})
+}
+
+Other contributors:
+\itemize{
+  \item Lukas Burk \email{cran@lukasburk.de} (\href{https://orcid.org/0000-0001-7528-3795}{ORCID}) [contributor]
+  \item Martin Jullum \email{Martin.Jullum@nr.no} (\href{https://orcid.org/0000-0003-3908-5155}{ORCID}) [contributor]
 }
 
 }
