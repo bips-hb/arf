@@ -19,7 +19,7 @@
 ## Citation
 
 Source:
-[`inst/CITATION`](https://github.com/bips-hb/arf/blob/main/inst/CITATION)
+[`inst/CITATION`](https://github.com/bips-hb/arf/blob/v0.2.5/inst/CITATION)
 
 Watson D, Blesch K, Kapar J, Wright M (2023). “Adversarial random
 forests for density estimation and generative modeling.” In *Proceedings
