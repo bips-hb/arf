@@ -11,3 +11,13 @@
 ^arf.*\.tgz$
 ^doc$
 ^Meta$
+^Makefile$
+^\.vscode$
+^\.understand-anything$
+^reprex.*\.R$
+^cran-comments\.md$
+^CRAN-SUBMISSION$
+^revdep$
+^\.claude$
+^\.DS_Store$
+^attic$
