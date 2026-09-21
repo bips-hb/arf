@@ -1,6 +1,6 @@
 # Changelog
 
-## arf 0.2.5 (in development)
+## arf 0.2.5
 
 - **Behavior change**: New `mtry` argument for
   [`adversarial_rf()`](https://bips-hb.github.io/arf/reference/adversarial_rf.md)
@@ -12,6 +12,18 @@
   for intra-leaf marginal sampling
 - Avoid fractional recycling of factor column indices in
   [`sample_from_leaves()`](https://bips-hb.github.io/arf/reference/sample_from_leaves.md)
+  ([\#63](https://github.com/bips-hb/arf/issues/63))
+- Fix `nomatch = "force"` fallback in
+  [`forge()`](https://bips-hb.github.io/arf/reference/forge.md) and
+  [`expct()`](https://bips-hb.github.io/arf/reference/expct.md) with
+  `evidence_row_mode = "separate"` when evidence rows match no leaf
+  (requires `finite_bounds != "no"` in
+  [`forde()`](https://bips-hb.github.io/arf/reference/forde.md)):
+  errored with `data.table` input, and
+  [`expct()`](https://bips-hb.github.io/arf/reference/expct.md) silently
+  filled impossible rows with misaligned values and returned `NA`-padded
+  evidence columns for valid rows
+  ([\#67](https://github.com/bips-hb/arf/issues/67))
 
 ## arf 0.2.4
 

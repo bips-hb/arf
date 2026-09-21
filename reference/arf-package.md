@@ -36,12 +36,23 @@ Useful links:
 
 Authors:
 
+- Marvin N. Wright <cran@wrig.de>
+  ([ORCID](https://orcid.org/0000-0002-8542-6291))
+
 - David S. Watson <david.s.watson11@gmail.com>
   ([ORCID](https://orcid.org/0000-0001-9632-2159))
 
 - Kristin Blesch ([ORCID](https://orcid.org/0000-0001-6241-3079))
 
 - Jan Kapar ([ORCID](https://orcid.org/0009-0000-6408-2840))
+
+Other contributors:
+
+- Lukas Burk <cran@lukasburk.de>
+  ([ORCID](https://orcid.org/0000-0001-7528-3795)) \[contributor\]
+
+- Martin Jullum <Martin.Jullum@nr.no>
+  ([ORCID](https://orcid.org/0000-0003-3908-5155)) \[contributor\]
 
 ## Examples
 
