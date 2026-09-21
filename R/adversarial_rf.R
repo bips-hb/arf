@@ -8,6 +8,10 @@
 #'   well for most generative modeling tasks, but should be increased for 
 #'   likelihood estimation. See Details.
 #' @param min_node_size Minimal number of real data samples in leaf nodes.
+#' @param mtry Number of candidate features at each split. Default is 
+#'   \code{max(2, floor(sqrt(p)))} for \code{p} features, capped at \code{p}.
+#'   This differs from \code{ranger}'s \code{floor(sqrt(p))}, which yields 
+#'   1 for \code{p < 4} and weakens the discriminator.
 #' @param delta Tolerance parameter. Algorithm converges when OOB accuracy is
 #'   < 0.5 + \code{delta}. 
 #' @param max_iters Maximum iterations for the adversarial loop.
@@ -109,6 +113,7 @@ adversarial_rf <- function(
     x, 
     num_trees = 10L, 
     min_node_size = 2L, 
+    mtry = NULL,
     delta = 0,
     max_iters = 10L,
     early_stop = TRUE,
@@ -124,6 +129,10 @@ adversarial_rf <- function(
   x_real <- prep_x(x, verbose)
   n <- nrow(x_real)
   d <- ncol(x_real)
+  if (is.null(mtry)) {
+    # ranger default floor(sqrt(d)) gives mtry = 1 for d < 4
+    mtry <- min(d, max(2L, floor(sqrt(d))))
+  }
   factor_cols <- sapply(x_real, is.factor)
   lvls <- lapply(x_real[factor_cols], levels)
   
@@ -142,7 +151,7 @@ adversarial_rf <- function(
     min.bucket <- min_node_size
   }
   rf0 <- ranger(y ~ ., dat, keep.inbag = TRUE, classification = TRUE, 
-                num.trees = num_trees, min.bucket = min.bucket, 
+                num.trees = num_trees, min.bucket = min.bucket, mtry = mtry,
                 respect.unordered.factors = TRUE, num.threads = num.threads, ...)
   
   # Recurse
@@ -162,7 +171,7 @@ adversarial_rf <- function(
                    data.frame(y = 0L, x_synth))
       # Train discriminator
       rf1 <- ranger(y ~ ., dat, keep.inbag = TRUE, classification = TRUE, 
-                    num.trees = num_trees, min.bucket = min.bucket, 
+                    num.trees = num_trees, min.bucket = min.bucket, mtry = mtry,
                     respect.unordered.factors = TRUE, num.threads = num.threads, ...)
       # Evaluate
       acc0 <- 1 - rf1$prediction.error
