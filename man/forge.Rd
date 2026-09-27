@@ -45,9 +45,10 @@ Options are to force sampling from a random leaf (\code{"force"}) or return
 \item{verbose}{Show warnings, e.g. when no leaf matches a condition?}
 
 \item{stepsize}{How many rows of evidence should be handled at each step?
-Defaults to \code{nrow(evidence)} divided by the number of registered
-workers or daemons for
-\code{parallel == TRUE}.}
+Smaller steps lower peak memory. Defaults to \code{nrow(evidence)} divided
+by the number of workers or daemons when \code{parallel = TRUE}, so seeded
+parallel runs only reproduce across worker counts if \code{stepsize} is
+set explicitly. See \code{\link{arf-options}}.}
 
 \item{parallel}{Compute in parallel? Requires a registered \code{foreach}
 backend (\code{doParallel}, \code{doFuture}) or active \code{mirai}

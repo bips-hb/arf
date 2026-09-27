@@ -37,14 +37,16 @@ Only applicable for total evidence queries.}
 
 \item{log}{Return likelihoods on log scale? Recommended to prevent underflow.}
 
-\item{batch}{Batch size. The default is to compute densities for all of
-queries in one round, which is always the fastest option if memory allows.
-However, with large samples or many trees, it can be more memory efficient
-to split the data into batches. This has no impact on results.}
+\item{batch}{Batch size. The default computes densities for all queries in
+one round. Splitting into batches lowers peak memory with large samples or
+many trees, and is what \code{parallel} distributes across workers. This
+has no impact on results.}
 
-\item{parallel}{Compute in parallel? Requires a registered \code{foreach}
-backend (\code{doParallel}, \code{doFuture}) or active \code{mirai}
-daemons. See \code{\link{arf-options}}.}
+\item{parallel}{Compute in parallel? Batches are processed in parallel, so
+this only takes effect when \code{batch} is smaller than
+\code{nrow(query)}. Requires a registered \code{foreach} backend
+(\code{doParallel}, \code{doFuture}) or active \code{mirai} daemons.
+See \code{\link{arf-options}}.}
 }
 \value{
 A vector of likelihoods, optionally on the log scale.

@@ -32,18 +32,27 @@ The \code{"foreach"} backend uses whatever adapter is registered (e.g.
 \code{doParallel}, \code{doFuture}). The \code{"mirai"} backend uses
 \code{mirai} daemons and shares large read-only inputs (training data,
 forest, learned parameters) across workers via \code{mori}, so workers do
-not each copy them. Speed is comparable between the backends. The memory
-benefit is largest for the tree-parallel operations (\code{\link{forde}},
-\code{\link{adversarial_rf}}) on large forests with many workers, where
-\code{foreach} memory grows with the worker count and \code{mirai} stays
-much flatter (roughly half to a third at 16 workers in internal benchmarks).
-For small workloads the daemon pool adds a fixed overhead that can outweigh
-the sharing, so prefer \code{"mirai"} at scale and either backend otherwise.
+not each copy them. In our benchmarks (n = 20000, 200 trees, up to 16
+workers) run time was similar between the backends, though on a cold daemon
+pool \code{"mirai"} can be noticeably slower. The memory benefit is largest
+for the tree-parallel operations (\code{\link{forde}},
+\code{\link{adversarial_rf}}) on large forests with many workers: at 16
+workers peak memory was about 30 percent lower for \code{forde} and about
+half for \code{adversarial_rf}. Expect smaller gains on smaller problems,
+where the daemon pool's fixed overhead can outweigh the sharing, so prefer
+\code{"mirai"} at scale and either backend otherwise.
 Daemons started via \code{future.mirai} (e.g.
 \code{plan(future.mirai::mirai_multisession)}) are detected like any other
 mirai daemons, so futureverse users get the \code{"mirai"} backend
-automatically. All backend packages are in Suggests; install the ones you
-use.
+automatically. None of these packages are installed with arf: install
+\code{mirai} and \code{mori} for the \code{"mirai"} backend,
+\code{doParallel} or \code{doFuture} for \code{"foreach"}, and
+\code{doRNG} or \code{future.mirai} if you use them below.
+
+Workers and \code{data.table} threads multiply. If their product exceeds
+the core count, cap threads per worker with
+\code{data.table::setDTthreads()} and set \code{OMP_WAIT_POLICY=passive}
+before starting R so idle OpenMP threads sleep instead of spinning.
 
 Reproducibility of stochastic operations (\code{\link{forge}}, categorical
 \code{\link{expct}}) under parallel execution: \code{\link{set.seed}} only
@@ -82,9 +91,11 @@ mirai::daemons(0)  # shut down when done
 # futureverse: future.mirai daemons are detected automatically
 future::plan(future.mirai::mirai_multisession, workers = 4)
 psi <- forde(arf, iris)
+future::plan("sequential")  # shuts the daemons down
 
-# force a backend regardless of what is registered
+# force a backend regardless of what is registered (NULL restores auto-detection)
 options(arf.backend = "mirai")
+options(arf.backend = NULL)
 
 # silence the backend message
 options(arf.verbose = FALSE)

@@ -86,7 +86,8 @@ arf_select_backend <- function(parallel) {
     arf_backend_inform(
       paste0("arf: parallel = TRUE but no parallel backend is registered; ",
              "computing sequentially. Register a foreach backend (e.g. ",
-             "doParallel) or start mirai daemons via mirai::daemons()."),
+             "doParallel), start mirai daemons via mirai::daemons(), or set ",
+             "parallel = FALSE. See ?arf-options."),
       key = "sequential-fallback")
   }
   backend

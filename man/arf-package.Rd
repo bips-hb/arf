@@ -68,6 +68,7 @@ Authors:
 Other contributors:
 \itemize{
   \item Lukas Burk \email{cran@lukasburk.de} (\href{https://orcid.org/0000-0001-7528-3795}{ORCID}) [contributor]
+  \item Martin Jullum \email{Martin.Jullum@nr.no} (\href{https://orcid.org/0000-0003-3908-5155}{ORCID}) [contributor]
 }
 
 }
