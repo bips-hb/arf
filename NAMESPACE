@@ -9,19 +9,26 @@ export(forge)
 export(impute)
 export(lik)
 export(rarf)
+export(sample_from_leaves)
 import(data.table)
 import(ranger)
 import(stringr)
-importFrom(foreach,"%do%")
-importFrom(foreach,"%dopar%")
-importFrom(foreach,foreach)
-importFrom(foreach,getDoParWorkers)
-importFrom(stats,dunif)
-importFrom(stats,predict)
-importFrom(stats,punif)
-importFrom(stats,rbinom)
-importFrom(stats,runif)
-importFrom(truncnorm,dtruncnorm)
-importFrom(truncnorm,etruncnorm)
-importFrom(truncnorm,ptruncnorm)
-importFrom(truncnorm,rtruncnorm)
+importFrom(foreach,
+  "%do%",
+  "%dopar%",
+  foreach,
+  getDoParWorkers
+)
+importFrom(stats,
+  dunif,
+  predict,
+  punif,
+  rbinom,
+  runif
+)
+importFrom(truncnorm,
+  dtruncnorm,
+  etruncnorm,
+  ptruncnorm,
+  rtruncnorm
+)

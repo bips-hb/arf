@@ -1,3 +1,10 @@
+# arf 0.2.5
+
+* **Behavior change**: New `mtry` argument for `adversarial_rf()` with default `max(2, floor(sqrt(p)))` instead of ranger's `floor(sqrt(p))`, which gave `mtry = 1` for fewer than 4 features (#59)
+* Export `sample_from_leaves()` for intra-leaf marginal sampling
+* Avoid fractional recycling of factor column indices in `sample_from_leaves()` (#63)
+* Fix `nomatch = "force"` fallback in `forge()` and `expct()` with `evidence_row_mode = "separate"` when evidence rows match no leaf (requires `finite_bounds != "no"` in `forde()`): errored with `data.table` input, and `expct()` silently filled impossible rows with misaligned values and returned `NA`-padded evidence columns for valid rows (#67)
+
 # arf 0.2.4
 * Let verbose=FALSE silence (some) warnings
 

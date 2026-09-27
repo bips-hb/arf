@@ -24,9 +24,9 @@ test_that("FORDE categories sum to unity", {
 
 test_that("FORDE coverages sum to number of trees", {
   arf <- adversarial_rf(iris, num_trees = 2, verbose = FALSE, parallel = FALSE)
-  psi <- forde(arf, iris)
-  psi_oob <- forde(arf, iris, oob = TRUE)
-  psi_inbag <- forde(arf, iris, oob = "inbag")
+  psi <- forde(arf, iris, parallel = FALSE)
+  psi_oob <- forde(arf, iris, oob = TRUE, parallel = FALSE)
+  psi_inbag <- forde(arf, iris, oob = "inbag", parallel = FALSE)
   expect_equal(psi$forest[, sum(cvg)], 2)
   expect_equal(psi_oob$forest[, sum(cvg)], 2)
   expect_equal(psi_inbag$forest[, sum(cvg)], 2)
