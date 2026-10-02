@@ -38,12 +38,21 @@ arf_select_backend <- function(parallel) {
   if (!isTRUE(parallel)) {
     return("sequential")
   }
-  mirai_ready <- requireNamespace("mirai", quietly = TRUE) &&
-    requireNamespace("mori", quietly = TRUE) &&
-    {
-      st <- mirai::status()
-      !is.null(st$connections) && st$connections >= 1L
-    }
+  daemons_up <- requireNamespace("mirai", quietly = TRUE) && {
+    st <- mirai::status()
+    !is.null(st$connections) && st$connections >= 1L
+  }
+  mori_ok <- arf_has_mori()
+  mirai_ready <- daemons_up && mori_ok
+  if (daemons_up && !mori_ok) {
+    # the user started daemons expecting them to be used; say why they are not
+    arf_backend_inform(
+      paste0("arf: mirai daemons are running but package 'mori' is not ",
+             "installed, so the 'mirai' backend is unavailable; using the ",
+             "foreach backend instead (sequential unless one is registered). ",
+             "Install mori or set parallel = FALSE. See ?arf-options."),
+      key = "mirai-no-mori")
+  }
   dopar_workers <- if (requireNamespace("foreach", quietly = TRUE)) {
     foreach::getDoParWorkers()
   } else {
@@ -82,7 +91,8 @@ arf_select_backend <- function(parallel) {
       paste0("arf: using 'foreach' backend (", foreach::getDoParName(),
              ", ", dopar_workers, " workers)."),
       key = paste0("foreach:", dopar_workers))
-  } else {
+  } else if (!daemons_up) {
+    # (with daemons up but no mori, the message above already said so)
     arf_backend_inform(
       paste0("arf: parallel = TRUE but no parallel backend is registered; ",
              "computing sequentially. Register a foreach backend (e.g. ",
@@ -137,13 +147,18 @@ arf_n_workers <- function() {
   max(1L, mirai_conns, dopar)
 }
 
+# Separate so tests can mock the no-mori case (CI always has mori installed).
+arf_has_mori <- function() {
+  requireNamespace("mori", quietly = TRUE)
+}
+
 arf_check_mirai_ready <- function() {
   if (!requireNamespace("mirai", quietly = TRUE)) {
     stop("arf.backend = 'mirai' requires the 'mirai' package. ",
          "Install it or set options(arf.backend = 'foreach').",
          call. = FALSE)
   }
-  if (!requireNamespace("mori", quietly = TRUE)) {
+  if (!arf_has_mori()) {
     stop("arf.backend = 'mirai' requires the 'mori' package. ",
          "Install it or set options(arf.backend = 'foreach').",
          call. = FALSE)
