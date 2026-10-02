@@ -39,7 +39,7 @@ test_that("Likelihood calculation returns vector of log-likelihoods", {
   expect_warning(loglik2 <- lik(psi, iris, parallel = FALSE))
   expect_type(loglik, "double")
   expect_length(loglik, nrow(iris))
-  expect_true(all(!is.na(loglik)))
+  expect_true(!anyNA(loglik))
   expect_equal(loglik, loglik2)
 })
 
@@ -91,7 +91,7 @@ test_that("FORGE returns correct column types", {
   x_synth <- forge(psi, n_synth = 20, parallel = FALSE)
 
   # No NAs
-  expect_true(all(!is.na(x_synth)))
+  expect_true(!anyNA(x_synth))
 
   # Keeps column types
   classes <- sapply(dat, class)

@@ -40,7 +40,7 @@ test_that("sample_from_leaves restores input class and column types with params"
   expect_equal(nrow(x_synth), nrow(dat))
 
   # No NAs and preserved column types
-  expect_true(all(!is.na(x_synth)))
+  expect_true(!anyNA(x_synth))
   classes <- sapply(dat, class)
   classes_synth <- sapply(x_synth, class)
   expect_equal(classes, classes_synth)

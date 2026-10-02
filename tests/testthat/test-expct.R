@@ -9,13 +9,13 @@ test_that("expct returns correct values", {
 
   # Only for setosa
   res <- expct(psi, query = "Sepal.Length", evidence = data.frame(Species = "setosa"), parallel = FALSE)
-  expect_equal(res$Sepal.Length, mean(iris[iris$Species == "setosa", "Sepal.Length"]), tolerance = .1)
+  expect_equal(res$Sepal.Length, mean(iris[iris$Species == "setosa", "Sepal.Length"]), tolerance = 0.1)
 })
 
 test_that("expct works for vectorized evidence", {
   evi <- data.frame(Species = c("setosa", "versicolor", "virginica"))
   res <- expct(psi, query = "Petal.Width", evidence = evi, parallel = FALSE)
-  expect_equal(res$Petal.Width, c(0.2, 1.3, 2.0), tolerance = .2)
+  expect_equal(res$Petal.Width, c(0.2, 1.3, 2.0), tolerance = 0.2)
 })
 
 test_that("expct works with NAs", {

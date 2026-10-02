@@ -1,7 +1,7 @@
 # Generate some missings
 iris_na <- iris
-for (j in 1:ncol(iris)) {
-  iris_na[sample(1:nrow(iris), 5), j] <- NA
+for (j in seq_len(ncol(iris))) {
+  iris_na[sample(seq_len(nrow(iris)), 5), j] <- NA
 }
 
 test_that("impute returns same data with message if no missings", {
