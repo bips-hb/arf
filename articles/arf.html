@@ -25,7 +25,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">arf</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.5</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -58,7 +58,7 @@
       <img src="../logo.png" class="logo" alt=""><h1>Adversarial Random Forests</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/bips-hb/arf/blob/v0.2.5/vignettes/arf.Rmd" class="external-link"><code>vignettes/arf.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/bips-hb/arf/blob/main/vignettes/arf.Rmd" class="external-link"><code>vignettes/arf.Rmd</code></a></small>
       <div class="d-none name"><code>arf.Rmd</code></div>
     </div>
 
@@ -99,13 +99,15 @@ the algorithm will print accuracy at each iteration.</p>
 <span><span class="va">arf_iris</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">iris</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Iteration: 0, Accuracy: 76.09%</span></span>
 <span><span class="co">#&gt; Iteration: 1, Accuracy: 40.33%</span></span>
+<span><span class="co">#&gt; arf: parallel = TRUE but no parallel backend is registered; computing sequentially. Register a foreach backend (e.g. doParallel), start mirai daemons via mirai::daemons(), or set parallel = FALSE. See ?arf-options.</span></span>
 <span><span class="co">#&gt; Warning: executing %dopar% sequentially: no parallel backend registered</span></span></code></pre></div>
-<p>The printouts can be turned off by setting
+<p>The accuracy printouts can be turned off by setting
 <code>verbose = FALSE</code>. Accuracy is still stored within the
 <code>arf</code> object, so you can evaluate convergence after the fact.
-The warning appears just once per session. It can be suppressed by
-setting <code>parallel = FALSE</code> or registering a parallel backend
-(more on this below).</p>
+The message and warning about the missing parallel backend appear once
+per session. Both go away when you set <code>parallel = FALSE</code> or
+register a parallel backend (more on this below); the message alone can
+be silenced with <code>options(arf.verbose = FALSE)</code>.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Train ARF with no printouts</span></span>
 <span><span class="va">arf_iris</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">iris</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
@@ -163,6 +165,25 @@ works on Unix machines.</p>
 <span><span class="va">arf_iris</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">iris</span>, num_trees <span class="op">=</span> <span class="fl">100</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Iteration: 0, Accuracy: 85.67%</span></span>
 <span><span class="co">#&gt; Iteration: 1, Accuracy: 40.67%</span></span></code></pre></div>
+<p>As an alternative to <code>foreach</code>, arf can use
+<code>mirai</code> daemons. Start them and arf picks them up
+automatically; the same backend is then used by <code>forde</code>,
+<code>forge</code>, <code>expct</code>, and <code>lik</code>. Large
+read-only inputs are shared across workers via <code>mori</code>, which
+lowers memory on large forests with many workers.</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># mirai backend: start daemons, then call arf as usual</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://mirai.r-lib.org" class="external-link">mirai</a></span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://mirai.r-lib.org/reference/daemons.html" class="external-link">daemons</a></span><span class="op">(</span><span class="fl">2</span><span class="op">)</span></span>
+<span><span class="va">arf_iris</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/adversarial_rf.html">adversarial_rf</a></span><span class="op">(</span><span class="va">iris</span>, num_trees <span class="op">=</span> <span class="fl">100</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://mirai.r-lib.org/reference/daemons.html" class="external-link">daemons</a></span><span class="op">(</span><span class="fl">0</span><span class="op">)</span>  <span class="co"># shut down when done</span></span></code></pre></div>
+<p>Note that <code><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed()</a></code> does not govern parallel workers,
+so <code>forge</code> and <code>expct</code> are not reproducible under
+either backend unless you seed the workers themselves. Each worker also
+runs <code>data.table</code> with several threads, so workers times
+threads can exceed your core count and slow things down. How to choose a
+backend explicitly, seed the workers, and tune memory and threads is
+covered in <code><a href="../reference/arf-options.html">?"arf-options"</a></code>.</p>
 <p>The result is an object of class <code>ranger</code>, which we can
 input to downstream functions.</p>
 </div>
@@ -183,7 +204,7 @@ is the data dimensionality, and
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>n</mi><annotation encoding="application/x-tex">n</annotation></semantics></math>
 is the sample size. Once again, the process is parallelized by
 default.</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Compute leaf and distribution parameters</span></span>
 <span><span class="va">params_iris</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/forde.html">forde</a></span><span class="op">(</span><span class="va">arf_iris</span>, <span class="va">iris</span><span class="op">)</span></span></code></pre></div>
 <p>Default behavior is to use a truncated normal distribution for
@@ -193,7 +214,7 @@ produces stable results in a wide range of settings. You can also use a
 uniform distribution for continuous features by setting
 <code>family = 'unif'</code>, thereby instantiating a piecewise constant
 density estimator.</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Recompute with uniform density</span></span>
 <span><span class="va">params_unif</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/forde.html">forde</a></span><span class="op">(</span><span class="va">arf_iris</span>, <span class="va">iris</span>, family <span class="op">=</span> <span class="st">'unif'</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Warning in forde(arf_iris, iris, family = "unif"): Density estimation with</span></span>
@@ -220,7 +241,7 @@ for continuous features by a factor of
 <code>Species</code> variable with those obtained by adding a
 pseudocount of
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>α</mi><mo>=</mo><mn>0.1</mn></mrow><annotation encoding="application/x-tex">\alpha = 0.1</annotation></semantics></math>.</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Recompute with additive smoothing</span></span>
 <span><span class="va">params_alpha</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/forde.html">forde</a></span><span class="op">(</span><span class="va">arf_iris</span>, <span class="va">iris</span>, alpha <span class="op">=</span> <span class="fl">0.1</span><span class="op">)</span></span>
 <span></span>
@@ -251,7 +272,7 @@ uniform prior. Note that these two data tables may not have exactly the
 same rows, as we omit zero probability events to conserve memory.
 However, we can verify that probabilities sum to unity for each
 leaf-variable combination.</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Sum probabilities</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">params_iris</span><span class="op">$</span><span class="va">cat</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">prob</span><span class="op">)</span>, by <span class="op">=</span> <span class="fu">.</span><span class="op">(</span><span class="va">f_idx</span>, <span class="va">variable</span><span class="op">)</span><span class="op">]</span><span class="op">$</span><span class="va">V1</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. </span></span>
@@ -263,7 +284,7 @@ leaf-variable combination.</p>
 entries for (1) continuous features; (2) categorical features; (3) leaf
 parameters; (4) variable metadata; (5) factor levels; and (6) data input
 class.</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">params_iris</span></span>
 <span><span class="co">#&gt; $cnt</span></span>
 <span><span class="co">#&gt; Key: &lt;f_idx, variable&gt;</span></span>
@@ -342,7 +363,7 @@ as likelihood estimation and data synthesis.</p>
 to evaluate. For <em>total evidence</em> queries (i.e., those spanning
 all variables and no conditioning events), it is faster to also include
 <code>arf</code> in the function call.</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Compute likelihood under truncated normal and uniform distributions</span></span>
 <span><span class="va">ll</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/lik.html">lik</a></span><span class="op">(</span><span class="va">params_iris</span>, <span class="va">iris</span>, arf <span class="op">=</span> <span class="va">arf_iris</span><span class="op">)</span></span>
 <span><span class="va">ll_unif</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/lik.html">lik</a></span><span class="op">(</span><span class="va">params_unif</span>, <span class="va">iris</span>, arf <span class="op">=</span> <span class="va">arf_iris</span><span class="op">)</span></span>
@@ -358,7 +379,7 @@ this experiment.</p>
 likelihood of some <em>partial state</em>, i.e. a setting in which some
 but not all variable values are specified. Let’s take a look at that
 iris dataset:</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">iris</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   Sepal.Length Sepal.Width Petal.Length Petal.Width Species</span></span>
 <span><span class="co">#&gt; 1          5.1         3.5          1.4         0.2  setosa</span></span>
@@ -371,7 +392,7 @@ iris dataset:</p>
 data. That is, we provide values for the first four variables but
 exclude the fifth. In this case, the model will have to marginalize over
 <code>Species</code>:</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Compute likelihoods after marginalizing over Species</span></span>
 <span><span class="va">iris_without_species</span> <span class="op">&lt;-</span> <span class="va">iris</span><span class="op">[</span>, <span class="op">-</span><span class="fl">5</span><span class="op">]</span></span>
 <span><span class="va">ll_cnt</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/lik.html">lik</a></span><span class="op">(</span><span class="va">params_iris</span>, <span class="va">iris_without_species</span><span class="op">)</span></span>
@@ -411,7 +432,7 @@ assessment. We draw a training set of
 and simulate
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mn>1000</mn><annotation encoding="application/x-tex">1000</annotation></semantics></math>
 synthetic datapoints. Resulting data are plotted side by side.</p>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Simulate training data</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">mlbench</span><span class="op">)</span></span>
 <span><span class="va">x</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/mlbench/man/mlbench.smiley.html" class="external-link">mlbench.smiley</a></span><span class="op">(</span><span class="fl">1000</span><span class="op">)</span></span>
@@ -464,7 +485,7 @@ features. For instance, say we want to evaluate the likelihood of
 samples from the <code>iris</code> dataset under the condition that
 <code>Species = 'setosa'</code>. There are several ways to encode
 evidence, but the simplest is to pass a partial observation.</p>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Compute conditional likelihoods</span></span>
 <span><span class="va">evi</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>Species <span class="op">=</span> <span class="st">'setosa'</span><span class="op">)</span></span>
 <span><span class="va">ll_conditional</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/lik.html">lik</a></span><span class="op">(</span><span class="va">params_iris</span>, query <span class="op">=</span> <span class="va">iris_without_species</span>, evidence <span class="op">=</span> <span class="va">evi</span><span class="op">)</span></span>
@@ -489,7 +510,7 @@ events, potentially including inequalities. For example, we may want to
 calculate the likelihood of samples given that
 <code>Species = 'setosa'</code> and
 <code>Petal.Width &gt; 0.3</code>.</p>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Data frame of conditioning events</span></span>
 <span><span class="va">evi</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>Species <span class="op">=</span> <span class="st">"setosa"</span>, </span>
 <span>                  Petal.Width <span class="op">=</span> <span class="st">"&gt;0.3"</span><span class="op">)</span></span>
@@ -497,7 +518,7 @@ calculate the likelihood of samples given that
 <span><span class="co">#&gt;   Species Petal.Width</span></span>
 <span><span class="co">#&gt; 1  setosa        &gt;0.3</span></span></code></pre></div>
 <p>We can also define intervals:</p>
-<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">evi</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>Species <span class="op">=</span> <span class="st">"setosa"</span>, </span>
 <span>                  Petal.Width <span class="op">=</span> <span class="st">"(0.3,0.5)"</span><span class="op">)</span></span>
 <span><span class="va">evi</span></span>
@@ -514,7 +535,7 @@ disjunctive normal form. In this case, we just require a data frame with
 columns for <code>f_idx</code> and <code>wt</code>. If the latter does
 not sum to unity, the distribution will be normalized with a
 warning.</p>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Drawing random weights</span></span>
 <span><span class="va">evi</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>f_idx <span class="op">=</span> <span class="va">params_iris</span><span class="op">$</span><span class="va">forest</span><span class="op">$</span><span class="va">f_idx</span>,</span>
 <span>                  wt <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Exponential.html" class="external-link">rexp</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">params_iris</span><span class="op">$</span><span class="va">forest</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
@@ -529,7 +550,7 @@ warning.</p>
 <span><span class="co">#&gt; 6     6 3.536210e-05</span></span></code></pre></div>
 <p>Each of these methods can be used for conditional sampling as
 well.</p>
-<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Simulate class-conditional data for smiley example</span></span>
 <span><span class="va">evi</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>Class <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span>
 <span><span class="va">synth2</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/forge.html">forge</a></span><span class="op">(</span><span class="va">params_smiley</span>, n_synth <span class="op">=</span> <span class="fl">250</span>, evidence <span class="op">=</span> <span class="va">evi</span><span class="op">)</span></span>
@@ -546,7 +567,7 @@ well.</p>
 <p>By conditioning on <code>Class = 4</code>, we restrict our sampling
 to the smile itself, rather than eyes or nose.</p>
 <p>Computing conditional expectations is similarly straightforward.</p>
-<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/expct.html">expct</a></span><span class="op">(</span><span class="va">params_smiley</span>, evidence <span class="op">=</span> <span class="va">evi</span><span class="op">)</span></span>
 <span><span class="co">#&gt;             X          Y</span></span>
 <span><span class="co">#&gt; 1 -0.01177414 -0.6728099</span></span></code></pre></div>
@@ -564,7 +585,7 @@ multiple imputation routine, in which case we sample values from the
 relevant (conditional) distribution.</p>
 <p>For instance, consider the palmer penguins dataset, which includes
 several missing values.</p>
-<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Load palmer penguins dataset</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://allisonhorst.github.io/palmerpenguins/" class="external-link">palmerpenguins</a></span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
@@ -586,7 +607,7 @@ several missing values.</p>
 <p>We can fill in the NA’s in row 4 with their expected value,
 conditional on the non-NA values (<code>species</code> and
 <code>island</code>) as follows:</p>
-<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Single imputation</span></span>
 <span><span class="va">penguins_imp</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/impute.html">impute</a></span><span class="op">(</span><span class="va">penguins</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">penguins_imp</span><span class="op">)</span></span>
@@ -603,7 +624,7 @@ conditional on the non-NA values (<code>species</code> and
 <p>Alternatively, we can perform multiple imputation to get a better
 sense of the range of plausible values in these conditional
 distributions.</p>
-<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Multiple imputation</span></span>
 <span><span class="va">penguins_multiple_imp</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/impute.html">impute</a></span><span class="op">(</span><span class="va">penguins</span>, m <span class="op">=</span> <span class="fl">100</span><span class="op">)</span></span>
 <span></span>

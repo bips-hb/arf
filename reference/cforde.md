@@ -48,8 +48,9 @@ cforde(
 
 - parallel:
 
-  Compute in parallel? Must register backend beforehand, e.g. via
-  `doParallel` or `doFuture`; see examples.
+  Compute in parallel? Requires a registered `foreach` backend
+  (`doParallel`, `doFuture`) or active `mirai` daemons. See
+  [`arf-options`](https://bips-hb.github.io/arf/reference/arf-options.md).
 
 ## Value
 

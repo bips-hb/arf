@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">arf</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.5</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -29,7 +29,7 @@
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.png" class="logo" alt=""><h1>Adversarial Random Forests</h1>
-      <small class="dont-index">Source: <a href="https://github.com/bips-hb/arf/blob/v0.2.5/R/adversarial_rf.R" class="external-link"><code>R/adversarial_rf.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/bips-hb/arf/blob/main/R/adversarial_rf.R" class="external-link"><code>R/adversarial_rf.R</code></a></small>
       <div class="d-none name"><code>adversarial_rf.Rd</code></div>
     </div>
 
@@ -104,8 +104,10 @@ additional warnings.</p></dd>
 
 
 <dt id="arg-parallel">parallel<a class="anchor" aria-label="anchor" href="#arg-parallel"></a></dt>
-<dd><p>Compute in parallel? Must register backend beforehand, e.g.
-via <code>doParallel</code> or <code>doFuture</code>; see examples.</p></dd>
+<dd><p>Compute in parallel? Enables multithreaded ranger training
+(no backend needed) and parallelizes the pruning step, which requires a
+registered <code>foreach</code> backend (<code>doParallel</code>, <code>doFuture</code>) or
+active <code>mirai</code> daemons. See <code><a href="arf-options.html">arf-options</a></code>.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
@@ -165,6 +167,7 @@ Statistics</em>, pp. 5357-5375.</p>
 <span class="r-in"><span><span class="va">arf</span> <span class="op">&lt;-</span> <span class="fu">adversarial_rf</span><span class="op">(</span><span class="va">iris</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 0, Accuracy: 70.71%</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Iteration: 1, Accuracy: 35.47%</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> arf: parallel = TRUE but no parallel backend is registered; computing sequentially. Register a foreach backend (e.g. doParallel), start mirai daemons via mirai::daemons(), or set parallel = FALSE. See ?arf-options.</span>
 <span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>executing %dopar% sequentially: no parallel backend registered</span>
 <span class="r-in"><span><span class="va">psi</span> <span class="op">&lt;-</span> <span class="fu"><a href="forde.html">forde</a></span><span class="op">(</span><span class="va">arf</span>, <span class="va">iris</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
@@ -194,6 +197,9 @@ Statistics</em>, pp. 5357-5375.</p>
 <span class="r-in"><span><span class="co"># ... or with doFuture</span></span></span>
 <span class="r-in"><span><span class="fu">doFuture</span><span class="fu">::</span><span class="fu"><a href="https://doFuture.futureverse.org/reference/registerDoFuture.html" class="external-link">registerDoFuture</a></span><span class="op">(</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">future</span><span class="fu">::</span><span class="fu"><a href="https://future.futureverse.org/reference/plan.html" class="external-link">plan</a></span><span class="op">(</span><span class="st">"multisession"</span>, workers <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># ... or with mirai (shares large read-only inputs across workers via mori)</span></span></span>
+<span class="r-in"><span><span class="fu">mirai</span><span class="fu">::</span><span class="fu"><a href="https://mirai.r-lib.org/reference/daemons.html" class="external-link">daemons</a></span><span class="op">(</span><span class="fl">4</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>

@@ -65,13 +65,22 @@ expct(
 
 - stepsize:
 
-  How many rows of evidence should be handled at each step? Defaults to
-  `nrow(evidence) / num_registered_workers` for `parallel == TRUE`.
+  How many rows of evidence should be handled at each step? Smaller
+  steps lower peak memory. Defaults to `nrow(evidence)` divided by the
+  number of workers or daemons when `parallel = TRUE`, so seeded
+  parallel runs only reproduce across worker counts if `stepsize` is set
+  explicitly. See
+  [`arf-options`](https://bips-hb.github.io/arf/reference/arf-options.md).
 
 - parallel:
 
-  Compute in parallel? Must register backend beforehand, e.g. via
-  `doParallel` or `doFuture`; see Examples.
+  Compute in parallel? Requires a registered `foreach` backend
+  (`doParallel`, `doFuture`) or active `mirai` daemons. See
+  [`arf-options`](https://bips-hb.github.io/arf/reference/arf-options.md).
+  With `evidence_row_mode = "or"`, parallelization happens inside the
+  conditional circuit computation; in benchmarks this gave little
+  speedup while raising peak memory, so consider `parallel = FALSE` for
+  large `"or"` queries.
 
 ## Value
 
@@ -156,5 +165,8 @@ doParallel::registerDoParallel(cores = 4)
 # ... or with doFuture
 doFuture::registerDoFuture()
 future::plan("multisession", workers = 4)
+
+# ... or with mirai (shares large read-only inputs across workers via mori)
+mirai::daemons(4)
 } # }
 ```

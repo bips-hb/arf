@@ -70,8 +70,11 @@ adversarial_rf(
 
 - parallel:
 
-  Compute in parallel? Must register backend beforehand, e.g. via
-  `doParallel` or `doFuture`; see examples.
+  Compute in parallel? Enables multithreaded ranger training (no backend
+  needed) and parallelizes the pruning step, which requires a registered
+  `foreach` backend (`doParallel`, `doFuture`) or active `mirai`
+  daemons. See
+  [`arf-options`](https://bips-hb.github.io/arf/reference/arf-options.md).
 
 - ...:
 
@@ -142,6 +145,7 @@ Intelligence and Statistics*, pp. 5357-5375.
 arf <- adversarial_rf(iris)
 #> Iteration: 0, Accuracy: 70.71%
 #> Iteration: 1, Accuracy: 35.47%
+#> arf: parallel = TRUE but no parallel backend is registered; computing sequentially. Register a foreach backend (e.g. doParallel), start mirai daemons via mirai::daemons(), or set parallel = FALSE. See ?arf-options.
 #> Warning: executing %dopar% sequentially: no parallel backend registered
 psi <- forde(arf, iris)
 
@@ -171,5 +175,8 @@ doParallel::registerDoParallel(cores = 4)
 # ... or with doFuture
 doFuture::registerDoFuture()
 future::plan("multisession", workers = 4)
+
+# ... or with mirai (shares large read-only inputs across workers via mori)
+mirai::daemons(4)
 } # }
 ```

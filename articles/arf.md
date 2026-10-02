@@ -36,14 +36,16 @@ set.seed(123, "L'Ecuyer-CMRG")
 arf_iris <- adversarial_rf(iris)
 #> Iteration: 0, Accuracy: 76.09%
 #> Iteration: 1, Accuracy: 40.33%
+#> arf: parallel = TRUE but no parallel backend is registered; computing sequentially. Register a foreach backend (e.g. doParallel), start mirai daemons via mirai::daemons(), or set parallel = FALSE. See ?arf-options.
 #> Warning: executing %dopar% sequentially: no parallel backend registered
 ```
 
-The printouts can be turned off by setting `verbose = FALSE`. Accuracy
-is still stored within the `arf` object, so you can evaluate convergence
-after the fact. The warning appears just once per session. It can be
-suppressed by setting `parallel = FALSE` or registering a parallel
-backend (more on this below).
+The accuracy printouts can be turned off by setting `verbose = FALSE`.
+Accuracy is still stored within the `arf` object, so you can evaluate
+convergence after the fact. The message and warning about the missing
+parallel backend appear once per session. Both go away when you set
+`parallel = FALSE` or register a parallel backend (more on this below);
+the message alone can be silenced with `options(arf.verbose = FALSE)`.
 
 ``` r
 
@@ -116,6 +118,29 @@ arf_iris <- adversarial_rf(iris, num_trees = 100)
 #> Iteration: 0, Accuracy: 85.67%
 #> Iteration: 1, Accuracy: 40.67%
 ```
+
+As an alternative to `foreach`, arf can use `mirai` daemons. Start them
+and arf picks them up automatically; the same backend is then used by
+`forde`, `forge`, `expct`, and `lik`. Large read-only inputs are shared
+across workers via `mori`, which lowers memory on large forests with
+many workers.
+
+``` r
+
+# mirai backend: start daemons, then call arf as usual
+library(mirai)
+daemons(2)
+arf_iris <- adversarial_rf(iris, num_trees = 100)
+daemons(0)  # shut down when done
+```
+
+Note that [`set.seed()`](https://rdrr.io/r/base/Random.html) does not
+govern parallel workers, so `forge` and `expct` are not reproducible
+under either backend unless you seed the workers themselves. Each worker
+also runs `data.table` with several threads, so workers times threads
+can exceed your core count and slow things down. How to choose a backend
+explicitly, seed the workers, and tune memory and threads is covered in
+[`?"arf-options"`](https://bips-hb.github.io/arf/reference/arf-options.md).
 
 The result is an object of class `ranger`, which we can input to
 downstream functions.

@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">arf</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.5</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -29,11 +29,24 @@
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.png" class="logo" alt=""><h1>Changelog</h1>
-      <small>Source: <a href="https://github.com/bips-hb/arf/blob/v0.2.5/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
+      <small>Source: <a href="https://github.com/bips-hb/arf/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
     <div class="section level2">
-<h2 class="pkg-version" data-toc-text="0.2.5" id="arf-025">arf 0.2.5<a class="anchor" aria-label="anchor" href="#arf-025"></a></h2>
+<h2 class="pkg-version" data-toc-text="0.3.0" id="arf-030">arf 0.3.0<a class="anchor" aria-label="anchor" href="#arf-030"></a></h2>
+<ul><li>Add mirai/mori parallel backend as an alternative to foreach/doParallel (<a href="https://github.com/bips-hb/arf/issues/62" class="external-link">#62</a>)
+<ul><li>Shares large read-only inputs (training data, forest, learned parameters) across workers via mori, lowering memory use in <code><a href="../reference/adversarial_rf.html">adversarial_rf()</a></code>, <code><a href="../reference/forde.html">forde()</a></code>, <code><a href="../reference/forge.html">forge()</a></code>, <code><a href="../reference/expct.html">expct()</a></code>, and <code><a href="../reference/lik.html">lik()</a></code>
+</li>
+<li>Enable with active mirai daemons or <code>options(arf.backend)</code>, see <code>?arf-options</code>
+</li>
+<li>Parallel calls now report the backend in use once per session, including when <code>parallel = TRUE</code> finds no backend and runs sequentially; silence with <code>options(arf.verbose = FALSE)</code>
+</li>
+</ul></li>
+<li>Reduce peak memory of <code><a href="../reference/expct.html">expct()</a></code> by processing conditions in bounded blocks (16x lower on one large internal case, at 12-27% more run time; tune via <code>options(arf.block_rows)</code>, see <code>?arf-options</code>)</li>
+<li>Reduce memory and dispatch overhead in <code><a href="../reference/forde.html">forde()</a></code> (fused per-tree parameter pass, per-tree coverage) and <code><a href="../reference/lik.html">lik()</a></code> (per-batch reduction)</li>
+</ul></div>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.2.5" id="arf-025">arf 0.2.5<a class="anchor" aria-label="anchor" href="#arf-025"></a></h2><p class="text-muted">CRAN release: 2026-09-21</p>
 <ul><li>
 <strong>Behavior change</strong>: New <code>mtry</code> argument for <code><a href="../reference/adversarial_rf.html">adversarial_rf()</a></code> with default <code>max(2, floor(sqrt(p)))</code> instead of ranger’s <code>floor(sqrt(p))</code>, which gave <code>mtry = 1</code> for fewer than 4 features (<a href="https://github.com/bips-hb/arf/issues/59" class="external-link">#59</a>)</li>
 <li>Export <code><a href="../reference/sample_from_leaves.html">sample_from_leaves()</a></code> for intra-leaf marginal sampling</li>

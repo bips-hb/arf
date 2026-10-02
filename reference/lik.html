@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">arf</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.5</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -29,7 +29,7 @@
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.png" class="logo" alt=""><h1>Likelihood Estimation</h1>
-      <small class="dont-index">Source: <a href="https://github.com/bips-hb/arf/blob/v0.2.5/R/lik.R" class="external-link"><code>R/lik.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/bips-hb/arf/blob/main/R/lik.R" class="external-link"><code>R/lik.R</code></a></small>
       <div class="d-none name"><code>lik.Rd</code></div>
     </div>
 
@@ -89,15 +89,18 @@ Only applicable for total evidence queries.</p></dd>
 
 
 <dt id="arg-batch">batch<a class="anchor" aria-label="anchor" href="#arg-batch"></a></dt>
-<dd><p>Batch size. The default is to compute densities for all of
-queries in one round, which is always the fastest option if memory allows.
-However, with large samples or many trees, it can be more memory efficient
-to split the data into batches. This has no impact on results.</p></dd>
+<dd><p>Batch size. The default computes densities for all queries in
+one round. Splitting into batches lowers peak memory with large samples or
+many trees, and is what <code>parallel</code> distributes across workers. This
+has no impact on results.</p></dd>
 
 
 <dt id="arg-parallel">parallel<a class="anchor" aria-label="anchor" href="#arg-parallel"></a></dt>
-<dd><p>Compute in parallel? Must register backend beforehand, e.g.
-via <code>doParallel</code> or <code>doFuture</code>; see examples.</p></dd>
+<dd><p>Compute in parallel? Batches are processed in parallel, so
+this only takes effect when <code>batch</code> is smaller than
+<code>nrow(query)</code>. Requires a registered <code>foreach</code> backend
+(<code>doParallel</code>, <code>doFuture</code>) or active <code>mirai</code> daemons.
+See <code><a href="arf-options.html">arf-options</a></code>.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -171,6 +174,9 @@ Statistics</em>, pp. 5357-5375.</p>
 <span class="r-in"><span><span class="co"># ... or with doFuture</span></span></span>
 <span class="r-in"><span><span class="fu">doFuture</span><span class="fu">::</span><span class="fu"><a href="https://doFuture.futureverse.org/reference/registerDoFuture.html" class="external-link">registerDoFuture</a></span><span class="op">(</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">future</span><span class="fu">::</span><span class="fu"><a href="https://future.futureverse.org/reference/plan.html" class="external-link">plan</a></span><span class="op">(</span><span class="st">"multisession"</span>, workers <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># ... or with mirai (shares large read-only inputs across workers via mori)</span></span></span>
+<span class="r-in"><span><span class="fu">mirai</span><span class="fu">::</span><span class="fu"><a href="https://mirai.r-lib.org/reference/daemons.html" class="external-link">daemons</a></span><span class="op">(</span><span class="fl">4</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>

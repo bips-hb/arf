@@ -9,7 +9,7 @@ forde and expct/forge."><meta property="og:image" content="https://bips-hb.githu
 
     <a class="navbar-brand me-2" href="../index.html">arf</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.5</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -31,7 +31,7 @@ forde and expct/forge."><meta property="og:image" content="https://bips-hb.githu
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.png" class="logo" alt=""><h1>Missing value imputation with ARF</h1>
-      <small class="dont-index">Source: <a href="https://github.com/bips-hb/arf/blob/v0.2.5/R/impute.R" class="external-link"><code>R/impute.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/bips-hb/arf/blob/main/R/impute.R" class="external-link"><code>R/impute.R</code></a></small>
       <div class="d-none name"><code>impute.Rd</code></div>
     </div>
 
@@ -138,6 +138,9 @@ of datasets for <code>m &gt; 1</code>.</p>
 <span class="r-in"><span><span class="co"># ... or with doFuture</span></span></span>
 <span class="r-in"><span><span class="fu">doFuture</span><span class="fu">::</span><span class="fu"><a href="https://doFuture.futureverse.org/reference/registerDoFuture.html" class="external-link">registerDoFuture</a></span><span class="op">(</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">future</span><span class="fu">::</span><span class="fu"><a href="https://future.futureverse.org/reference/plan.html" class="external-link">plan</a></span><span class="op">(</span><span class="st">"multisession"</span>, workers <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># ... or with mirai (shares large read-only inputs across workers via mori)</span></span></span>
+<span class="r-in"><span><span class="fu">mirai</span><span class="fu">::</span><span class="fu"><a href="https://mirai.r-lib.org/reference/daemons.html" class="external-link">daemons</a></span><span class="op">(</span><span class="fl">4</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>

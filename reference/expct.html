@@ -9,7 +9,7 @@ on some event(s)."><meta property="og:image" content="https://bips-hb.github.io/
 
     <a class="navbar-brand me-2" href="../index.html">arf</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.5</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -31,7 +31,7 @@ on some event(s)."><meta property="og:image" content="https://bips-hb.github.io/
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.png" class="logo" alt=""><h1>Expected Value</h1>
-      <small class="dont-index">Source: <a href="https://github.com/bips-hb/arf/blob/v0.2.5/R/expct.R" class="external-link"><code>R/expct.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/bips-hb/arf/blob/main/R/expct.R" class="external-link"><code>R/expct.R</code></a></small>
       <div class="d-none name"><code>expct.Rd</code></div>
     </div>
 
@@ -102,13 +102,20 @@ Options are to force sampling from a random leaf (<code>"force"</code>) or retur
 
 <dt id="arg-stepsize">stepsize<a class="anchor" aria-label="anchor" href="#arg-stepsize"></a></dt>
 <dd><p>How many rows of evidence should be handled at each step?
-Defaults to <code>nrow(evidence) / num_registered_workers</code> for
-<code>parallel == TRUE</code>.</p></dd>
+Smaller steps lower peak memory. Defaults to <code>nrow(evidence)</code> divided
+by the number of workers or daemons when <code>parallel = TRUE</code>, so seeded
+parallel runs only reproduce across worker counts if <code>stepsize</code> is
+set explicitly. See <code><a href="arf-options.html">arf-options</a></code>.</p></dd>
 
 
 <dt id="arg-parallel">parallel<a class="anchor" aria-label="anchor" href="#arg-parallel"></a></dt>
-<dd><p>Compute in parallel? Must register backend beforehand, e.g.
-via <code>doParallel</code> or <code>doFuture</code>; see Examples.</p></dd>
+<dd><p>Compute in parallel? Requires a registered <code>foreach</code>
+backend (<code>doParallel</code>, <code>doFuture</code>) or active <code>mirai</code>
+daemons. See <code><a href="arf-options.html">arf-options</a></code>. With
+<code>evidence_row_mode = "or"</code>, parallelization happens inside the
+conditional circuit computation; in benchmarks this gave little speedup
+while raising peak memory, so consider <code>parallel = FALSE</code> for large
+<code>"or"</code> queries.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -188,6 +195,9 @@ Statistics</em>, pp. 5357-5375.</p>
 <span class="r-in"><span><span class="co"># ... or with doFuture</span></span></span>
 <span class="r-in"><span><span class="fu">doFuture</span><span class="fu">::</span><span class="fu"><a href="https://doFuture.futureverse.org/reference/registerDoFuture.html" class="external-link">registerDoFuture</a></span><span class="op">(</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">future</span><span class="fu">::</span><span class="fu"><a href="https://future.futureverse.org/reference/plan.html" class="external-link">plan</a></span><span class="op">(</span><span class="st">"multisession"</span>, workers <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># ... or with mirai (shares large read-only inputs across workers via mori)</span></span></span>
+<span class="r-in"><span><span class="fu">mirai</span><span class="fu">::</span><span class="fu"><a href="https://mirai.r-lib.org/reference/daemons.html" class="external-link">daemons</a></span><span class="op">(</span><span class="fl">4</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>

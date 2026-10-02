@@ -4,6 +4,11 @@
 
 - [`adversarial_rf()`](https://bips-hb.github.io/arf/reference/adversarial_rf.md)
   : Adversarial Random Forests
+- [`arf-options`](https://bips-hb.github.io/arf/reference/arf-options.md)
+  [`arf.backend`](https://bips-hb.github.io/arf/reference/arf-options.md)
+  [`arf.verbose`](https://bips-hb.github.io/arf/reference/arf-options.md)
+  [`arf.block_rows`](https://bips-hb.github.io/arf/reference/arf-options.md)
+  : arf package options
 - [`arf`](https://bips-hb.github.io/arf/reference/arf-package.md)
   [`arf-package`](https://bips-hb.github.io/arf/reference/arf-package.md)
   : arf: Adversarial Random Forests

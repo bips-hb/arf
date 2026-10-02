@@ -59,16 +59,18 @@ lik(
 
 - batch:
 
-  Batch size. The default is to compute densities for all of queries in
-  one round, which is always the fastest option if memory allows.
-  However, with large samples or many trees, it can be more memory
-  efficient to split the data into batches. This has no impact on
-  results.
+  Batch size. The default computes densities for all queries in one
+  round. Splitting into batches lowers peak memory with large samples or
+  many trees, and is what `parallel` distributes across workers. This
+  has no impact on results.
 
 - parallel:
 
-  Compute in parallel? Must register backend beforehand, e.g. via
-  `doParallel` or `doFuture`; see examples.
+  Compute in parallel? Batches are processed in parallel, so this only
+  takes effect when `batch` is smaller than `nrow(query)`. Requires a
+  registered `foreach` backend (`doParallel`, `doFuture`) or active
+  `mirai` daemons. See
+  [`arf-options`](https://bips-hb.github.io/arf/reference/arf-options.md).
 
 ## Value
 
@@ -147,5 +149,8 @@ doParallel::registerDoParallel(cores = 4)
 # ... or with doFuture
 doFuture::registerDoFuture()
 future::plan("multisession", workers = 4)
+
+# ... or with mirai (shares large read-only inputs across workers via mori)
+mirai::daemons(4)
 } # }
 ```
