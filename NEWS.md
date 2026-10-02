@@ -1,3 +1,12 @@
+# arf 0.3.0
+* Add mirai/mori parallel backend as an alternative to foreach/doParallel (#62)
+  * Shares large read-only inputs (training data, forest, learned parameters) across workers via mori, lowering memory use in `adversarial_rf()`, `forde()`, `forge()`, `expct()`, and `lik()`
+  * Enable with active mirai daemons or `options(arf.backend)`, see `?arf-options`
+  * Parallel calls now report the backend in use once per session, including when `parallel = TRUE` finds no backend and runs sequentially; silence with `options(arf.verbose = FALSE)`
+* Reduce peak memory of `expct()` by processing conditions in bounded blocks (16x lower on one large internal case, at 12-27% more run time; tune via `options(arf.block_rows)`, see `?arf-options`)
+* Reduce memory and dispatch overhead in `forde()` (fused per-tree parameter pass, per-tree coverage) and `lik()` (per-batch reduction)
+* Fix `forge()` and `lik()` failing under non-forking `foreach` adapters (`doParallel` PSOCK clusters, `doFuture` multisession) with "object not found" errors: parallel worker bodies now take all inputs as explicit arguments (#62)
+
 # arf 0.2.5
 
 * **Behavior change**: New `mtry` argument for `adversarial_rf()` with default `max(2, floor(sqrt(p)))` instead of ranger's `floor(sqrt(p))`, which gave `mtry = 1` for fewer than 4 features (#59)

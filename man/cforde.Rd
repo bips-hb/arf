@@ -29,8 +29,9 @@ Options are to force sampling from a random leaf (\code{"force"}) or return
 
 \item{stepsize}{Stepsize defining number of condition rows handled in one for each step.}
 
-\item{parallel}{Compute in parallel? Must register backend beforehand, e.g.
-via \code{doParallel} or \code{doFuture}; see examples.}
+\item{parallel}{Compute in parallel? Requires a registered \code{foreach}
+backend (\code{doParallel}, \code{doFuture}) or active \code{mirai}
+daemons. See \code{\link{arf-options}}.}
 }
 \value{
 List with conditions (\code{evidence_input}), prepared conditions (\code{evidence_prepped})
