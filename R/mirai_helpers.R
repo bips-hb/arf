@@ -42,7 +42,7 @@ arf_select_backend <- function(parallel) {
     st <- mirai::status()
     !is.null(st$connections) && st$connections >= 1L
   }
-  mori_ok <- requireNamespace("mori", quietly = TRUE)
+  mori_ok <- arf_has_mori()
   mirai_ready <- daemons_up && mori_ok
   if (daemons_up && !mori_ok) {
     # the user started daemons expecting them to be used; say why they are not
@@ -147,13 +147,18 @@ arf_n_workers <- function() {
   max(1L, mirai_conns, dopar)
 }
 
+# Separate so tests can mock the no-mori case (CI always has mori installed).
+arf_has_mori <- function() {
+  requireNamespace("mori", quietly = TRUE)
+}
+
 arf_check_mirai_ready <- function() {
   if (!requireNamespace("mirai", quietly = TRUE)) {
     stop("arf.backend = 'mirai' requires the 'mirai' package. ",
          "Install it or set options(arf.backend = 'foreach').",
          call. = FALSE)
   }
-  if (!requireNamespace("mori", quietly = TRUE)) {
+  if (!arf_has_mori()) {
     stop("arf.backend = 'mirai' requires the 'mori' package. ",
          "Install it or set options(arf.backend = 'foreach').",
          call. = FALSE)

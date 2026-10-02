@@ -355,3 +355,17 @@ test_that("fork-based foreach still works after mirai was used in the session", 
   expect_identical(nrow(res), nrow(ref))
   expect_equal(res, ref, ignore_attr = TRUE)
 })
+
+test_that("daemons without mori fall back to foreach with a specific message", {
+  skip_if_no_daemons()
+  setup_mirai_daemons(2)
+  on.exit(mirai::daemons(0), add = TRUE)
+  local_mocked_bindings(arf_has_mori = function() FALSE)
+  rm("backend_shown", envir = .arf_env)  # once-per-session throttle
+  expect_message(
+    expect_message(backend <- arf_select_backend(TRUE), "mori.*not installed"),
+    NA
+  )
+  expect_identical(backend, "foreach")
+  expect_error(arf_check_mirai_ready(), "requires the 'mori' package")
+})
