@@ -11,6 +11,7 @@
 ^arf.*\.tgz$
 ^doc$
 ^Meta$
+^bench$
 ^Makefile$
 ^\.vscode$
 ^\.understand-anything$
