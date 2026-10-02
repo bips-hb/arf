@@ -44,6 +44,7 @@
 </ul></li>
 <li>Reduce peak memory of <code><a href="../reference/expct.html">expct()</a></code> by processing conditions in bounded blocks (16x lower on one large internal case, at 12-27% more run time; tune via <code>options(arf.block_rows)</code>, see <code>?arf-options</code>)</li>
 <li>Reduce memory and dispatch overhead in <code><a href="../reference/forde.html">forde()</a></code> (fused per-tree parameter pass, per-tree coverage) and <code><a href="../reference/lik.html">lik()</a></code> (per-batch reduction)</li>
+<li>Fix <code><a href="../reference/forge.html">forge()</a></code> and <code><a href="../reference/lik.html">lik()</a></code> failing under non-forking <code>foreach</code> adapters (<code>doParallel</code> PSOCK clusters, <code>doFuture</code> multisession) with “object not found” errors: parallel worker bodies now take all inputs as explicit arguments (<a href="https://github.com/bips-hb/arf/issues/62" class="external-link">#62</a>)</li>
 </ul></div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.2.5" id="arf-025">arf 0.2.5<a class="anchor" aria-label="anchor" href="#arf-025"></a></h2><p class="text-muted">CRAN release: 2026-09-21</p>

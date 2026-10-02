@@ -26,6 +26,12 @@
   per-tree parameter pass, per-tree coverage) and
   [`lik()`](https://bips-hb.github.io/arf/reference/lik.md) (per-batch
   reduction)
+- Fix [`forge()`](https://bips-hb.github.io/arf/reference/forge.md) and
+  [`lik()`](https://bips-hb.github.io/arf/reference/lik.md) failing
+  under non-forking `foreach` adapters (`doParallel` PSOCK clusters,
+  `doFuture` multisession) with “object not found” errors: parallel
+  worker bodies now take all inputs as explicit arguments
+  ([\#62](https://github.com/bips-hb/arf/issues/62))
 
 ## arf 0.2.5
 
