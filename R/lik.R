@@ -126,13 +126,13 @@ lik <- function(
   if (d == params$meta[, .N] & is.null(arf)) {
     warning('For total evidence queries, it is faster to include the ', 'pre-trained arf.')
   }
-  if (any(!colnames(x) %in% params$meta$variable)) {
+  if (!all(colnames(x) %in% params$meta$variable)) {
     err <- setdiff(colnames(x), params$meta$variable)
     stop('Unrecognized feature(s) among colnames: ', err)
   }
   x <- suppressWarnings(prep_x(x))
   factor_cols <- sapply(x, is.factor)
-  pure <- all(factor_cols) | all(!factor_cols) # worker arg (was computed inside lik_fn)
+  pure <- all(factor_cols) | !any(factor_cols) # worker arg (was computed inside lik_fn)
 
   # Prep evidence
   conj <- !is.null(evidence) && !(ncol(evidence) == 2 && all(c("f_idx", "wt") %in% colnames(evidence)))

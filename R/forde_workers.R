@@ -30,7 +30,7 @@ arf_bnd_fn <- function(
   num_nodes <- length(forest$split.varIDs[[tree]])
   lb <- matrix(-Inf, nrow = num_nodes, ncol = d)
   ub <- matrix(Inf, nrow = num_nodes, ncol = d)
-  if (finite_bounds == "global" && any(!factor_cols)) {
+  if (finite_bounds == "global" && !all(factor_cols)) {
     for (j in which(!factor_cols)) {
       min_j <- min(x[[j]], na.rm = TRUE)
       max_j <- max(x[[j]], na.rm = TRUE)
@@ -116,7 +116,7 @@ arf_psi_fn <- function(
   alpha
 ) {
   list(
-    cnt = if (any(!factor_cols)) {
+    cnt = if (!all(factor_cols)) {
       cnt_fn(tree, x, factor_cols, pred, inbag.counts, n, oob, bnds, finite_bounds, epsilon, family)
     },
     cat = if (any(factor_cols)) {

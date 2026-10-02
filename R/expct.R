@@ -166,12 +166,12 @@ expct <- function(
 
   # Check query
   if (is.null(query)) {
-    if (any(is.na(evidence))) {
+    if (anyNA(evidence)) {
       query <- params$meta$variable
     } else {
       query <- setdiff(params$meta$variable, colnames(evidence))
     }
-  } else if (any(!query %in% params$meta$variable)) {
+  } else if (!all(query %in% params$meta$variable)) {
     err <- setdiff(query, params$meta$variable)
     stop('Unrecognized feature(s) in query: ', err)
   }

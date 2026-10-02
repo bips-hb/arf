@@ -73,7 +73,7 @@ arf_forge_step <- function(
 
   # Simulate continuous data
   synth_cnt <- synth_cat <- NULL
-  if (any(!factor_cols)) {
+  if (!all(factor_cols)) {
     fam <- params$meta[family != 'multinom', unique(family)]
     if (is.null(cparams)) {
       psi_cond <- data.table()

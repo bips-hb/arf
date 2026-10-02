@@ -23,7 +23,7 @@ arf_lik_fold <- function(fold, params, x, factor_cols, leaves, omega, preds, bat
   }
 
   # Continuous data
-  if (any(!factor_cols)) {
+  if (!all(factor_cols)) {
     fam <- params$meta[class == 'numeric', unique(family)]
     x_long <- melt(
       data.table(obs = batch_idx[[fold]], x[batch_idx[[fold]], !factor_cols, drop = FALSE]),

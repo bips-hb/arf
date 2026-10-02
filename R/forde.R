@@ -190,7 +190,7 @@ forde <- function(
   }
   names(factor_cols) <- colnames_x
   deci <- rep(NA_integer_, d)
-  if (any(!factor_cols)) {
+  if (!all(factor_cols)) {
     deci[!factor_cols] <- sapply(which(!factor_cols), function(j) {
       if (any(grepl('\\.', x[[j]]))) {
         tmp <- x[grepl('\\.', x[[j]]), j]
@@ -319,7 +319,7 @@ forde <- function(
     )
   }
   # Continuous case
-  if (any(!factor_cols)) {
+  if (!all(factor_cols)) {
     psi_cnt <- psi_pair$cnt
     setkey(psi_cnt, f_idx, variable)
     setcolorder(psi_cnt, c('f_idx', 'variable'))

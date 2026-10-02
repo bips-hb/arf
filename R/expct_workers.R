@@ -57,7 +57,7 @@ arf_expct_step <- function(
   synth_block <- function(omega_) {
     synth_cnt <- synth_cat <- NULL
     # Continuous data
-    if (any(!factor_cols)) {
+    if (!all(factor_cols)) {
       if (is.null(cparams) || nrow(cparams$cnt) == 0) {
         psi_cond <- data.table()
       } else {
