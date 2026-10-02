@@ -6,6 +6,13 @@ test_that("sample_from_leaves returns a data.table without params", {
   expect_equal(colnames(x_synth), colnames(iris))
 })
 
+test_that("sample_from_leaves does not recycle factor column indices", {
+  dat <- iris[, c("Species", "Sepal.Length", "Sepal.Width")]
+  arf <- adversarial_rf(dat, num_trees = 2, verbose = FALSE, parallel = FALSE)
+
+  expect_silent(sample_from_leaves(arf, dat))
+})
+
 test_that("sample_from_leaves restores input class and column types with params", {
   # Guard copied from the analogous forge column-types test; 0.16.1 introduced
   # the vector-valued min.bucket adversarial_rf relies on. Left as a pointer in

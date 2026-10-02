@@ -8,6 +8,7 @@ adversarial_rf(
   x,
   num_trees = 10L,
   min_node_size = 2L,
+  mtry = NULL,
   delta = 0,
   max_iters = 10L,
   early_stop = TRUE,
@@ -27,6 +28,11 @@ likelihood estimation. See Details.}
 
 \item{min_node_size}{Minimal number of real data samples in leaf nodes.}
 
+\item{mtry}{Number of candidate features at each split. Default is
+\code{max(2, floor(sqrt(p)))} for \code{p} features, capped at \code{p}.
+This differs from \code{ranger}'s \code{floor(sqrt(p))}, which yields
+1 for \code{p < 4} and weakens the discriminator.}
+
 \item{delta}{Tolerance parameter. Algorithm converges when OOB accuracy is
 < 0.5 + \code{delta}.}
 
@@ -40,8 +46,10 @@ round to the next?}
 \item{verbose}{Print discriminator accuracy after each round? Will also show
 additional warnings.}
 
-\item{parallel}{Compute in parallel? Must register backend beforehand, e.g.
-via \code{doParallel} or \code{doFuture}; see examples.}
+\item{parallel}{Compute in parallel? Enables multithreaded ranger training
+(no backend needed) and parallelizes the pruning step, which requires a
+registered \code{foreach} backend (\code{doParallel}, \code{doFuture}) or
+active \code{mirai} daemons. See \code{\link{arf-options}}.}
 
 \item{...}{Extra parameters to be passed to \code{ranger}.}
 }
@@ -111,6 +119,9 @@ doParallel::registerDoParallel(cores = 4)
 # ... or with doFuture
 doFuture::registerDoFuture()
 future::plan("multisession", workers = 4)
+
+# ... or with mirai (shares large read-only inputs across workers via mori)
+mirai::daemons(4)
 }
 
 }

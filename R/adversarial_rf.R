@@ -8,6 +8,10 @@
 #'   well for most generative modeling tasks, but should be increased for 
 #'   likelihood estimation. See Details.
 #' @param min_node_size Minimal number of real data samples in leaf nodes.
+#' @param mtry Number of candidate features at each split. Default is 
+#'   \code{max(2, floor(sqrt(p)))} for \code{p} features, capped at \code{p}.
+#'   This differs from \code{ranger}'s \code{floor(sqrt(p))}, which yields 
+#'   1 for \code{p < 4} and weakens the discriminator.
 #' @param delta Tolerance parameter. Algorithm converges when OOB accuracy is
 #'   < 0.5 + \code{delta}. 
 #' @param max_iters Maximum iterations for the adversarial loop.
@@ -16,8 +20,10 @@
 #' @param prune Impose \code{min_node_size} by pruning? 
 #' @param verbose Print discriminator accuracy after each round? Will also show 
 #'   additional warnings.
-#' @param parallel Compute in parallel? Must register backend beforehand, e.g. 
-#'   via \code{doParallel} or \code{doFuture}; see examples.
+#' @param parallel Compute in parallel? Enables multithreaded ranger training
+#'   (no backend needed) and parallelizes the pruning step, which requires a
+#'   registered \code{foreach} backend (\code{doParallel}, \code{doFuture}) or
+#'   active \code{mirai} daemons. See \code{\link{arf-options}}.
 #' @param ... Extra parameters to be passed to \code{ranger}.
 #' 
 #' @details 
@@ -92,6 +98,9 @@
 #' # ... or with doFuture
 #' doFuture::registerDoFuture()
 #' future::plan("multisession", workers = 4)
+#'
+#' # ... or with mirai (shares large read-only inputs across workers via mori)
+#' mirai::daemons(4)
 #' }
 #' 
 #' @seealso
@@ -109,6 +118,7 @@ adversarial_rf <- function(
     x, 
     num_trees = 10L, 
     min_node_size = 2L, 
+    mtry = NULL,
     delta = 0,
     max_iters = 10L,
     early_stop = TRUE,
@@ -124,6 +134,10 @@ adversarial_rf <- function(
   x_real <- prep_x(x, verbose)
   n <- nrow(x_real)
   d <- ncol(x_real)
+  if (is.null(mtry)) {
+    # ranger default floor(sqrt(d)) gives mtry = 1 for d < 4
+    mtry <- min(d, max(2L, floor(sqrt(d))))
+  }
   factor_cols <- sapply(x_real, is.factor)
   lvls <- lapply(x_real[factor_cols], levels)
   
@@ -142,7 +156,7 @@ adversarial_rf <- function(
     min.bucket <- min_node_size
   }
   rf0 <- ranger(y ~ ., dat, keep.inbag = TRUE, classification = TRUE, 
-                num.trees = num_trees, min.bucket = min.bucket, 
+                num.trees = num_trees, min.bucket = min.bucket, mtry = mtry,
                 respect.unordered.factors = TRUE, num.threads = num.threads, ...)
   
   # Recurse
@@ -162,7 +176,7 @@ adversarial_rf <- function(
                    data.frame(y = 0L, x_synth))
       # Train discriminator
       rf1 <- ranger(y ~ ., dat, keep.inbag = TRUE, classification = TRUE, 
-                    num.trees = num_trees, min.bucket = min.bucket, 
+                    num.trees = num_trees, min.bucket = min.bucket, mtry = mtry,
                     respect.unordered.factors = TRUE, num.threads = num.threads, ...)
       # Evaluate
       acc0 <- 1 - rf1$prediction.error
@@ -183,41 +197,52 @@ adversarial_rf <- function(
     }
   }
   
-  # Prune leaves to ensure min_node_size w.r.t. real data
+  # Prune leaves to ensure min_node_size w.r.t. real data. Per-tree work lives in
+  # arf_prune_tree() (prune_workers.R). This is a meaningful share of runtime once
+  # ranger training is threaded (the prune loop is pure R, unaffected by
+  # ranger's num.threads), so it gets the same backend treatment as the rest.
   if (isTRUE(prune)) {
     pred <- stats::predict(rf0, x_real, type = 'terminalNodes')$predictions + 1L
-    prune <- function(tree) {
-      # Nodes to prune are leaves which contain fewer than min_node_size real samples
-      out <- rf0$forest$child.nodeIDs[[tree]]
-      leaves <- which(out[[1]] == 0L)
-      to_prune <- leaves[!(leaves %in% which(tabulate(pred[, tree]) >= min_node_size))]
-      while(length(to_prune) > 0) {
-        if (1 %in% to_prune) {
-          # Never prune the root
-          break
-        }
-        for (tp in to_prune) {
-          # Find parent
-          parent <- which((out[[1]] + 1L) == tp)
-          if (length(parent) > 0) {
-            # If node to prune (tp) is the left child of parent, replace left child with right child
-            out[[1]][parent] <- out[[2]][parent]
-          } else {
-            # If node to prune (tp) is the right child of parent, replace right child with left child
-            parent <- which((out[[2]] + 1L) == tp)
-            out[[2]][parent] <- out[[1]][parent]
-          }
-        }
-        # If both children of a parent are to be pruned, prune the parent in the next round
-        # This happens if both children have been pruned
-        to_prune <- which((out[[1]] + 1L) %in% to_prune)
-      }
-      return(out)
+    prune_one <- function(b) {
+      arf_prune_tree(b, rf0$forest$child.nodeIDs, pred, min_node_size)
     }
-    if (isTRUE(parallel)) {
-      rf0$forest$child.nodeIDs <- foreach(b = seq_len(num_trees)) %dopar% prune(b)
+    use_mirai <- FALSE
+    if (num_trees > 1) {
+      backend <- arf_select_backend(parallel)
+      use_mirai <- identical(backend, "mirai")
+    }
+    if (use_mirai) {
+      # arf_prune_tree's body is base-R, so pass it as an object (daemons need no
+      # arf loaded). Share the two big read-only objects (pred is n x num_trees;
+      # child.nodeIDs is the forest) once via mori. Chunk contiguously and c() so
+      # the flat result keeps tree order 1..num_trees (unname: mirai_map names
+      # chunks, but child.nodeIDs must stay an unnamed list).
+      pred_shared <- mori::share(pred)
+      child_shared <- mori::share(rf0$forest$child.nodeIDs)
+      chunks <- arf_tree_chunks(num_trees, mirai::status()$connections)
+      chunk_fn <- function(trees, worker, child_nodeIDs, pred, min_node_size) {
+        lapply(trees, worker, child_nodeIDs = child_nodeIDs,
+               pred = pred, min_node_size = min_node_size)
+      }
+      # Both functions are base-R with explicit args: strip their environments
+      # before shipping. chunk_fn's would otherwise be THIS frame (rf0, dat,
+      # x_real: hundreds of MB serialized into every task); arf_prune_tree's
+      # namespace env would force daemons to load arf.
+      # See the closure note above arf_mirai_tree_map() in mirai_helpers.R.
+      environment(chunk_fn) <- globalenv()
+      prune_worker <- arf_prune_tree
+      environment(prune_worker) <- globalenv()
+      res <- mirai::mirai_map(chunks, chunk_fn,
+                              .args = list(worker = prune_worker,
+                                           child_nodeIDs = child_shared,
+                                           pred = pred_shared,
+                                           min_node_size = min_node_size))[]
+      arf_stop_on_mirai_error(res)
+      rf0$forest$child.nodeIDs <- unname(do.call(c, res))
+    } else if (isTRUE(parallel) && num_trees > 1) {
+      rf0$forest$child.nodeIDs <- foreach(b = seq_len(num_trees)) %dopar% prune_one(b)
     } else {
-      rf0$forest$child.nodeIDs <- foreach(b = seq_len(num_trees)) %do% prune(b)
+      rf0$forest$child.nodeIDs <- foreach(b = seq_len(num_trees)) %do% prune_one(b)
     }
   }
   
