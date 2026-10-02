@@ -429,9 +429,11 @@ cforde <- function(
       cvg_new[, leaf_zero_lik := all(cvg == -Inf), by = c_idx]
       if (any(cvg_new[, leaf_zero_lik])) {
         if (nomatch == "force") {
-          cvg_new[leaf_zero_lik, cvg := 1 / .N, by = c_idx]
+          # == TRUE/FALSE is load-bearing: data.table reads a bare `i` symbol (or !symbol) from
+          # the calling scope, where the NSE prologue sets it to NULL
+          cvg_new[leaf_zero_lik == TRUE, cvg := 1 / .N, by = c_idx]
         } else {
-          cvg_new <- cvg_new[!leaf_zero_lik, ]
+          cvg_new <- cvg_new[leaf_zero_lik == FALSE, ]
         }
         if (verbose) {
           wrn <- "All leaves have zero likelihood for some entered evidence rows. This is probably because evidence contains an (almost) impossible combination."
@@ -446,10 +448,10 @@ cforde <- function(
         }
       }
       if (any(cvg_new[, !leaf_zero_lik])) {
-        cvg_new[!leaf_zero_lik, scale := max(cvg), by = c_idx]
-        cvg_new[!leaf_zero_lik, cvg := exp(cvg - scale)]
-        cvg_new[!leaf_zero_lik, scale := sum(cvg), by = c_idx]
-        cvg_new[!leaf_zero_lik, cvg := cvg / scale]
+        cvg_new[leaf_zero_lik == FALSE, scale := max(cvg), by = c_idx]
+        cvg_new[leaf_zero_lik == FALSE, cvg := exp(cvg - scale)]
+        cvg_new[leaf_zero_lik == FALSE, scale := sum(cvg), by = c_idx]
+        cvg_new[leaf_zero_lik == FALSE, cvg := cvg / scale]
         cvg_new[, scale := NULL]
       }
       cvg_new[, leaf_zero_lik := NULL]

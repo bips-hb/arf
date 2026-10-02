@@ -7,6 +7,10 @@
 
 [lint]
 extend-select = ["assignment"]
+# redundant_equals rewrites `DT[flag == TRUE]` to `DT[flag]`, which data.table
+# reads as a calling-scope variable (and `DT[!flag]` as a not-join), so the
+# "fix" silently empties the subset. Keep the explicit comparison.
+ignore = ["redundant_equals"]
 
 [lint.assignment]
 operator = "<-"
