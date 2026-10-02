@@ -5,6 +5,7 @@
   * Parallel calls now report the backend in use once per session, including when `parallel = TRUE` finds no backend and runs sequentially; silence with `options(arf.verbose = FALSE)`
 * Reduce peak memory of `expct()` by processing conditions in bounded blocks (16x lower on one large internal case, at 12-27% more run time; tune via `options(arf.block_rows)`, see `?arf-options`)
 * Reduce memory and dispatch overhead in `forde()` (fused per-tree parameter pass, per-tree coverage) and `lik()` (per-batch reduction)
+* Fix `forge()` and `lik()` failing under non-forking `foreach` adapters (`doParallel` PSOCK clusters, `doFuture` multisession) with "object not found" errors: parallel worker bodies now take all inputs as explicit arguments (#62)
 
 # arf 0.2.5
 
