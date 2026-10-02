@@ -122,7 +122,12 @@ rarf <- function(x, n_synth = NULL, ...) {
   forde_args <- dot_args[names(dot_args) %in% arg_names$forde]
   forge_args <- dot_args[names(dot_args) %in% arg_names$forge]
   
-  if ("sample_NAs" %in% names(forge_args) && forge_args$sample_NAs) arf_args$mia <- TRUE
+  # TODO: drop the formals() guard once ranger ships mia
+  # (https://github.com/imbs-hl/ranger/pull/761); until then sample_NAs falls
+  # back to a forest trained without missing-value handling
+  if (isTRUE(forge_args$sample_NAs) && "mia" %in% names(formals(ranger::ranger))) {
+    arf_args$mia <- TRUE
+  }
   if (!("verbose" %in% names(arf_args))) arf_args$verbose = FALSE
   if (!("arf" %in% names(arf_args) | "params" %in% names(forde_args))) arf <- do.call(adversarial_rf, c(x = list(x), arf_args))
   
