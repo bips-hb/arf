@@ -20,8 +20,10 @@ setup_mirai_daemons <- function(n = 2, seed = NULL) {
   } else {
     mirai::daemons(n, seed = seed)
   }
-  if (requireNamespace("pkgload", quietly = TRUE) &&
-      isTRUE(tryCatch(pkgload::is_dev_package("arf"), error = function(e) FALSE))) {
+  if (
+    requireNamespace("pkgload", quietly = TRUE) &&
+      isTRUE(tryCatch(pkgload::is_dev_package("arf"), error = function(e) FALSE))
+  ) {
     pdir <- pkgload::pkg_path()
     mirai::everywhere(suppressMessages(pkgload::load_all(pdir, quiet = TRUE)), pdir = pdir)
   }

@@ -55,8 +55,7 @@
 #'
 #' @export
 #'
-sample_from_leaves <- function(arf, x_real, params = NULL, round = TRUE,
-                               factor_cols = NULL, lvls = NULL, prep = TRUE) {
+sample_from_leaves <- function(arf, x_real, params = NULL, round = TRUE, factor_cols = NULL, lvls = NULL, prep = TRUE) {
   # To avoid data.table check issues
   i <- b <- cnt <- obs <- tree <- leaf <- N <- . <- NULL
   # Prep data
@@ -74,27 +73,22 @@ sample_from_leaves <- function(arf, x_real, params = NULL, round = TRUE,
   }
   # Sample leaves and get values from other observations in the same leaf
   nodeIDs <- stats::predict(arf, x_real, type = 'terminalNodes')$predictions
-  tmp <- data.table('tree' = rep(seq_len(arf$num.trees), each = n),
-                    'leaf' = as.integer(nodeIDs))
+  tmp <- data.table('tree' = rep(seq_len(arf$num.trees), each = n), 'leaf' = as.integer(nodeIDs))
   tmp2 <- tmp[sample(.N, n, replace = TRUE)]
   tmp2 <- unique(tmp2[, cnt := .N, by = .(tree, leaf)])
   draw_from <- rbindlist(lapply(seq_len(arf$num.trees), function(b) {
     x_real_b <- cbind(x_real, tmp[tree == b])
     x_real_b[, factor_colnames] <- lapply(x_real_b[, factor_colnames, drop = FALSE], as.numeric)
-    merge(tmp2, x_real_b, by = c('tree', 'leaf'),
-          sort = FALSE)[, N := .N, by = .(tree, leaf)]
+    merge(tmp2, x_real_b, by = c('tree', 'leaf'), sort = FALSE)[, N := .N, by = .(tree, leaf)]
   }))
   # Draw new observations by sampling marginally from those leaves
-  draw_params_within <- unique(draw_from, by = c('tree','leaf'))[, .(cnt, N)]
-  adj_absolut_col <- rep(c(0, draw_params_within[-.N, cumsum(N)]),
-                         times = draw_params_within$cnt)
+  draw_params_within <- unique(draw_from, by = c('tree', 'leaf'))[, .(cnt, N)]
+  adj_absolut_col <- rep(c(0, draw_params_within[-.N, cumsum(N)]), times = draw_params_within$cnt)
   adj_absolut <- rep(adj_absolut_col, d) + rep(seq(0, d - 1) * nrow(draw_from), each = n)
   idx_drawn_within <- ceiling(runif(n * d, 0, rep(draw_params_within$N, draw_params_within$cnt)))
   idx_drawn <- idx_drawn_within + adj_absolut
-  draw_from_stacked <- unlist(draw_from[, -c('tree', 'leaf', 'cnt', 'N')],
-                              use.names = FALSE)
-  values_drawn_stacked <- data.table('col_id' = rep(seq_len(d), each = n),
-                                     'values' = draw_from_stacked[idx_drawn])
+  draw_from_stacked <- unlist(draw_from[, -c('tree', 'leaf', 'cnt', 'N')], use.names = FALSE)
+  values_drawn_stacked <- data.table('col_id' = rep(seq_len(d), each = n), 'values' = draw_from_stacked[idx_drawn])
   # Assemble synthetic data
   x_synth <- as.data.table(split(values_drawn_stacked, by = 'col_id', keep.by = FALSE))
   setnames(x_synth, names(x_real))

@@ -38,20 +38,24 @@ arf_select_backend <- function(parallel) {
   if (!isTRUE(parallel)) {
     return("sequential")
   }
-  daemons_up <- requireNamespace("mirai", quietly = TRUE) && {
-    st <- mirai::status()
-    !is.null(st$connections) && st$connections >= 1L
-  }
+  daemons_up <- requireNamespace("mirai", quietly = TRUE) &&
+    {
+      st <- mirai::status()
+      !is.null(st$connections) && st$connections >= 1L
+    }
   mori_ok <- arf_has_mori()
   mirai_ready <- daemons_up && mori_ok
   if (daemons_up && !mori_ok) {
     # the user started daemons expecting them to be used; say why they are not
     arf_backend_inform(
-      paste0("arf: mirai daemons are running but package 'mori' is not ",
-             "installed, so the 'mirai' backend is unavailable; using the ",
-             "foreach backend instead (sequential unless one is registered). ",
-             "Install mori or set parallel = FALSE. See ?arf-options."),
-      key = "mirai-no-mori")
+      paste0(
+        "arf: mirai daemons are running but package 'mori' is not ",
+        "installed, so the 'mirai' backend is unavailable; using the ",
+        "foreach backend instead (sequential unless one is registered). ",
+        "Install mori or set parallel = FALSE. See ?arf-options."
+      ),
+      key = "mirai-no-mori"
+    )
   }
   dopar_workers <- if (requireNamespace("foreach", quietly = TRUE)) {
     foreach::getDoParWorkers()
@@ -77,9 +81,9 @@ arf_select_backend <- function(parallel) {
   if (backend == "mirai") {
     n <- mirai::status()$connections
     arf_backend_inform(
-      paste0("arf: using 'mirai' backend (", n, " daemon",
-             if (n != 1L) "s" else "", ")."),
-      key = paste0("mirai:", n))
+      paste0("arf: using 'mirai' backend (", n, " daemon", if (n != 1L) "s" else "", ")."),
+      key = paste0("mirai:", n)
+    )
   } else if (dopar_workers > 1L) {
     # nng (via mirai/nanonext) is not fork-safe: mirai objects left for the GC
     # would be finalized inside fork-based foreach workers, which then abort
@@ -88,17 +92,20 @@ arf_select_backend <- function(parallel) {
       gc()
     }
     arf_backend_inform(
-      paste0("arf: using 'foreach' backend (", foreach::getDoParName(),
-             ", ", dopar_workers, " workers)."),
-      key = paste0("foreach:", dopar_workers))
+      paste0("arf: using 'foreach' backend (", foreach::getDoParName(), ", ", dopar_workers, " workers)."),
+      key = paste0("foreach:", dopar_workers)
+    )
   } else if (!daemons_up) {
     # (with daemons up but no mori, the message above already said so)
     arf_backend_inform(
-      paste0("arf: parallel = TRUE but no parallel backend is registered; ",
-             "computing sequentially. Register a foreach backend (e.g. ",
-             "doParallel), start mirai daemons via mirai::daemons(), or set ",
-             "parallel = FALSE. See ?arf-options."),
-      key = "sequential-fallback")
+      paste0(
+        "arf: parallel = TRUE but no parallel backend is registered; ",
+        "computing sequentially. Register a foreach backend (e.g. ",
+        "doParallel), start mirai daemons via mirai::daemons(), or set ",
+        "parallel = FALSE. See ?arf-options."
+      ),
+      key = "sequential-fallback"
+    )
   }
   backend
 }
@@ -154,20 +161,22 @@ arf_has_mori <- function() {
 
 arf_check_mirai_ready <- function() {
   if (!requireNamespace("mirai", quietly = TRUE)) {
-    stop("arf.backend = 'mirai' requires the 'mirai' package. ",
-         "Install it or set options(arf.backend = 'foreach').",
-         call. = FALSE)
+    stop(
+      "arf.backend = 'mirai' requires the 'mirai' package. ",
+      "Install it or set options(arf.backend = 'foreach').",
+      call. = FALSE
+    )
   }
   if (!arf_has_mori()) {
-    stop("arf.backend = 'mirai' requires the 'mori' package. ",
-         "Install it or set options(arf.backend = 'foreach').",
-         call. = FALSE)
+    stop(
+      "arf.backend = 'mirai' requires the 'mori' package. ",
+      "Install it or set options(arf.backend = 'foreach').",
+      call. = FALSE
+    )
   }
   status <- mirai::status()
   if (is.null(status$connections) || status$connections < 1L) {
-    stop("arf.backend = 'mirai' requires daemons() to be set. ",
-         "Call mirai::daemons(n) first.",
-         call. = FALSE)
+    stop("arf.backend = 'mirai' requires daemons() to be set. ", "Call mirai::daemons(n) first.", call. = FALSE)
   }
   invisible(TRUE)
 }
@@ -188,8 +197,7 @@ arf_check_mirai_ready <- function() {
 # control granularity via their stepsize/batch arguments instead.
 arf_tree_chunks <- function(num_trees, n_workers) {
   n_chunks <- max(1L, min(as.integer(n_workers), num_trees))
-  split(seq_len(num_trees),
-        sort(rep(seq_len(n_chunks), length.out = num_trees)))
+  split(seq_len(num_trees), sort(rep(seq_len(n_chunks), length.out = num_trees)))
 }
 
 # Dispatch a per-tree worker over mirai daemons: one contiguous chunk per
@@ -204,8 +212,7 @@ arf_tree_chunks <- function(num_trees, n_workers) {
 # into every task, defeating mori sharing. Ship package-level functions, or
 # strip base-R-only closures to globalenv() first. See the mirai FAQ:
 # https://mirai.r-lib.org/articles/v07-questions.html
-arf_mirai_tree_map <- function(num_trees, worker_fn, shared_args,
-                               combine = data.table::rbindlist) {
+arf_mirai_tree_map <- function(num_trees, worker_fn, shared_args, combine = data.table::rbindlist) {
   st <- mirai::status()
   n_workers <- max(1L, as.integer(st$connections))
   chunks <- arf_tree_chunks(num_trees, n_workers)
@@ -221,8 +228,7 @@ arf_mirai_tree_map <- function(num_trees, worker_fn, shared_args,
   res <- mirai::mirai_map(
     chunks,
     chunk_runner,
-    .args = list(worker_fn = worker_fn, shared_args = shared_args,
-                 combine = combine)
+    .args = list(worker_fn = worker_fn, shared_args = shared_args, combine = combine)
   )[]
   arf_stop_on_mirai_error(res)
   combine(res)
@@ -239,8 +245,7 @@ arf_stop_on_mirai_error <- function(res) {
       conditionMessage(err)
     } else {
       # bare errorValue (e.g. 19 = connection reset when a daemon died)
-      paste0("errorValue ", as.integer(err),
-             " (daemon lost, timed out or interrupted; see nanonext::nng_error)")
+      paste0("errorValue ", as.integer(err), " (daemon lost, timed out or interrupted; see nanonext::nng_error)")
     }
     stop("arf: mirai worker error in chunk ", failed[1], ": ", msg, call. = FALSE)
   }
@@ -258,9 +263,11 @@ arf_stop_on_mirai_error <- function(res) {
 arf_rbind_steps <- function(parts) {
   nms <- lapply(parts, names)
   if (!all(vapply(nms, identical, logical(1), nms[[1]]))) {
-    stop("arf: parallel steps returned different columns, cannot combine. ",
-         "Known trigger: expct() with nomatch = 'force' and stepsize < nrow(evidence).",
-         call. = FALSE)
+    stop(
+      "arf: parallel steps returned different columns, cannot combine. ",
+      "Known trigger: expct() with nomatch = 'force' and stepsize < nrow(evidence).",
+      call. = FALSE
+    )
   }
   r <- do.call(rbind, parts)
   rownames(r) <- NULL
@@ -273,6 +280,5 @@ arf_rbind_steps <- function(parts) {
 # rbindlist drops the NULL component of the branch not taken. Package-level
 # for the same closure-hygiene reason as arf_rbind_steps.
 arf_combine_psi <- function(parts) {
-  list(cnt = data.table::rbindlist(lapply(parts, `[[`, "cnt")),
-       cat = data.table::rbindlist(lapply(parts, `[[`, "cat")))
+  list(cnt = data.table::rbindlist(lapply(parts, `[[`, "cnt")), cat = data.table::rbindlist(lapply(parts, `[[`, "cat")))
 }
