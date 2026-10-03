@@ -28,3 +28,13 @@ test_that("Imputation fills missing values", {
   expect_length(iris_imputed, 20)
   expect_true(all(sapply(iris_imputed, function(x) !anyNA(x))))
 })
+
+test_that("FORGE with sample_NAs = TRUE reproduces missingness", {
+  arf_na <- adversarial_rf(iris_na, num_trees = 5, verbose = FALSE, parallel = FALSE)
+  psi_na <- forde(arf_na, iris_na, parallel = FALSE)
+  set.seed(1)
+  x <- forge(psi_na, n_synth = 300, sample_NAs = TRUE, parallel = FALSE)
+  expect_equal(nrow(x), 300)
+  expect_true(anyNA(x))
+  expect_false(anyNA(forge(psi_na, n_synth = 50, sample_NAs = FALSE, parallel = FALSE)))
+})
