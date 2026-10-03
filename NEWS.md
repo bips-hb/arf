@@ -1,4 +1,4 @@
-# arf 0.3.0
+# arf (development version)
 * Add mirai/mori parallel backend as an alternative to foreach/doParallel (#62)
   * Shares large read-only inputs (training data, forest, learned parameters) across workers via mori, lowering memory use in `adversarial_rf()`, `forde()`, `forge()`, `expct()`, and `lik()`
   * Enable with active mirai daemons or `options(arf.backend)`, see `?arf-options`
@@ -6,6 +6,8 @@
 * Reduce peak memory of `expct()` by processing conditions in bounded blocks (16x lower on one large internal case, at 12-27% more run time; tune via `options(arf.block_rows)`, see `?arf-options`)
 * Reduce memory and dispatch overhead in `forde()` (fused per-tree parameter pass, per-tree coverage) and `lik()` (per-batch reduction)
 * Fix `forge()` and `lik()` failing under non-forking `foreach` adapters (`doParallel` PSOCK clusters, `doFuture` multisession) with "object not found" errors: parallel worker bodies now take all inputs as explicit arguments (#62)
+* Fix `darf()`, `rarf()` and `earf()` ignoring a pre-trained `arf` or `params` passed via `...`: they retrained and recomputed anyway, then failed with "formal argument 'params' matched by multiple actual arguments"
+* Fix a crash when arf runs with `parallel = TRUE` inside a forked worker (`future::plan(multicore)`, `mclapply()`, fork-based `doParallel`) while mirai daemons exist in the parent process: the child inherited the daemon connection and used it, which aborts the process since mirai is not fork-safe. Forked children now ignore the parent's daemons and use the `foreach` path; forcing `options(arf.backend = "mirai")` there errors with an explanation
 
 # arf 0.2.5
 

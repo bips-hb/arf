@@ -366,3 +366,33 @@ test_that("daemons without mori fall back to foreach with a specific message", {
   expect_identical(backend, "foreach")
   expect_error(arf_check_mirai_ready(), "requires the 'mori' package")
 })
+
+test_that("mirai backend is never selected inside a forked child", {
+  skip_if_no_daemons()
+  skip_on_os("windows")
+  setup_mirai_daemons(2)
+  on.exit(mirai::daemons(0), add = TRUE)
+  expect_identical(arf_select_backend(TRUE), "mirai")
+  expect_false(arf_in_fork_child())
+  gc() # no mirai finalizers left for the child to run
+  job <- parallel::mcparallel({
+    options(arf.backend = NULL)
+    c(
+      fork = as.character(arf_in_fork_child()),
+      auto = arf_select_backend(TRUE),
+      conns = as.character(arf_mirai_connections()),
+      forced = tryCatch(
+        {
+          options(arf.backend = "mirai")
+          arf_select_backend(TRUE)
+        },
+        error = conditionMessage
+      )
+    )
+  })
+  res <- parallel::mccollect(job)[[1]]
+  expect_identical(res[["fork"]], "TRUE")
+  expect_identical(res[["auto"]], "foreach")
+  expect_identical(res[["conns"]], "0")
+  expect_match(res[["forced"]], "forked worker")
+})

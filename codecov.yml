@@ -1,0 +1,13 @@
+# https://docs.codecov.com/docs/codecov-yaml
+coverage:
+  status:
+    project:
+      default:
+        target: auto      # compare against the base commit
+        threshold: 1%     # tolerate small drops (test skips, measurement noise)
+    patch:
+      default:
+        informational: true   # report patch coverage, never fail the check on it
+comment:
+  layout: "condensed_header, diff, files"
+  require_changes: true   # comment only when coverage actually changes

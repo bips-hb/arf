@@ -6,8 +6,34 @@
 # daemons are running and the option is unset; see arf_select_backend().
 # Hidden from public API; mirai and mori in Suggests only.
 
-# Session-scoped state for once-per-run notifications.
+# Session-scoped state for once-per-run notifications and the host pid.
 .arf_env <- new.env(parent = emptyenv())
+
+.onLoad <- function(libname, pkgname) {
+  .arf_env$pid <- Sys.getpid()
+}
+
+# TRUE inside a forked child (mclapply, doParallel fork, future multicore):
+# the child inherits the parent's mirai connection state, but nng is not
+# fork-safe, so touching it from the child aborts the process. Fresh worker
+# processes (PSOCK, multisession, daemons) load arf themselves and match.
+arf_in_fork_child <- function() {
+  pid <- get0("pid", envir = .arf_env, ifnotfound = NULL)
+  !is.null(pid) && pid != Sys.getpid()
+}
+
+# Active daemon count, 0 when mirai is absent or we are a forked child
+# (status() must not be called there either).
+# The fork-child branches below only run inside a forked process, where covr
+# cannot record them; the mcparallel() test in test-mirai-backend.R covers
+# them for real.
+arf_mirai_connections <- function() {
+  if (arf_in_fork_child() || !requireNamespace("mirai", quietly = TRUE)) {
+    return(0L) # nocov
+  }
+  st <- tryCatch(mirai::status(), error = function(e) NULL)
+  if (is.null(st$connections)) 0L else as.integer(st$connections)
+}
 
 # Emit a backend notification at most once per distinct state per session,
 # and only when getOption("arf.verbose", TRUE) is TRUE (opt-out switch).
@@ -38,11 +64,7 @@ arf_select_backend <- function(parallel) {
   if (!isTRUE(parallel)) {
     return("sequential")
   }
-  daemons_up <- requireNamespace("mirai", quietly = TRUE) &&
-    {
-      st <- mirai::status()
-      !is.null(st$connections) && st$connections >= 1L
-    }
+  daemons_up <- arf_mirai_connections() >= 1L
   mori_ok <- arf_has_mori()
   mirai_ready <- daemons_up && mori_ok
   if (daemons_up && !mori_ok) {
@@ -79,7 +101,7 @@ arf_select_backend <- function(parallel) {
   # Report the effective backend: parallel = TRUE only, at most once per
   # distinct state per session, suppressible via options(arf.verbose = FALSE).
   if (backend == "mirai") {
-    n <- mirai::status()$connections
+    n <- arf_mirai_connections()
     arf_backend_inform(
       paste0("arf: using 'mirai' backend (", n, " daemon", if (n != 1L) "s" else "", ")."),
       key = paste0("mirai:", n)
@@ -140,12 +162,7 @@ arf_load_on_daemons <- function() {
 # foreach::getDoParWorkers() alone, which is 1 under a pure mirai backend (daemons
 # set, no foreach registered) -> step_no 1 -> mirai never engages.
 arf_n_workers <- function() {
-  mirai_conns <- if (requireNamespace("mirai", quietly = TRUE)) {
-    st <- tryCatch(mirai::status(), error = function(e) NULL)
-    if (!is.null(st$connections)) as.integer(st$connections) else 0L
-  } else {
-    0L
-  }
+  mirai_conns <- arf_mirai_connections()
   dopar <- if (requireNamespace("foreach", quietly = TRUE)) {
     foreach::getDoParWorkers()
   } else {
@@ -160,6 +177,16 @@ arf_has_mori <- function() {
 }
 
 arf_check_mirai_ready <- function() {
+  if (arf_in_fork_child()) {
+    # nocov start
+    stop(
+      "arf.backend = 'mirai' cannot be used from a forked worker process ",
+      "(mclapply, doParallel fork, future multicore): mirai is not fork-safe. ",
+      "Set parallel = FALSE in the inner call or use a non-forking outer plan.",
+      call. = FALSE
+    )
+    # nocov end
+  }
   if (!requireNamespace("mirai", quietly = TRUE)) {
     stop(
       "arf.backend = 'mirai' requires the 'mirai' package. ",
@@ -174,8 +201,7 @@ arf_check_mirai_ready <- function() {
       call. = FALSE
     )
   }
-  status <- mirai::status()
-  if (is.null(status$connections) || status$connections < 1L) {
+  if (arf_mirai_connections() < 1L) {
     stop("arf.backend = 'mirai' requires daemons() to be set. ", "Call mirai::daemons(n) first.", call. = FALSE)
   }
   invisible(TRUE)

@@ -54,21 +54,26 @@ darf <- function(x, query = NULL, ...) {
   forde_args <- dot_args[names(dot_args) %in% arg_names$forde]
   lik_args <- dot_args[names(dot_args) %in% arg_names$lik]
 
+  # A pre-trained arf and/or params come in via ...; neither adversarial_rf nor
+  # forde has such an argument, so read them from the dots directly.
+  arf <- dot_args$arf
+  params <- dot_args$params
   if (!("verbose" %in% names(arf_args))) {
     arf_args$verbose <- FALSE
   }
-  if (!("arf" %in% names(arf_args) | "params" %in% names(forde_args))) {
-    arf <- do.call(adversarial_rf, c(x = list(x), arf_args))
-  }
-
-  if (!("params" %in% names(forde_args))) {
+  if (is.null(params)) {
+    if (is.null(arf)) {
+      arf <- do.call(adversarial_rf, c(x = list(x), arf_args))
+    }
+    forde_args$arf <- NULL # passed explicitly
     params <- do.call(forde, c(arf = list(arf), x = list(x), forde_args))
   }
 
   if (is.null(query)) {
     query <- x
   }
-  if (!("arf" %in% names(lik_args))) {
+  lik_args$params <- NULL # passed explicitly below
+  if (!is.null(arf)) {
     lik_args$arf <- arf
   }
   do.call(lik, c(params = list(params), query = list(query), lik_args))
@@ -139,16 +144,19 @@ rarf <- function(x, n_synth = NULL, ...) {
   if (isTRUE(forge_args$sample_NAs) && "mia" %in% names(formals(ranger::ranger))) {
     arf_args$mia <- TRUE
   }
+  arf <- dot_args$arf
+  params <- dot_args$params
   if (!("verbose" %in% names(arf_args))) {
     arf_args$verbose <- FALSE
   }
-  if (!("arf" %in% names(arf_args) | "params" %in% names(forde_args))) {
-    arf <- do.call(adversarial_rf, c(x = list(x), arf_args))
-  }
-
-  if (!("params" %in% names(forde_args))) {
+  if (is.null(params)) {
+    if (is.null(arf)) {
+      arf <- do.call(adversarial_rf, c(x = list(x), arf_args))
+    }
+    forde_args$arf <- NULL # passed explicitly
     params <- do.call(forde, c(arf = list(arf), x = list(x), forde_args))
   }
+  forge_args$params <- NULL # passed explicitly below
 
   if (!("verbose" %in% names(forge_args))) {
     forge_args$verbose <- FALSE
@@ -217,16 +225,19 @@ earf <- function(x, ...) {
   forde_args <- dot_args[names(dot_args) %in% arg_names$forde]
   expct_args <- dot_args[names(dot_args) %in% arg_names$expct]
 
+  arf <- dot_args$arf
+  params <- dot_args$params
   if (!("verbose" %in% names(arf_args))) {
     arf_args$verbose <- FALSE
   }
-  if (!("arf" %in% names(arf_args) | "params" %in% names(forde_args))) {
-    arf <- do.call(adversarial_rf, c(x = list(x), arf_args))
-  }
-
-  if (!("params" %in% names(forde_args))) {
+  if (is.null(params)) {
+    if (is.null(arf)) {
+      arf <- do.call(adversarial_rf, c(x = list(x), arf_args))
+    }
+    forde_args$arf <- NULL # passed explicitly
     params <- do.call(forde, c(arf = list(arf), x = list(x), forde_args))
   }
+  expct_args$params <- NULL # passed explicitly below
 
   if (!("verbose" %in% names(expct_args))) {
     expct_args$verbose <- FALSE

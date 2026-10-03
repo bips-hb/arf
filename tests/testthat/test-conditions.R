@@ -152,3 +152,29 @@ test_that("if nomatch='na' and verbose=FALSE, run through without a warning and 
   )
   expect_true(all(is.na(x_synth[, -1]) & x_synth$Sepal.Length == 100))
 })
+
+test_that("interval evidence that splits leaves draws sub-leaf areas", {
+  set.seed(3)
+  x <- forge(psi, evidence = data.frame(Sepal.Length = "(5.3, 5.9)"), n_synth = 30, parallel = FALSE)
+  expect_equal(nrow(x), 30)
+  expect_true(all(x$Sepal.Length >= 5.3 & x$Sepal.Length <= 5.9))
+})
+
+test_that("evidence_row_mode = 'or' with impossible evidence follows nomatch", {
+  psi_no <- forde(arf, iris, finite_bounds = "no", parallel = FALSE)
+  evi <- data.frame(Sepal.Length = c(100, 200))
+  expect_warning(
+    x_force <- forge(
+      psi_no,
+      evidence = evi,
+      evidence_row_mode = "or",
+      nomatch = "force",
+      verbose = TRUE,
+      n_synth = 4,
+      parallel = FALSE
+    ),
+    "Sampling from all possible leaves"
+  )
+  expect_equal(nrow(x_force), 4)
+  # nomatch = "na" in "or" mode errors here (pre-existing, see TODO); not covered yet
+})
