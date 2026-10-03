@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">arf</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.5.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -33,7 +33,7 @@
     </div>
 
     <div class="section level2">
-<h2 class="pkg-version" data-toc-text="0.3.0" id="arf-030">arf 0.3.0<a class="anchor" aria-label="anchor" href="#arf-030"></a></h2>
+<h2 class="pkg-version" data-toc-text="development version" id="arf-development-version">arf (development version)<a class="anchor" aria-label="anchor" href="#arf-development-version"></a></h2>
 <ul><li>Add mirai/mori parallel backend as an alternative to foreach/doParallel (<a href="https://github.com/bips-hb/arf/issues/62" class="external-link">#62</a>)
 <ul><li>Shares large read-only inputs (training data, forest, learned parameters) across workers via mori, lowering memory use in <code><a href="../reference/adversarial_rf.html">adversarial_rf()</a></code>, <code><a href="../reference/forde.html">forde()</a></code>, <code><a href="../reference/forge.html">forge()</a></code>, <code><a href="../reference/expct.html">expct()</a></code>, and <code><a href="../reference/lik.html">lik()</a></code>
 </li>
@@ -45,6 +45,8 @@
 <li>Reduce peak memory of <code><a href="../reference/expct.html">expct()</a></code> by processing conditions in bounded blocks (16x lower on one large internal case, at 12-27% more run time; tune via <code>options(arf.block_rows)</code>, see <code>?arf-options</code>)</li>
 <li>Reduce memory and dispatch overhead in <code><a href="../reference/forde.html">forde()</a></code> (fused per-tree parameter pass, per-tree coverage) and <code><a href="../reference/lik.html">lik()</a></code> (per-batch reduction)</li>
 <li>Fix <code><a href="../reference/forge.html">forge()</a></code> and <code><a href="../reference/lik.html">lik()</a></code> failing under non-forking <code>foreach</code> adapters (<code>doParallel</code> PSOCK clusters, <code>doFuture</code> multisession) with “object not found” errors: parallel worker bodies now take all inputs as explicit arguments (<a href="https://github.com/bips-hb/arf/issues/62" class="external-link">#62</a>)</li>
+<li>Fix <code><a href="../reference/darf.html">darf()</a></code>, <code><a href="../reference/rarf.html">rarf()</a></code> and <code><a href="../reference/earf.html">earf()</a></code> ignoring a pre-trained <code>arf</code> or <code>params</code> passed via <code>...</code>: they retrained and recomputed anyway, then failed with “formal argument ‘params’ matched by multiple actual arguments”</li>
+<li>Fix a crash when arf runs with <code>parallel = TRUE</code> inside a forked worker (<code>future::plan(multicore)</code>, <code><a href="https://rdrr.io/r/parallel/mclapply.html" class="external-link">mclapply()</a></code>, fork-based <code>doParallel</code>) while mirai daemons exist in the parent process: the child inherited the daemon connection and used it, which aborts the process since mirai is not fork-safe. Forked children now ignore the parent’s daemons and use the <code>foreach</code> path; forcing <code>options(arf.backend = "mirai")</code> there errors with an explanation</li>
 </ul></div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.2.5" id="arf-025">arf 0.2.5<a class="anchor" aria-label="anchor" href="#arf-025"></a></h2><p class="text-muted">CRAN release: 2026-09-21</p>

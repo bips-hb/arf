@@ -1,6 +1,6 @@
 # Changelog
 
-## arf 0.3.0
+## arf (development version)
 
 - Add mirai/mori parallel backend as an alternative to
   foreach/doParallel ([\#62](https://github.com/bips-hb/arf/issues/62))
@@ -32,6 +32,20 @@
   `doFuture` multisession) with “object not found” errors: parallel
   worker bodies now take all inputs as explicit arguments
   ([\#62](https://github.com/bips-hb/arf/issues/62))
+- Fix [`darf()`](https://bips-hb.github.io/arf/reference/darf.md),
+  [`rarf()`](https://bips-hb.github.io/arf/reference/rarf.md) and
+  [`earf()`](https://bips-hb.github.io/arf/reference/earf.md) ignoring a
+  pre-trained `arf` or `params` passed via `...`: they retrained and
+  recomputed anyway, then failed with “formal argument ‘params’ matched
+  by multiple actual arguments”
+- Fix a crash when arf runs with `parallel = TRUE` inside a forked
+  worker (`future::plan(multicore)`,
+  [`mclapply()`](https://rdrr.io/r/parallel/mclapply.html), fork-based
+  `doParallel`) while mirai daemons exist in the parent process: the
+  child inherited the daemon connection and used it, which aborts the
+  process since mirai is not fork-safe. Forked children now ignore the
+  parent’s daemons and use the `foreach` path; forcing
+  `options(arf.backend = "mirai")` there errors with an explanation
 
 ## arf 0.2.5
 
