@@ -1,6 +1,6 @@
 Package: arf
 Title: Adversarial Random Forests
-Version: 0.3.0
+Version: 0.2.5.9000
 Authors@R: c(
     person("Marvin N.", "Wright", , "cran@wrig.de", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-8542-6291")),
