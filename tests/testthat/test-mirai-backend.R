@@ -396,21 +396,3 @@ test_that("mirai backend is never selected inside a forked child", {
   expect_identical(res[["conns"]], "0")
   expect_match(res[["forced"]], "forked worker")
 })
-
-test_that("fork-child guard, exercised in-process (covr cannot see forked children)", {
-  skip_if_no_daemons()
-  setup_mirai_daemons(2)
-  on.exit(mirai::daemons(0), add = TRUE)
-  host_pid <- .arf_env$pid
-  on.exit(.arf_env$pid <- host_pid, add = TRUE)
-  .arf_env$pid <- -1L # pretend we were loaded in a different (parent) process
-  expect_true(arf_in_fork_child())
-  expect_identical(arf_mirai_connections(), 0L)
-  expect_identical(arf_n_workers(), 1L)
-  old_opt <- options(arf.backend = NULL)
-  on.exit(options(old_opt), add = TRUE)
-  rm("backend_shown", envir = .arf_env)
-  expect_identical(suppressMessages(arf_select_backend(TRUE)), "foreach")
-  options(arf.backend = "mirai")
-  expect_error(arf_select_backend(TRUE), "forked worker")
-})

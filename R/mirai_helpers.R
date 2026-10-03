@@ -24,9 +24,12 @@ arf_in_fork_child <- function() {
 
 # Active daemon count, 0 when mirai is absent or we are a forked child
 # (status() must not be called there either).
+# The fork-child branches below only run inside a forked process, where covr
+# cannot record them; the mcparallel() test in test-mirai-backend.R covers
+# them for real.
 arf_mirai_connections <- function() {
   if (arf_in_fork_child() || !requireNamespace("mirai", quietly = TRUE)) {
-    return(0L)
+    return(0L) # nocov
   }
   st <- tryCatch(mirai::status(), error = function(e) NULL)
   if (is.null(st$connections)) 0L else as.integer(st$connections)
@@ -175,12 +178,14 @@ arf_has_mori <- function() {
 
 arf_check_mirai_ready <- function() {
   if (arf_in_fork_child()) {
+    # nocov start
     stop(
       "arf.backend = 'mirai' cannot be used from a forked worker process ",
       "(mclapply, doParallel fork, future multicore): mirai is not fork-safe. ",
       "Set parallel = FALSE in the inner call or use a non-forking outer plan.",
       call. = FALSE
     )
+    # nocov end
   }
   if (!requireNamespace("mirai", quietly = TRUE)) {
     stop(
