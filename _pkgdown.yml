@@ -2,3 +2,34 @@ url: https://bips-hb.github.io/arf/
 template:
   bootstrap: 5
 
+development:
+  mode: auto
+
+reference:
+- title: Fitting an ARF
+  desc: >
+    Adversarial random forest training, the starting point for everything else.
+  contents:
+  - arf-package
+  - adversarial_rf
+- title: Density estimation and generation
+  desc: >
+    Learn leaf parameters, then sample, impute or evaluate likelihoods and
+    expectations, optionally conditioned on evidence.
+  contents:
+  - forde
+  - forge
+  - lik
+  - expct
+  - impute
+  - sample_from_leaves
+- title: Shortcut functions
+  desc: >
+    One-call wrappers that train, learn parameters and generate in one step.
+  contents:
+  - darf
+  - earf
+  - rarf
+- title: Package options
+  contents:
+  - arf-options
