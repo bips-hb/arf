@@ -24,3 +24,4 @@
 ^\.claude$
 ^\.DS_Store$
 ^attic$
+^codecov\.yml$
