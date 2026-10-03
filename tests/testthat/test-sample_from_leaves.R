@@ -22,12 +22,14 @@ test_that("sample_from_leaves restores input class and column types with params"
   }
 
   n <- 50
-  dat <- data.frame(numeric = rnorm(n),
-                    integer_factor = sample(1L:5L, n, replace = TRUE),
-                    integer_numeric = sample(1L:50L, n, replace = FALSE),
-                    character = sample(letters[1:5], n, replace = TRUE),
-                    factor = factor(sample(letters[1:5], n, replace = TRUE)),
-                    logical = (sample(0:1, n, replace = TRUE) == 1))
+  dat <- data.frame(
+    numeric = rnorm(n),
+    integer_factor = sample(1L:5L, n, replace = TRUE),
+    integer_numeric = sample(1L:50L, n, replace = FALSE),
+    character = sample(letters[1:5], n, replace = TRUE),
+    factor = factor(sample(letters[1:5], n, replace = TRUE)),
+    logical = (sample(0:1, n, replace = TRUE) == 1)
+  )
 
   arf <- adversarial_rf(dat, num_trees = 2, verbose = FALSE, parallel = FALSE)
   psi <- forde(arf, dat, parallel = FALSE)
@@ -38,7 +40,7 @@ test_that("sample_from_leaves restores input class and column types with params"
   expect_equal(nrow(x_synth), nrow(dat))
 
   # No NAs and preserved column types
-  expect_true(all(!is.na(x_synth)))
+  expect_true(!anyNA(x_synth))
   classes <- sapply(dat, class)
   classes_synth <- sapply(x_synth, class)
   expect_equal(classes, classes_synth)
@@ -70,8 +72,7 @@ test_that("sample_from_leaves forwards round to post-processing", {
   # integer-valued numeric column stays numeric with round = FALSE and becomes
   # integer with round = TRUE (mirrors forge()).
   n <- 50
-  dat <- data.frame(numeric = rnorm(n),
-                    integer_numeric = sample(1L:50L, n, replace = FALSE))
+  dat <- data.frame(numeric = rnorm(n), integer_numeric = sample(1L:50L, n, replace = FALSE))
   arf <- adversarial_rf(dat, num_trees = 2, verbose = FALSE, parallel = FALSE)
   psi <- forde(arf, dat, parallel = FALSE)
 

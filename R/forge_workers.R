@@ -6,14 +6,25 @@
 # mori-shared read-only under the mirai backend). Unlike the forde workers this
 # calls arf internals (cforde, resample, post_x), so mirai daemons must have arf
 # loaded (see arf_load_on_daemons() in forge()).
-arf_forge_step <- function(step_, params, evidence, n_synth, factor_cols,
-                           evidence_row_mode, nomatch, verbose, round,
-                           sample_NAs, stepsize, stepsize_cforde,
-                           parallel_cforde) {
+arf_forge_step <- function(
+  step_,
+  params,
+  evidence,
+  n_synth,
+  factor_cols,
+  evidence_row_mode,
+  nomatch,
+  verbose,
+  round,
+  sample_NAs,
+  stepsize,
+  stepsize_cforde,
+  parallel_cforde
+) {
   # To avoid data.table check issues
   tree <- cvg <- leaf <- idx <- family <- mu <- sigma <- prob <- dat <-
     variable <- relation <- wt <- j <- f_idx <- val <- . <- step_x <- c_idx <-
-    f_idx_uncond <- N <- I <- V1 <- min <- max <- NA_share <- NULL
+      f_idx_uncond <- N <- I <- V1 <- min <- max <- NA_share <- NULL
 
   # Prepare the event space
   if (is.null(evidence) || (ncol(evidence) == 2 && all(colnames(evidence) == c("f_idx", "wt")))) {
@@ -23,8 +34,7 @@ arf_forge_step <- function(step_, params, evidence, n_synth, factor_cols,
     index_start <- (step_ - 1) * stepsize + 1
     index_end <- min(step_ * stepsize, nrow(evidence))
     evidence_part <- evidence[index_start:index_end, ]
-    cparams <- cforde(params, evidence_part, evidence_row_mode, nomatch, verbose,
-                      stepsize_cforde, parallel_cforde)
+    cparams <- cforde(params, evidence_part, evidence_row_mode, nomatch, verbose, stepsize_cforde, parallel_cforde)
     if (is.null(cparams)) {
       n_synth <- n_synth * nrow(evidence_part)
     }
@@ -63,25 +73,40 @@ arf_forge_step <- function(step_, params, evidence, n_synth, factor_cols,
 
   # Simulate continuous data
   synth_cnt <- synth_cat <- NULL
-  if (any(!factor_cols)) {
+  if (!all(factor_cols)) {
     fam <- params$meta[family != 'multinom', unique(family)]
     if (is.null(cparams)) {
       psi_cond <- data.table()
     } else {
-      psi_cond <- merge(omega, cparams$cnt[, -c("cvg_factor", "f_idx_uncond")], by = c('c_idx', 'f_idx'),
-                        sort = FALSE, allow.cartesian = TRUE)[prob > 0, ]
+      psi_cond <- merge(
+        omega,
+        cparams$cnt[, -c("cvg_factor", "f_idx_uncond")],
+        by = c('c_idx', 'f_idx'),
+        sort = FALSE,
+        allow.cartesian = TRUE
+      )[prob > 0, ]
       # draw sub-leaf areas (resulting from within-row or-conditions)
       if (any(psi_cond[, prob != 1])) {
         psi_cond[, I := .I]
-        psi_cond <- psi_cond[sort(c(psi_cond[prob == 1, I],
-                        psi_cond[prob > 0 & prob < 1, fifelse(.N > 1, resample(I, 1, prob = prob), 0), by = .(variable, idx)][, V1])), -"I"]
+        psi_cond <- psi_cond[
+          sort(c(
+            psi_cond[prob == 1, I],
+            psi_cond[prob > 0 & prob < 1, fifelse(.N > 1, resample(I, 1, prob = prob), 0), by = .(variable, idx)][, V1]
+          )),
+          -"I"
+        ]
       }
       psi_cond[, prob := NULL]
     }
-    psi <- unique(rbind(psi_cond,
-                        merge(omega, params$cnt, by.x = 'f_idx_uncond', by.y = 'f_idx',
-                              sort = FALSE, allow.cartesian = TRUE)[, val := NA_real_]),
-                  by = c("idx", "variable"))
+    psi <- unique(
+      rbind(
+        psi_cond,
+        merge(omega, params$cnt, by.x = 'f_idx_uncond', by.y = 'f_idx', sort = FALSE, allow.cartesian = TRUE)[,
+          val := NA_real_
+        ]
+      ),
+      by = c("idx", "variable")
+    )
     if (fam == 'truncnorm') {
       psi[is.na(val), val := truncnorm::rtruncnorm(.N, a = min, b = max, mean = mu, sd = sigma)]
       psi[is.na(val), val := mu]
@@ -97,10 +122,21 @@ arf_forge_step <- function(step_, params, evidence, n_synth, factor_cols,
     if (is.null(cparams)) {
       psi <- merge(omega, params$cat, by.x = 'f_idx_uncond', by.y = 'f_idx', sort = FALSE, allow.cartesian = TRUE)
     } else {
-      psi_cond <- merge(omega, cparams$cat[, -c("cvg_factor", "f_idx_uncond")], by = c('c_idx', 'f_idx'),
-                        sort = FALSE, allow.cartesian = TRUE)
-      psi_uncond <- merge(omega, params$cat, by.x = 'f_idx_uncond', by.y = 'f_idx',
-                          sort = FALSE, allow.cartesian = TRUE)
+      psi_cond <- merge(
+        omega,
+        cparams$cat[, -c("cvg_factor", "f_idx_uncond")],
+        by = c('c_idx', 'f_idx'),
+        sort = FALSE,
+        allow.cartesian = TRUE
+      )
+      psi_uncond <- merge(
+        omega,
+        params$cat,
+        by.x = 'f_idx_uncond',
+        by.y = 'f_idx',
+        sort = FALSE,
+        allow.cartesian = TRUE
+      )
       psi_uncond_relevant <- psi_uncond[!psi_cond, on = .(idx, variable)]
       psi <- rbind(psi_cond, psi_uncond_relevant)
     }
@@ -131,10 +167,15 @@ arf_forge_step <- function(step_, params, evidence, n_synth, factor_cols,
     setDT(x_synth)
     indices_na <- cparams$forest[is.na(f_idx), c_idx]
     indices_sampled <- cparams$forest[!is.na(f_idx), unique(c_idx)]
-    rows_na <- dcast(rbind(data.table(c_idx = 0, variable = params$meta[, variable]),
-                           cparams$evidence_prepped[c_idx %in% indices_na, ],
-                           fill = TRUE),
-                     c_idx ~ variable, value.var = "val")[c_idx != 0, ]
+    rows_na <- dcast(
+      rbind(
+        data.table(c_idx = 0, variable = params$meta[, variable]),
+        cparams$evidence_prepped[c_idx %in% indices_na, ],
+        fill = TRUE
+      ),
+      c_idx ~ variable,
+      value.var = "val"
+    )[c_idx != 0, ]
     rows_na <- rbindlist(replicate(n_synth, rows_na, simplify = FALSE))
     if (nomatch == "force") {
       # nested recovery draw runs serial (a worker must not spawn its own backend)

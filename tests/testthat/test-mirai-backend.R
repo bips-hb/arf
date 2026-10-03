@@ -42,22 +42,19 @@ test_that("mirai backend produces structurally consistent forge() output", {
 
   old <- options(arf.backend = "foreach")
   on.exit(options(old), add = TRUE)
-  x_foreach <- forge(psi, n_synth = 3, evidence = evi, parallel = FALSE,
-                     stepsize = 5, verbose = FALSE)
+  x_foreach <- forge(psi, n_synth = 3, evidence = evi, parallel = FALSE, stepsize = 5, verbose = FALSE)
 
   options(arf.backend = "mirai")
   setup_mirai_daemons(2)
   on.exit(mirai::daemons(0), add = TRUE)
-  x_mirai <- forge(psi, n_synth = 3, evidence = evi, parallel = TRUE,
-                   stepsize = 5, verbose = FALSE)
+  x_mirai <- forge(psi, n_synth = 3, evidence = evi, parallel = TRUE, stepsize = 5, verbose = FALSE)
 
   expect_equal(nrow(x_mirai), nrow(x_foreach))
   expect_equal(colnames(x_mirai), colnames(x_foreach))
   expect_equal(sapply(x_mirai, class), sapply(x_foreach, class))
   # exact conditions must map onto their output rows in evidence order:
   # catches scrambled step-to-row assembly that structural checks miss
-  expect_equal(as.character(x_mirai$Species),
-               as.character(rep(evi$Species, each = 3)))
+  expect_equal(as.character(x_mirai$Species), as.character(rep(evi$Species, each = 3)))
 })
 
 test_that("mirai backend gives identical lik() (deterministic)", {
@@ -75,7 +72,7 @@ test_that("mirai backend gives identical lik() (deterministic)", {
   on.exit(mirai::daemons(0), add = TRUE)
   ll_mirai <- lik(psi, iris, arf = arf, batch = 30, parallel = TRUE)
 
-  expect_equal(ll_mirai, ll_foreach)  # lik is deterministic
+  expect_equal(ll_mirai, ll_foreach) # lik is deterministic
 })
 
 test_that("mirai backend gives structurally consistent expct()", {
@@ -83,7 +80,7 @@ test_that("mirai backend gives structurally consistent expct()", {
 
   arf <- adversarial_rf(iris, verbose = FALSE, parallel = FALSE)
   psi <- forde(arf, iris, parallel = FALSE)
-  evi <- iris[1:20, "Species", drop = FALSE]  # 20 separate conditions -> multi-step
+  evi <- iris[1:20, "Species", drop = FALSE] # 20 separate conditions -> multi-step
 
   old <- options(arf.backend = "foreach")
   on.exit(options(old), add = TRUE)
@@ -102,12 +99,12 @@ test_that("arf_n_workers reflects active mirai daemons (stepsize sizing)", {
   skip_if_no_daemons()
 
   mirai::daemons(0)
-  n_idle <- arf_n_workers()  # no mirai, no foreach -> 1
+  n_idle <- arf_n_workers() # no mirai, no foreach -> 1
   expect_equal(n_idle, 1L)
 
   mirai::daemons(3)
   on.exit(mirai::daemons(0), add = TRUE)
-  expect_gte(arf_n_workers(), 3L)  # must see daemons, else step_no==1 kills mirai
+  expect_gte(arf_n_workers(), 3L) # must see daemons, else step_no==1 kills mirai
 })
 
 test_that("mirai backend gives identical cforde() (deterministic)", {
@@ -116,7 +113,7 @@ test_that("mirai backend gives identical cforde() (deterministic)", {
   arf <- adversarial_rf(iris, verbose = FALSE, parallel = FALSE)
   psi <- forde(arf, iris, parallel = FALSE)
   set.seed(1)
-  evi <- data.frame(Sepal.Length = runif(20, 4.5, 7))  # 20 conditions -> multi-step
+  evi <- data.frame(Sepal.Length = runif(20, 4.5, 7)) # 20 conditions -> multi-step
 
   old <- options(arf.backend = "foreach")
   on.exit(options(old), add = TRUE)
@@ -127,7 +124,7 @@ test_that("mirai backend gives identical cforde() (deterministic)", {
   on.exit(mirai::daemons(0), add = TRUE)
   cf_mirai <- arf:::cforde(psi, evi, stepsize = 5, parallel = TRUE, verbose = FALSE)
 
-  expect_equal(cf_mirai$forest, cf_foreach$forest)  # cforde is deterministic
+  expect_equal(cf_mirai$forest, cf_foreach$forest) # cforde is deterministic
   expect_equal(cf_mirai$cnt, cf_foreach$cnt)
   expect_equal(cf_mirai$cat, cf_foreach$cat)
 })
@@ -143,16 +140,14 @@ test_that("mirai backend preserves row order and class in expct() (regression)",
 
   old <- options(arf.backend = "foreach")
   on.exit(options(old), add = TRUE)
-  x_foreach <- expct(psi, query = "Petal.Length", evidence = evi,
-                     parallel = FALSE, stepsize = 1, verbose = FALSE)
+  x_foreach <- expct(psi, query = "Petal.Length", evidence = evi, parallel = FALSE, stepsize = 1, verbose = FALSE)
 
   options(arf.backend = "mirai")
   setup_mirai_daemons(2)
   on.exit(mirai::daemons(0), add = TRUE)
-  x_mirai <- expct(psi, query = "Petal.Length", evidence = evi,
-                   parallel = TRUE, stepsize = 1, verbose = FALSE)
+  x_mirai <- expct(psi, query = "Petal.Length", evidence = evi, parallel = TRUE, stepsize = 1, verbose = FALSE)
 
-  expect_equal(x_mirai, x_foreach)  # exact: order + values + class + row.names
+  expect_equal(x_mirai, x_foreach) # exact: order + values + class + row.names
 })
 
 test_that("mirai backend gives identical adversarial_rf() pruning (deterministic)", {
@@ -163,16 +158,14 @@ test_that("mirai backend gives identical adversarial_rf() pruning (deterministic
   # forest. That makes the full run comparable end to end, exercising the
   # actual mirai prune dispatch in adversarial_rf().
   set.seed(7)
-  a_serial <- adversarial_rf(iris, num_trees = 50, parallel = FALSE,
-                             verbose = FALSE)
+  a_serial <- adversarial_rf(iris, num_trees = 50, parallel = FALSE, verbose = FALSE)
 
   old <- options(arf.backend = "mirai")
   on.exit(options(old), add = TRUE)
   setup_mirai_daemons(2)
   on.exit(mirai::daemons(0), add = TRUE)
   set.seed(7)
-  a_mirai <- adversarial_rf(iris, num_trees = 50, parallel = TRUE,
-                            verbose = FALSE)
+  a_mirai <- adversarial_rf(iris, num_trees = 50, parallel = TRUE, verbose = FALSE)
 
   expect_identical(a_mirai$forest$child.nodeIDs, a_serial$forest$child.nodeIDs)
 })
@@ -201,7 +194,7 @@ test_that("arf.block_rows caps expct blocks without changing results", {
   set.seed(2)
   ref1 <- expct(psi, evidence = evi1, parallel = FALSE)
 
-  old <- options(arf.block_rows = 1)  # force one condition per block
+  old <- options(arf.block_rows = 1) # force one condition per block
   on.exit(options(old), add = TRUE)
   set.seed(1)
   blocked <- expct(psi, evidence = evi, parallel = FALSE)
@@ -231,8 +224,7 @@ test_that("arf_rbind_steps refuses ragged step results", {
   # expct() with nomatch = "force" and stepsize < nrow(evidence).
   a <- data.frame(x = 1, y = 2)
   b <- data.frame(x = 3, y = 4, z = 5)
-  expect_equal(arf_rbind_steps(list(a, a)),
-               data.frame(x = c(1, 1), y = c(2, 2)))
+  expect_equal(arf_rbind_steps(list(a, a)), data.frame(x = c(1, 1), y = c(2, 2)))
   expect_error(arf_rbind_steps(list(a, b)), "different columns")
 })
 
@@ -245,14 +237,14 @@ test_that("arf_select_backend applies the documented precedence", {
   expect_identical(arf_select_backend(FALSE), "sequential")
 
   mirai::daemons(0)
-  expect_identical(arf_select_backend(TRUE), "foreach")  # no daemons, option unset
+  expect_identical(arf_select_backend(TRUE), "foreach") # no daemons, option unset
 
   setup_mirai_daemons(2)
   on.exit(mirai::daemons(0), add = TRUE)
-  expect_identical(arf_select_backend(TRUE), "mirai")  # daemons auto-detected
+  expect_identical(arf_select_backend(TRUE), "mirai") # daemons auto-detected
 
   options(arf.backend = "foreach")
-  expect_identical(arf_select_backend(TRUE), "foreach")  # explicit option wins
+  expect_identical(arf_select_backend(TRUE), "foreach") # explicit option wins
 
   options(arf.backend = "bogus")
   expect_error(arf_select_backend(TRUE))
@@ -265,11 +257,11 @@ test_that("arf_load_on_daemons caches per daemon pool and self-invalidates", {
   on.exit(mirai::daemons(0), add = TRUE)
   assign("arf_loaded_key", NULL, envir = arf:::.arf_env)
 
-  expect_true(arf_load_on_daemons())    # first call loads
-  expect_false(arf_load_on_daemons())   # same pool -> cached
+  expect_true(arf_load_on_daemons()) # first call loads
+  expect_false(arf_load_on_daemons()) # same pool -> cached
 
   mirai::daemons(0)
-  setup_mirai_daemons(2)                # rebuilt pool mints a new key
+  setup_mirai_daemons(2) # rebuilt pool mints a new key
   expect_true(arf_load_on_daemons())
 })
 
@@ -300,8 +292,7 @@ test_that("seeded daemons make stochastic mirai results reproducible", {
 
   run_once <- function() {
     setup_mirai_daemons(2, seed = 42)
-    x <- forge(psi, n_synth = 3, evidence = evi, parallel = TRUE,
-               stepsize = 5, verbose = FALSE)
+    x <- forge(psi, n_synth = 3, evidence = evi, parallel = TRUE, stepsize = 5, verbose = FALSE)
     mirai::daemons(0)
     x
   }
@@ -318,12 +309,18 @@ test_that("foreach doParallel backend gives equal forde output", {
   # PSOCK, not fork: forking after mirai/nanonext threads exist is unsafe
   cl <- parallel::makeCluster(2)
   on.exit(parallel::stopCluster(cl), add = TRUE)
-  if (requireNamespace("pkgload", quietly = TRUE) &&
-      isTRUE(tryCatch(pkgload::is_dev_package("arf"), error = function(e) FALSE))) {
+  if (
+    requireNamespace("pkgload", quietly = TRUE) &&
+      isTRUE(tryCatch(pkgload::is_dev_package("arf"), error = function(e) FALSE))
+  ) {
     pdir <- pkgload::pkg_path()
-    parallel::clusterCall(cl, function(p) {
-      suppressMessages(pkgload::load_all(p, quiet = TRUE))
-    }, pdir)
+    parallel::clusterCall(
+      cl,
+      function(p) {
+        suppressMessages(pkgload::load_all(p, quiet = TRUE))
+      },
+      pdir
+    )
   }
   doParallel::registerDoParallel(cl)
   on.exit(foreach::registerDoSEQ(), add = TRUE)
@@ -361,7 +358,7 @@ test_that("daemons without mori fall back to foreach with a specific message", {
   setup_mirai_daemons(2)
   on.exit(mirai::daemons(0), add = TRUE)
   local_mocked_bindings(arf_has_mori = function() FALSE)
-  rm("backend_shown", envir = .arf_env)  # once-per-session throttle
+  rm("backend_shown", envir = .arf_env) # once-per-session throttle
   expect_message(
     expect_message(backend <- arf_select_backend(TRUE), "mori.*not installed"),
     NA

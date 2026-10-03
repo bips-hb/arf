@@ -4,13 +4,24 @@
 # Per-step worker for expct(), extracted so foreach and mirai backends share one
 # definition (params/evidence mori-shared under mirai). Calls arf internals
 # (cforde, post_x, which.max.random) so mirai daemons must have arf loaded.
-arf_expct_step <- function(step_, params, evidence, query, factor_cols,
-                           evidence_row_mode, nomatch, verbose, round,
-                           stepsize, stepsize_cforde, parallel_cforde) {
+arf_expct_step <- function(
+  step_,
+  params,
+  evidence,
+  query,
+  factor_cols,
+  evidence_row_mode,
+  nomatch,
+  verbose,
+  round,
+  stepsize,
+  stepsize_cforde,
+  parallel_cforde
+) {
   # To avoid data.table check issues
   variable <- tree <- f_idx <- cvg <- wt <- V1 <- value <- val <- family <-
     mu <- sigma <- obs <- prob <- f_idx_uncond <- c_idx <- idx <- NA_share <-
-    . <- I <- NULL
+      . <- I <- NULL
 
   # Prepare the event space
   if (is.null(evidence) || (ncol(evidence) == 2 && all(colnames(evidence) == c("f_idx", "wt")))) {
@@ -20,8 +31,7 @@ arf_expct_step <- function(step_, params, evidence, query, factor_cols,
     index_start <- (step_ - 1) * stepsize + 1
     index_end <- min(step_ * stepsize, nrow(evidence))
     evidence_part <- evidence[index_start:index_end, ]
-    cparams <- cforde(params, evidence_part, evidence_row_mode, nomatch, verbose,
-                      stepsize_cforde, parallel_cforde)
+    cparams <- cforde(params, evidence_part, evidence_row_mode, nomatch, verbose, stepsize_cforde, parallel_cforde)
   }
 
   # omega contains the weight (wt) for each leaf (f_idx) for each condition (c_idx)
@@ -47,12 +57,17 @@ arf_expct_step <- function(step_, params, evidence, query, factor_cols,
   synth_block <- function(omega_) {
     synth_cnt <- synth_cat <- NULL
     # Continuous data
-    if (any(!factor_cols)) {
+    if (!all(factor_cols)) {
       if (is.null(cparams) || nrow(cparams$cnt) == 0) {
         psi_cond <- data.table()
       } else {
-        psi_cond <- merge(omega_, cparams$cnt[variable %in% query, -c("cvg_factor", "f_idx_uncond")], by = c('c_idx', 'f_idx'),
-                          sort = FALSE, allow.cartesian = TRUE)[prob > 0, ]
+        psi_cond <- merge(
+          omega_,
+          cparams$cnt[variable %in% query, -c("cvg_factor", "f_idx_uncond")],
+          by = c('c_idx', 'f_idx'),
+          sort = FALSE,
+          allow.cartesian = TRUE
+        )[prob > 0, ]
         # calculate absolute weights for sub-leaf areas (resulting from within-row or-conditions)
         if (any(psi_cond[, prob != 1])) {
           psi_cond[, wt := wt * prob]
@@ -62,9 +77,20 @@ arf_expct_step <- function(step_, params, evidence, query, factor_cols,
         }
         psi_cond[, prob := NULL]
       }
-      psi <- unique(rbind(psi_cond,
-                          merge(omega_, params$cnt[variable %in% query, ], by.x = 'f_idx_uncond', by.y = 'f_idx',
-                                sort = FALSE, allow.cartesian = TRUE)[, `:=`(val = NA_real_, I = 1)]), by = c("c_idx", "f_idx", "variable", "I"))[, I := NULL]
+      psi <- unique(
+        rbind(
+          psi_cond,
+          merge(
+            omega_,
+            params$cnt[variable %in% query, ],
+            by.x = 'f_idx_uncond',
+            by.y = 'f_idx',
+            sort = FALSE,
+            allow.cartesian = TRUE
+          )[, `:=`(val = NA_real_, I = 1)]
+        ),
+        by = c("c_idx", "f_idx", "variable", "I")
+      )[, I := NULL]
       psi[NA_share == 1, wt := 0]
       cnt <- psi[is.na(val), val := sum(wt * mu) / sum(wt), by = .(c_idx, variable)]
       cnt <- unique(cnt[, .(c_idx, variable, val)])
@@ -74,12 +100,30 @@ arf_expct_step <- function(step_, params, evidence, query, factor_cols,
     # Categorical data
     if (any(factor_cols)) {
       if (is.null(cparams) || nrow(cparams$cat) == 0) {
-        psi <- merge(omega_, params$cat[variable %in% query, ], by.x = 'f_idx_uncond', by.y = 'f_idx', sort = FALSE, allow.cartesian = TRUE)
+        psi <- merge(
+          omega_,
+          params$cat[variable %in% query, ],
+          by.x = 'f_idx_uncond',
+          by.y = 'f_idx',
+          sort = FALSE,
+          allow.cartesian = TRUE
+        )
       } else {
-        psi_cond <- merge(omega_, cparams$cat[variable %in% query, -c("cvg_factor", "f_idx_uncond")], by = c('c_idx', 'f_idx'),
-                          sort = FALSE, allow.cartesian = TRUE)
-        psi_uncond <- merge(omega_, params$cat[variable %in% query, ], by.x = 'f_idx_uncond', by.y = 'f_idx',
-                            sort = FALSE, allow.cartesian = TRUE)
+        psi_cond <- merge(
+          omega_,
+          cparams$cat[variable %in% query, -c("cvg_factor", "f_idx_uncond")],
+          by = c('c_idx', 'f_idx'),
+          sort = FALSE,
+          allow.cartesian = TRUE
+        )
+        psi_uncond <- merge(
+          omega_,
+          params$cat[variable %in% query, ],
+          by.x = 'f_idx_uncond',
+          by.y = 'f_idx',
+          sort = FALSE,
+          allow.cartesian = TRUE
+        )
         psi_uncond_relevant <- psi_uncond[!psi_cond, on = .(idx, variable)]
         psi <- rbind(psi_cond, psi_uncond_relevant)
       }
@@ -108,12 +152,18 @@ arf_expct_step <- function(step_, params, evidence, query, factor_cols,
   if (as.double(nrow(omega)) * n_vars <= block_cap || omega[, uniqueN(c_idx)] == 1L) {
     x_synth <- synth_block(omega)
   } else {
-    sizes <- omega[, .N, by = c_idx]  # ascending c_idx
-    g <- integer(nrow(sizes)); gi <- 1L; acc <- 0
+    sizes <- omega[, .N, by = c_idx] # ascending c_idx
+    g <- integer(nrow(sizes))
+    gi <- 1L
+    acc <- 0
     for (i in seq_len(nrow(sizes))) {
       r <- sizes$N[i] * n_vars
-      if (acc > 0 && acc + r > block_cap) { gi <- gi + 1L; acc <- 0 }
-      g[i] <- gi; acc <- acc + r
+      if (acc > 0 && acc + r > block_cap) {
+        gi <- gi + 1L
+        acc <- 0
+      }
+      g[i] <- gi
+      acc <- acc + r
     }
     x_synth <- rbindlist(lapply(split(sizes$c_idx, g), function(cs) {
       synth_block(omega[c_idx %in% cs])
@@ -127,10 +177,15 @@ arf_expct_step <- function(step_, params, evidence, query, factor_cols,
     setDT(x_synth)
     indices_na <- cparams$forest[is.na(f_idx), c_idx]
     indices_sampled <- cparams$forest[!is.na(f_idx), unique(c_idx)]
-    rows_na <- dcast(rbind(data.table(c_idx = 0, variable = params$meta[, variable]),
-                           cparams$evidence_prepped[c_idx %in% indices_na, ],
-                           fill = TRUE),
-                     c_idx ~ variable, value.var = "val")[c_idx != 0, ]
+    rows_na <- dcast(
+      rbind(
+        data.table(c_idx = 0, variable = params$meta[, variable]),
+        cparams$evidence_prepped[c_idx %in% indices_na, ],
+        fill = TRUE
+      ),
+      c_idx ~ variable,
+      value.var = "val"
+    )[c_idx != 0, ]
     if (nomatch == "force") {
       # nested recovery runs serial (a worker must not spawn its own backend)
       rows_na_sampled <- expct(params, parallel = FALSE)

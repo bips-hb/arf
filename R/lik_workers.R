@@ -6,12 +6,11 @@
 # the closed-over arf object (only used for is.null() branching; preds carries
 # the arf-derived leaf assignments). Uses bare data.table verbs, so mirai
 # daemons must have arf loaded (arf imports data.table).
-arf_lik_fold <- function(fold, params, x, factor_cols, leaves, omega, preds,
-                         batch_idx, pure, has_arf) {
+arf_lik_fold <- function(fold, params, x, factor_cols, leaves, omega, preds, batch_idx, pure, has_arf) {
   # To avoid data.table check issues
   tree <- cvg <- leaf <- variable <- mu <- sigma <- value <- obs <- prob <-
     V1 <- relation <- f_idx <- wt <- val <- family <- f_idx_uncond <- . <-
-    lik <- s_idx <- min <- max <- NULL
+      lik <- s_idx <- min <- max <- NULL
 
   # Prep work
   psi_cnt <- psi_cat <- NULL
@@ -24,28 +23,24 @@ arf_lik_fold <- function(fold, params, x, factor_cols, leaves, omega, preds,
   }
 
   # Continuous data
-  if (any(!factor_cols)) {
+  if (!all(factor_cols)) {
     fam <- params$meta[class == 'numeric', unique(family)]
     x_long <- melt(
-      data.table(obs = batch_idx[[fold]],
-                 x[batch_idx[[fold]], !factor_cols, drop = FALSE]),
-      id.vars = 'obs', variable.factor = FALSE
+      data.table(obs = batch_idx[[fold]], x[batch_idx[[fold]], !factor_cols, drop = FALSE]),
+      id.vars = 'obs',
+      variable.factor = FALSE
     )
     if (!has_arf) {
-      psi_cnt <- merge(params$cnt[f_idx %in% leaves], x_long, by = 'variable',
-                       sort = FALSE, allow.cartesian = TRUE)
+      psi_cnt <- merge(params$cnt[f_idx %in% leaves], x_long, by = 'variable', sort = FALSE, allow.cartesian = TRUE)
       rm(x_long)
     } else {
-      preds_cnt <- merge(preds[f_idx %in% leaves], x_long, by = 'obs',
-                         sort = FALSE, allow.cartesian = TRUE)
+      preds_cnt <- merge(preds[f_idx %in% leaves], x_long, by = 'obs', sort = FALSE, allow.cartesian = TRUE)
       rm(x_long)
-      psi_cnt <- merge(params$cnt[f_idx %in% leaves], preds_cnt,
-                       by = c('f_idx', 'variable'), sort = FALSE)
+      psi_cnt <- merge(params$cnt[f_idx %in% leaves], preds_cnt, by = c('f_idx', 'variable'), sort = FALSE)
       rm(preds_cnt)
     }
     if (fam == 'truncnorm') {
-      psi_cnt[, lik := truncnorm::dtruncnorm(value, a = min, b = max,
-                                             mean = mu, sd = sigma)]
+      psi_cnt[, lik := truncnorm::dtruncnorm(value, a = min, b = max, mean = mu, sd = sigma)]
     } else if (fam == 'unif') {
       psi_cnt[, lik := stats::dunif(value, min = min, max = max)]
     }
@@ -53,8 +48,7 @@ arf_lik_fold <- function(fold, params, x, factor_cols, leaves, omega, preds,
     psi_cnt[, lik := prod(lik), by = .(f_idx, obs)]
     psi_cnt <- unique(psi_cnt[lik > 0, .(f_idx, obs, lik)])
     if (!has_arf & !isTRUE(pure)) {
-      omega_tmp <- merge(omega_tmp, psi_cnt[, .(f_idx, obs)],
-                         by = c('f_idx', 'obs'), sort = FALSE)
+      omega_tmp <- merge(omega_tmp, psi_cnt[, .(f_idx, obs)], by = c('f_idx', 'obs'), sort = FALSE)
       leaves <- omega_tmp[, unique(f_idx)]
     }
   }
@@ -65,7 +59,9 @@ arf_lik_fold <- function(fold, params, x, factor_cols, leaves, omega, preds,
     n_tmp <- nrow(x_tmp)
     x_long <- melt(
       data.table(obs = batch_idx[[fold]], x_tmp),
-      id.vars = 'obs', value.name = 'val', variable.factor = FALSE
+      id.vars = 'obs',
+      value.name = 'val',
+      variable.factor = FALSE
     )
     # Speedups are possible if there are many duplicates
     is_unique <- !duplicated(x_tmp)
@@ -76,7 +72,9 @@ arf_lik_fold <- function(fold, params, x, factor_cols, leaves, omega, preds,
       x_unique <- unique(x_tmp)
       x_unique <- melt(
         data.table(s_idx = seq_len(nrow(x_unique)), x_unique),
-        id.vars = 's_idx', value.name = 'val', variable.factor = FALSE
+        id.vars = 's_idx',
+        value.name = 'val',
+        variable.factor = FALSE
       )
       s_idx <- integer(length = n_tmp)
       s_idx[is_unique] <- seq_len(sum(is_unique))
@@ -89,18 +87,24 @@ arf_lik_fold <- function(fold, params, x, factor_cols, leaves, omega, preds,
     }
     if (!has_arf) {
       grd <- rbindlist(lapply(which(factor_cols), function(j) {
-        expand.grid('f_idx' = leaves, 'variable' = colnames(x)[j],
-                    'val' = x_long[variable == colnames(x)[j], unique(val)],
-                    stringsAsFactors = FALSE)
+        expand.grid(
+          'f_idx' = leaves,
+          'variable' = colnames(x)[j],
+          'val' = x_long[variable == colnames(x)[j], unique(val)],
+          stringsAsFactors = FALSE
+        )
       }))
       rm(x_long)
-      psi_cat <- merge(params$cat[f_idx %in% leaves], grd,
-                       by = c('f_idx', 'variable', 'val'),
-                       sort = FALSE, all.y = TRUE)
+      psi_cat <- merge(
+        params$cat[f_idx %in% leaves],
+        grd,
+        by = c('f_idx', 'variable', 'val'),
+        sort = FALSE,
+        all.y = TRUE
+      )
       rm(grd)
       psi_cat[is.na(prob), prob := 0]
-      psi_cat <- merge(psi_cat, x_unique, by = c('variable', 'val'),
-                       sort = FALSE, allow.cartesian = TRUE)
+      psi_cat <- merge(psi_cat, x_unique, by = c('variable', 'val'), sort = FALSE, allow.cartesian = TRUE)
       psi_cat[, lik := prod(prob), by = .(f_idx, s_idx)]
       psi_cat <- unique(psi_cat[lik > 0, .(f_idx, s_idx, lik)])
       if (all(is_unique)) {
@@ -108,20 +112,23 @@ arf_lik_fold <- function(fold, params, x, factor_cols, leaves, omega, preds,
       } else {
         if (!isTRUE(pure)) {
           omega_tmp <- merge(idx_dt, omega_tmp, by = 'obs', sort = FALSE)
-          psi_cat <- merge(psi_cat, omega_tmp, by = c('f_idx', 's_idx'),
-                           sort = FALSE)[, s_idx := NULL]
+          psi_cat <- merge(psi_cat, omega_tmp, by = c('f_idx', 's_idx'), sort = FALSE)[, s_idx := NULL]
           rm(omega_tmp)
           setcolorder(psi_cat, c('f_idx', 'obs', 'lik'))
-          psi_cnt <- merge(psi_cnt, psi_cat[, .(f_idx, obs)],
-                           by = c('f_idx', 'obs'), sort = FALSE)
+          psi_cnt <- merge(psi_cnt, psi_cat[, .(f_idx, obs)], by = c('f_idx', 'obs'), sort = FALSE)
         }
       }
     } else {
-      preds_cat <- merge(preds[f_idx %in% leaves], x_long, by = 'obs',
-                         sort = FALSE, allow.cartesian = TRUE)
+      preds_cat <- merge(preds[f_idx %in% leaves], x_long, by = 'obs', sort = FALSE, allow.cartesian = TRUE)
       rm(x_long)
-      psi_cat <- merge(params$cat, preds_cat, by = c('f_idx', 'variable', 'val'),
-                       sort = FALSE, allow.cartesian = TRUE, all.y = TRUE)
+      psi_cat <- merge(
+        params$cat,
+        preds_cat,
+        by = c('f_idx', 'variable', 'val'),
+        sort = FALSE,
+        allow.cartesian = TRUE,
+        all.y = TRUE
+      )
       rm(preds_cat)
       psi_cat[is.na(prob), prob := 0]
       psi_cat[, lik := prod(prob), by = .(f_idx, obs)]

@@ -1,0 +1,16 @@
+# Jarl (Just Another R Linter) configuration — https://jarl.etiennebacher.com
+#
+# Division of labour: air (air.toml) owns formatting/style; jarl owns
+# correctness/quality lints. We start from jarl's default rule set and add
+# `assignment` so `<-` is enforced consistently with air. Quote style is left
+# to air, not duplicated here. Tighten later, e.g. select = ["ALL"] + ignores.
+
+[lint]
+extend-select = ["assignment"]
+# redundant_equals rewrites `DT[flag == TRUE]` to `DT[flag]`, which data.table
+# reads as a calling-scope variable (and `DT[!flag]` as a not-join), so the
+# "fix" silently empties the subset. Keep the explicit comparison.
+ignore = ["redundant_equals"]
+
+[lint.assignment]
+operator = "<-"

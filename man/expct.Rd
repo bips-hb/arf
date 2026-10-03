@@ -97,7 +97,7 @@ expct(psi, query = "Sepal.Length", evidence = evi)
 expct(psi, evidence = evi)
 
 # Condition on Species = "setosa" and Petal.Width > 0.3
-evi <- data.frame(Species = "setosa", 
+evi <- data.frame(Species = "setosa",
                   Petal.Width = ">0.3")
 expct(psi, evidence = evi)
 
