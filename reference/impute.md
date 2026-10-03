@@ -9,7 +9,7 @@ Perform single or multiple imputation with ARFs. Calls `adversarial_rf`,
 impute(
   x,
   m = 1,
-  expectation = ifelse(m == 1, TRUE, FALSE),
+  expectation = m == 1,
   num_trees = 100L,
   min_node_size = 10L,
   round = TRUE,
