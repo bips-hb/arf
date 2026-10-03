@@ -164,8 +164,15 @@ test_that("evidence_row_mode = 'or' with impossible evidence follows nomatch", {
   psi_no <- forde(arf, iris, finite_bounds = "no", parallel = FALSE)
   evi <- data.frame(Sepal.Length = c(100, 200))
   expect_warning(
-    x_force <- forge(psi_no, evidence = evi, evidence_row_mode = "or", nomatch = "force",
-                     verbose = TRUE, n_synth = 4, parallel = FALSE),
+    x_force <- forge(
+      psi_no,
+      evidence = evi,
+      evidence_row_mode = "or",
+      nomatch = "force",
+      verbose = TRUE,
+      n_synth = 4,
+      parallel = FALSE
+    ),
     "Sampling from all possible leaves"
   )
   expect_equal(nrow(x_force), 4)

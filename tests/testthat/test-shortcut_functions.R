@@ -26,8 +26,13 @@ test_that("earf returns expectations, unconditional and conditional", {
   e <- earf(iris_small, num_trees = 5, parallel = FALSE)
   expect_equal(nrow(e), 1)
   expect_identical(names(e), names(iris_small))
-  e_evi <- earf(iris_small, evidence = data.frame(Species = "setosa"), query = "Sepal.Length",
-                num_trees = 5, parallel = FALSE)
+  e_evi <- earf(
+    iris_small,
+    evidence = data.frame(Species = "setosa"),
+    query = "Sepal.Length",
+    num_trees = 5,
+    parallel = FALSE
+  )
   expect_identical(names(e_evi), "Sepal.Length")
 })
 
