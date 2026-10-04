@@ -10,17 +10,9 @@ arf_lik_fold <- function(fold, params, x, factor_cols, leaves, omega, preds, bat
   # To avoid data.table check issues
   tree <- cvg <- leaf <- variable <- mu <- sigma <- value <- obs <- prob <-
     V1 <- relation <- f_idx <- wt <- val <- family <- f_idx_uncond <- . <-
-      lik <- s_idx <- min <- max <- NULL
+      lik <- lik_cnt <- lik_cat <- s_idx <- min <- max <- NULL
 
-  # Prep work
   psi_cnt <- psi_cat <- NULL
-  if (!has_arf & !isTRUE(pure)) {
-    omega_tmp <- rbindlist(lapply(batch_idx[[fold]], function(i) {
-      omega$obs <- i
-      omega$wt <- NULL
-      return(omega)
-    }))
-  }
 
   # Continuous data
   if (!all(factor_cols)) {
@@ -48,15 +40,14 @@ arf_lik_fold <- function(fold, params, x, factor_cols, leaves, omega, preds, bat
     psi_cnt[, lik := prod(lik), by = .(f_idx, obs)]
     psi_cnt <- unique(psi_cnt[lik > 0, .(f_idx, obs, lik)])
     if (!has_arf & !isTRUE(pure)) {
-      omega_tmp <- merge(omega_tmp, psi_cnt[, .(f_idx, obs)], by = c('f_idx', 'obs'), sort = FALSE)
-      leaves <- omega_tmp[, unique(f_idx)]
+      # Leaves with zero continuous density need no categorical grid
+      leaves <- psi_cnt[, unique(f_idx)]
     }
   }
 
   # Categorical data
   if (any(factor_cols)) {
     x_tmp <- x[batch_idx[[fold]], factor_cols, drop = FALSE]
-    n_tmp <- nrow(x_tmp)
     x_long <- melt(
       data.table(obs = batch_idx[[fold]], x_tmp),
       id.vars = 'obs',
@@ -69,21 +60,19 @@ arf_lik_fold <- function(fold, params, x, factor_cols, leaves, omega, preds, bat
       x_unique <- x_long
       colnames(x_unique)[1] <- 's_idx'
     } else {
-      x_unique <- unique(x_tmp)
+      x_dt <- as.data.table(x_tmp)
+      x_pattern <- unique(x_dt)
       x_unique <- melt(
-        data.table(s_idx = seq_len(nrow(x_unique)), x_unique),
+        data.table(s_idx = seq_len(nrow(x_pattern)), x_pattern),
         id.vars = 's_idx',
         value.name = 'val',
         variable.factor = FALSE
       )
-      s_idx <- integer(length = n_tmp)
-      s_idx[is_unique] <- seq_len(sum(is_unique))
-      for (i in 2:n_tmp) {
-        if (s_idx[i] == 0L) {
-          s_idx[i] <- s_idx[i - 1L]
-        }
-      }
-      idx_dt <- data.table(obs = batch_idx[[fold]], s_idx = s_idx)
+      # Each row maps to the pattern it matches, duplicates included
+      idx_dt <- data.table(
+        obs = batch_idx[[fold]],
+        s_idx = x_pattern[x_dt, on = names(x_dt), which = TRUE]
+      )
     }
     if (!has_arf) {
       grd <- rbindlist(lapply(which(factor_cols), function(j) {
@@ -110,13 +99,8 @@ arf_lik_fold <- function(fold, params, x, factor_cols, leaves, omega, preds, bat
       if (all(is_unique)) {
         setnames(psi_cat, 's_idx', 'obs')
       } else {
-        if (!isTRUE(pure)) {
-          omega_tmp <- merge(idx_dt, omega_tmp, by = 'obs', sort = FALSE)
-          psi_cat <- merge(psi_cat, omega_tmp, by = c('f_idx', 's_idx'), sort = FALSE)[, s_idx := NULL]
-          rm(omega_tmp)
-          setcolorder(psi_cat, c('f_idx', 'obs', 'lik'))
-          psi_cnt <- merge(psi_cnt, psi_cat[, .(f_idx, obs)], by = c('f_idx', 'obs'), sort = FALSE)
-        }
+        psi_cat <- merge(psi_cat, idx_dt, by = 's_idx', sort = FALSE, allow.cartesian = TRUE)[, s_idx := NULL]
+        setcolorder(psi_cat, c('f_idx', 'obs', 'lik'))
       }
     } else {
       preds_cat <- merge(preds[f_idx %in% leaves], x_long, by = 'obs', sort = FALSE, allow.cartesian = TRUE)
@@ -136,11 +120,14 @@ arf_lik_fold <- function(fold, params, x, factor_cols, leaves, omega, preds, bat
     }
   }
 
-  # Put it together
-  psi_x <- rbind(psi_cnt, psi_cat)
-  if (!isTRUE(pure)) {
-    psi_x <- psi_x[, prod(lik), by = .(f_idx, obs)]
-    setnames(psi_x, 'V1', 'lik')
+  # Put it together. Both blocks are filtered to lik > 0, so a leaf where one
+  # block is zero is missing from that table: inner join, else its product is
+  # the other block's density alone.
+  if (isTRUE(pure)) {
+    psi_x <- rbind(psi_cnt, psi_cat)
+  } else {
+    psi_x <- merge(psi_cnt, psi_cat, by = c('f_idx', 'obs'), sort = FALSE, suffixes = c('_cnt', '_cat'))
+    psi_x <- psi_x[, .(f_idx, obs, lik = lik_cnt * lik_cat)]
   }
 
   # Reduce to per-observation log-likelihoods here rather than on the calling
