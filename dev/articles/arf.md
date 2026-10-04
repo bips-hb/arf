@@ -343,7 +343,7 @@ ll_unif <- lik(params_unif, iris, arf = arf_iris)
 -mean(ll)
 #> [1] 0.3196718
 -mean(ll_unif)
-#> [1] -7.291452
+#> [1] Inf
 ```
 
 Note that the piecewise constant estimator does considerably worse in

@@ -46,6 +46,18 @@
   process since mirai is not fork-safe. Forked children now ignore the
   parent’s daemons and use the `foreach` path; forcing
   `options(arf.backend = "mirai")` there errors with an explanation
+- Fix [`lik()`](https://bips-hb.github.io/arf/dev/reference/lik.md)
+  overestimating likelihoods for mixed (continuous and categorical)
+  queries: leaves where one variable block had zero density contributed
+  the other block’s density instead of zero, so values were too high and
+  batch-dependent, and the `arf` path disagreed with the slower path
+  ([\#72](https://github.com/bips-hb/arf/issues/72))
+  - Fix [`lik()`](https://bips-hb.github.io/arf/dev/reference/lik.md)
+    assigning a repeated factor pattern the likelihood of the preceding
+    row rather than of its match
+  - Fix [`lik()`](https://bips-hb.github.io/arf/dev/reference/lik.md)
+    erroring on purely categorical queries with duplicate rows and no
+    `arf` (“column name ‘obs’ is not found”)
 
 ## arf 0.2.5
 
