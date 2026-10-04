@@ -8,6 +8,9 @@
 * Fix `forge()` and `lik()` failing under non-forking `foreach` adapters (`doParallel` PSOCK clusters, `doFuture` multisession) with "object not found" errors: parallel worker bodies now take all inputs as explicit arguments (#62)
 * Fix `darf()`, `rarf()` and `earf()` ignoring a pre-trained `arf` or `params` passed via `...`: they retrained and recomputed anyway, then failed with "formal argument 'params' matched by multiple actual arguments"
 * Fix a crash when arf runs with `parallel = TRUE` inside a forked worker (`future::plan(multicore)`, `mclapply()`, fork-based `doParallel`) while mirai daemons exist in the parent process: the child inherited the daemon connection and used it, which aborts the process since mirai is not fork-safe. Forked children now ignore the parent's daemons and use the `foreach` path; forcing `options(arf.backend = "mirai")` there errors with an explanation
+* Fix `lik()` overestimating likelihoods for mixed (continuous and categorical) queries: leaves where one variable block had zero density contributed the other block's density instead of zero, so values were too high and batch-dependent, and the `arf` path disagreed with the slower path (#72)
+  * Fix `lik()` assigning a repeated factor pattern the likelihood of the preceding row rather than of its match
+  * Fix `lik()` erroring on purely categorical queries with duplicate rows and no `arf` ("column name 'obs' is not found")
 
 # arf 0.2.5
 
