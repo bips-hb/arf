@@ -1,4 +1,7 @@
 # arf (development version)
+* Keep `lik(..., log = TRUE)` in the log domain when combining continuous and
+  categorical feature densities and mixture weights, avoiding overflow and
+  underflow for high-dimensional queries (#74)
 * Add mirai/mori parallel backend as an alternative to foreach/doParallel (#62)
   * Shares large read-only inputs (training data, forest, learned parameters) across workers via mori, lowering memory use in `adversarial_rf()`, `forde()`, `forge()`, `expct()`, and `lik()`
   * Enable with active mirai daemons or `options(arf.backend)`, see `?arf-options`

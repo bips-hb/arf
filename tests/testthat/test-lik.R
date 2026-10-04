@@ -86,9 +86,43 @@ test_that("pure continuous and pure categorical queries match brute-force mixtur
   expect_equal(lik(psi, q_cat, parallel = FALSE), lik_ref(psi, q_cat))
 })
 
-test_that("impossible mixed rows get zero likelihood", {
+test_that("out-of-range mixed rows get near-zero likelihood", {
   q <- dat[1:3, c("X1", "g")]
   q$X1[2] <- 1e6
-  expect_equal(lik(psi, q, parallel = FALSE), lik_ref(psi, q))
-  expect_equal(lik(psi, q, parallel = FALSE)[2], -Inf)
+  log_lik <- lik(psi, q, parallel = FALSE)
+  expect_equal(log_lik[c(1, 3)], lik_ref(psi, q)[c(1, 3)])
+  expect_lt(log_lik[2], -1e10)
+  expect_equal(lik(psi, q, parallel = FALSE, log = FALSE)[2], 0)
+})
+
+test_that("truncated-normal log densities remain accurate in extreme tails", {
+  x <- c(20.5, 21.5)
+  a <- 20
+  b <- 22
+  mu <- 0
+  sigma <- 1
+
+  log_density <- arf:::arf_log_dtruncnorm(x, a, b, mu, sigma)
+  max_log_density <- stats::dnorm(a, mu, sigma, log = TRUE)
+  log_normalizer <- max_log_density +
+    log(
+      stats::integrate(
+        function(y) exp(stats::dnorm(y, mu, sigma, log = TRUE) - max_log_density),
+        a,
+        b
+      )$value
+    )
+
+  expect_equal(log_density, stats::dnorm(x, mu, sigma, log = TRUE) - log_normalizer)
+  expect_true(all(is.finite(log_density)))
+})
+
+test_that("high-dimensional log likelihoods do not overflow", {
+  set.seed(1)
+  small <- as.data.frame(matrix(stats::rnorm(100 * 120, sd = 1e-3), nrow = 100))
+  arf <- adversarial_rf(small, num_trees = 2, parallel = FALSE, verbose = FALSE)
+  params <- forde(arf, small, parallel = FALSE)
+
+  result <- lik(params, small[1:5, ], arf = arf, parallel = FALSE, log = TRUE)
+  expect_true(all(is.finite(result)))
 })
