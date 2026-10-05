@@ -29,6 +29,10 @@ deps:
 test:
 	Rscript -e "devtools::test(reporter = 'summary')"
 
+.PHONY: bench
+bench:
+	Rscript bench/run.R
+
 .PHONY: coverage
 coverage:
 	Rscript -e "covr::report(covr::package_coverage(\".\"), file = \"coverage.html\")"
