@@ -92,9 +92,20 @@ bench_run_cell <- function(
   dt_threads = 1L,
   ranger_threads = 1L,
   job_id = NA_character_,
-  mem_reps = as.integer(Sys.getenv("ARF_BENCH_MEM_REPS", "1"))
+  mem_reps = NULL
 ) {
   stopifnot(nrow(cell) == 1L)
+  # Tier default, overridable per call, with the env var winning for one-offs.
+  env_reps <- Sys.getenv("ARF_BENCH_MEM_REPS", "")
+  mem_reps <- if (nzchar(env_reps)) {
+    as.integer(env_reps)
+  } else if (!is.null(mem_reps)) {
+    mem_reps
+  } else if (!is.null(cell$mem_reps) && !is.na(cell$mem_reps)) {
+    cell$mem_reps
+  } else {
+    1L
+  }
   labels <- vapply(refs, function(r) r$label, character(1))
   fixture <- refs[[match(baseline, labels, nomatch = 1L)]]
   if (is.null(data_path)) {
@@ -102,37 +113,80 @@ bench_run_cell <- function(
     on.exit(unlink(data_path), add = TRUE)
   }
   uname <- tryCatch(system2("uname", "-r", stdout = TRUE), error = function(e) NA_character_)
-  rows <- lapply(refs, function(ref) {
-    # A ref that dies, from an OOM kill or a missing library, must not cost the
-    # other refs their measurements.
-    m <- tryCatch(
-      bench_measure_cell(
-        cell$backend,
-        data_path,
-        if (is.na(cell$workers)) NA_integer_ else cell$workers,
-        dt_threads,
-        ref$lib,
-        ranger_threads = ranger_threads,
-        iters = cell$iters,
-        op = cell$op,
-        op_args = .bench_op_args(cell),
-        mem_reps = mem_reps
-      ),
-      error = function(e) {
-        message("  ref ", ref$label, " failed: ", conditionMessage(e))
-        list(
-          seconds = NA_real_,
-          peak_mb = NA_real_,
-          digest = NA_character_,
-          digest_kind = NA_character_,
-          arf_version = ref$arf_version
-        )
-      }
+
+  # Interleaved, not blocked: measuring all of ref A's replicates before all of
+  # ref B's lets any drift over the cell's lifetime land entirely on B. Measured
+  # same-commit, blocked replication left a recurring one-sided outlier of
+  # -24% to -42% at n=1e3 that more replicates did not shrink. One round per
+  # replicate, every ref inside it, cancels drift that is linear in time.
+  rounds <- lapply(seq_len(mem_reps), function(round) {
+    # Counterbalanced: interleaving rounds alone leaves the within-round order
+    # intact, so ref A is always measured before ref B and any drift inside a
+    # round still lands one-sided. Alternate the order and the bias cancels
+    # across rounds instead of accumulating.
+    order <- if (round %% 2L == 0L) rev(seq_along(refs)) else seq_along(refs)
+    measured <- lapply(order, function(j) {
+      ref <- refs[[j]]
+      m <- tryCatch(
+        bench_measure_cell(
+          cell$backend,
+          data_path,
+          if (is.na(cell$workers)) NA_integer_ else cell$workers,
+          dt_threads,
+          ref$lib,
+          ranger_threads = ranger_threads,
+          iters = cell$iters,
+          op = cell$op,
+          op_args = .bench_op_args(cell),
+          mem_reps = 1L
+        ),
+        error = function(e) {
+          message("  ref ", ref$label, " failed: ", conditionMessage(e))
+          list(
+            seconds = NA_real_,
+            peak_mb = NA_real_,
+            digest = NA_character_,
+            digest_kind = NA_character_,
+            arf_version = ref$arf_version
+          )
+        }
+      )
+      # The floor is a difference partner of the peak, so it is replicated in
+      # the same rounds: at small n the two are nearly equal and un-replicated
+      # floor noise lands undiluted in peak_mb - floor_mb.
+      m$floor_mb <- if (is.na(m$peak_mb)) NA_real_ else bench_measure_floor(ref$lib, data_path)
+      m
+    })
+    measured[order(order)]
+  })
+
+  rows <- lapply(seq_along(refs), function(j) {
+    ref <- refs[[j]]
+    per_round <- lapply(rounds, function(r) r[[j]])
+    # The marginal is a PAIRED difference: peak and floor are measured in the
+    # same round, under the same conditions, and subtracted there. Taking a
+    # minimum on each end separately instead (min(peak) - min(floor)) inflates
+    # the spread rather than reducing it, which is what measurement showed.
+    # The median over rounds is then robust to the heavy tail that GC timing
+    # gives peak memory.
+    mid <- function(v) if (all(is.na(v))) NA_real_ else stats::median(v, na.rm = TRUE)
+    field <- function(nm) vapply(per_round, function(x) x[[nm]], numeric(1))
+    first <- per_round[[1]]
+    m <- list(
+      seconds = unlist(lapply(per_round, function(x) x$seconds)),
+      peak_mb = mid(field("peak_mb")),
+      digest = first$digest,
+      digest_kind = first$digest_kind,
+      arf_version = first$arf_version
     )
+    floor_mb <- mid(field("floor_mb"))
+    # A round whose baseline was still contaminated can yield floor > peak.
+    # Such a round measured nothing, so drop it rather than let it become the
+    # median at a small replicate count.
+    paired <- field("peak_mb") - field("floor_mb")
+    paired <- paired[!is.na(paired) & paired > 0]
+    marginal_mb <- if (length(paired)) stats::median(paired) else NA_real_
     secs <- m$seconds[!is.na(m$seconds)]
-    # The floor is this cell's cost with the op never run. Deltas are taken on
-    # the marginal, since the floor dwarfs small ops and would dilute them.
-    floor_mb <- if (is.na(m$peak_mb)) NA_real_ else bench_measure_floor(ref$lib, data_path)
     data.frame(
       ref = ref$label,
       arf_version = ref$arf_version,
@@ -150,7 +204,7 @@ bench_run_cell <- function(
       peak_mb = round(m$peak_mb, 1),
       floor_mb = round(floor_mb, 1),
       mem_reps = mem_reps,
-      peak_delta_mb = round(m$peak_mb - floor_mb, 1),
+      peak_delta_mb = round(marginal_mb, 1),
       time_median = if (length(secs)) round(stats::median(secs), 3) else NA_real_,
       time_min = if (length(secs)) round(min(secs), 3) else NA_real_,
       time_max = if (length(secs)) round(max(secs), 3) else NA_real_,

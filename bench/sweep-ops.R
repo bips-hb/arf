@@ -29,47 +29,58 @@ bench_require_backends()
 # rather than a source directory.
 source("bench/refs.R")
 lib <- bench_install_ref("git:HEAD", file.path(tempdir(), "benchlib-sweep"))$lib
-dt_threads  <- as.integer(Sys.getenv("ARF_BENCH_DT_THREADS", "1"))
+dt_threads <- as.integer(Sys.getenv("ARF_BENCH_DT_THREADS", "1"))
 rgr_threads <- as.integer(Sys.getenv("ARF_BENCH_RANGER_THREADS", "1"))
-iters       <- as.integer(Sys.getenv("ARF_BENCH_ITERS", "1"))
+iters <- as.integer(Sys.getenv("ARF_BENCH_ITERS", "1"))
 worker_grid <- bench_ints("ARF_BENCH_WORKERS", c(1, 2, 4, 8))
-n_grid      <- bench_ints("ARF_BENCH_N", c(5000, 20000))
-trees_grid  <- bench_ints("ARF_BENCH_TREES", 100)
-p           <- as.integer(Sys.getenv("ARF_BENCH_P", "30"))
-n_evidence  <- as.integer(Sys.getenv("ARF_BENCH_NEVIDENCE", "100"))
-n_synth     <- as.integer(Sys.getenv("ARF_BENCH_NSYNTH", "1"))
-n_folds     <- as.integer(Sys.getenv("ARF_BENCH_NFOLDS", "8"))
+n_grid <- bench_ints("ARF_BENCH_N", c(5000, 20000))
+trees_grid <- bench_ints("ARF_BENCH_TREES", 100)
+p <- as.integer(Sys.getenv("ARF_BENCH_P", "30"))
+n_evidence <- as.integer(Sys.getenv("ARF_BENCH_NEVIDENCE", "100"))
+n_synth <- as.integer(Sys.getenv("ARF_BENCH_NSYNTH", "1"))
+n_folds <- as.integer(Sys.getenv("ARF_BENCH_NFOLDS", "8"))
 # evidence_row_mode for forge/expct: "separate" parallelizes forge/expct over
 # steps; "or" delegates parallelism to cforde (benchmarks the cforde backend).
-rowmode     <- match.arg(Sys.getenv("ARF_BENCH_ROWMODE", "separate"),
-                         c("separate", "or"))
-ops_grid    <- strsplit(Sys.getenv("ARF_BENCH_OPS",
-                 "forde,forge,expct,lik,adversarial_rf"), ",")[[1]]
+rowmode <- match.arg(Sys.getenv("ARF_BENCH_ROWMODE", "separate"), c("separate", "or"))
+ops_grid <- strsplit(Sys.getenv("ARF_BENCH_OPS", "forde,forge,expct,lik,adversarial_rf"), ",")[[1]]
 # Restrict backends for targeted sweeps (e.g. ARF_BENCH_BACKENDS=mirai when a
 # change only affects mirai; rerunning the other backends would be waste).
-backends    <- strsplit(Sys.getenv("ARF_BENCH_BACKENDS",
-                 "sequential,foreach,mirai"), ",")[[1]]
+backends <- strsplit(Sys.getenv("ARF_BENCH_BACKENDS", "sequential,foreach,mirai"), ",")[[1]]
 
 message(sprintf(
   "Ops sweep | ops {%s} | workers {%s} | n {%s} | trees {%s} | p %d | n_evidence %d | n_synth %d | n_folds %d | rowmode %s | metric %s",
-  paste(ops_grid, collapse = ","), paste(worker_grid, collapse = ","),
-  paste(n_grid, collapse = ","), paste(trees_grid, collapse = ","),
-  p, n_evidence, n_synth, n_folds, rowmode, BENCH_METRIC))
+  paste(ops_grid, collapse = ","),
+  paste(worker_grid, collapse = ","),
+  paste(n_grid, collapse = ","),
+  paste(trees_grid, collapse = ","),
+  p,
+  n_evidence,
+  n_synth,
+  n_folds,
+  rowmode,
+  BENCH_METRIC
+))
 
 cores <- as.integer(Sys.getenv("ARF_BENCH_CORES", parallel::detectCores()))
 if (max(worker_grid) * dt_threads > cores) {
   message(sprintf(
     "  WARNING: peak workers x dt.threads = %d exceeds %d cores -- OVERSUBSCRIBED (mirai worst).",
-    max(worker_grid) * dt_threads, cores))
+    max(worker_grid) * dt_threads,
+    cores
+  ))
 }
 
 # op-specific knobs (stepsize/batch left auto -> sized to worker count).
-op_args_for <- function(op, trees, n) switch(op,
-  forge          = list(n_synth = n_synth, stepsize = 0L, rowmode = rowmode),
-  expct          = list(stepsize = 0L, rowmode = rowmode),
-  lik            = list(batch = ceiling(n / n_folds)),
-  adversarial_rf = list(trees = trees),
-  list())
+op_args_for <- function(op, trees, n) {
+  switch(
+    op,
+    forge = list(n_synth = n_synth, stepsize = 0L, rowmode = rowmode),
+    expct = list(stepsize = 0L, rowmode = rowmode),
+    lik = list(batch = ceiling(n / n_folds)),
+    adversarial_rf = list(trees = trees),
+    list()
+  )
+}
 
 rows <- list()
 for (n in n_grid) {
@@ -81,31 +92,53 @@ for (n in n_grid) {
     evidence <- data.frame(grp = sample(levels(X$grp), n_evidence, replace = TRUE))
     data_path <- tempfile(fileext = ".rds")
     saveRDS(list(arf = arf, X = X, psi = psi, evidence = evidence), data_path)
-    rm(arf, psi); invisible(gc())
+    rm(arf, psi)
+    invisible(gc())
     for (op in ops_grid) {
       oa <- op_args_for(op, trees, n)
       for (w in worker_grid) {
         for (be in backends) {
-          if (be == "sequential" && w != worker_grid[1]) next
-          m <- bench_measure_cell(be, data_path, w, dt_threads, lib,
-                                  ranger_threads = rgr_threads, iters = iters,
-                                  op = op, op_args = oa)
+          if (be == "sequential" && w != worker_grid[1]) {
+            next
+          }
+          m <- bench_measure_cell(
+            be,
+            data_path,
+            w,
+            dt_threads,
+            lib,
+            ranger_threads = rgr_threads,
+            iters = iters,
+            op = op,
+            op_args = oa
+          )
           rows[[length(rows) + 1L]] <- data.frame(
-            op = op, n = n, trees = trees,
+            op = op,
+            n = n,
+            trees = trees,
             workers = if (be == "sequential") NA_integer_ else w,
-            backend = be, seconds = round(stats::median(m$seconds), 2),
-            peak_mb = round(m$peak_mb, 1), metric = BENCH_METRIC,
+            backend = be,
+            seconds = round(stats::median(m$seconds), 2),
+            peak_mb = round(m$peak_mb, 1),
+            metric = BENCH_METRIC,
             commit = BENCH_COMMIT,
             block_rows = as.numeric(Sys.getenv("ARF_BENCH_BLOCK_ROWS", "5e6")),
             # op-scale knobs recorded per row (NA where an op ignores them)
             n_evidence = if (op %in% c("forge", "expct")) n_evidence else NA_integer_,
             n_synth = if (op == "forge") n_synth else NA_integer_,
             n_folds = if (op == "lik") n_folds else NA_integer_,
-            rowmode = if (op %in% c("forge", "expct")) rowmode else NA_character_)
-          message(sprintf("  %-14s n=%-6d trees=%-4d w=%-3s %-10s %8.2fs %9.1f MB",
-                          op, n, trees,
-                          if (be == "sequential") "-" else as.character(w),
-                          be, stats::median(m$seconds), m$peak_mb))
+            rowmode = if (op %in% c("forge", "expct")) rowmode else NA_character_
+          )
+          message(sprintf(
+            "  %-14s n=%-6d trees=%-4d w=%-3s %-10s %8.2fs %9.1f MB",
+            op,
+            n,
+            trees,
+            if (be == "sequential") "-" else as.character(w),
+            be,
+            stats::median(m$seconds),
+            m$peak_mb
+          ))
         }
       }
     }
@@ -120,8 +153,7 @@ stamp <- format(Sys.time(), "%Y%m%d-%H%M%S")
 # config, so parallel jobs stay distinguishable and viz.R can pick the latest
 # run per config.
 label <- Sys.getenv("ARF_BENCH_LABEL", "")
-f <- sprintf("bench/results/sweep-ops-%s%s.csv",
-             if (nzchar(label)) paste0(label, "-") else "", stamp)
+f <- sprintf("bench/results/sweep-ops-%s%s.csv", if (nzchar(label)) paste0(label, "-") else "", stamp)
 write.csv(out, f, row.names = FALSE)
 cat(sprintf("\n=== arf pipeline backend sweep (%s) ===\n", BENCH_METRIC))
 print(out, row.names = FALSE)

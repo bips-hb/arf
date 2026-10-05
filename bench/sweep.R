@@ -26,19 +26,26 @@ bench_require_backends()
 # rather than a source directory.
 source("bench/refs.R")
 lib <- bench_install_ref("git:HEAD", file.path(tempdir(), "benchlib-sweep"))$lib
-dt_threads  <- as.integer(Sys.getenv("ARF_BENCH_DT_THREADS", "1"))
+dt_threads <- as.integer(Sys.getenv("ARF_BENCH_DT_THREADS", "1"))
 rgr_threads <- as.integer(Sys.getenv("ARF_BENCH_RANGER_THREADS", "1"))
-iters       <- as.integer(Sys.getenv("ARF_BENCH_ITERS", "1"))
+iters <- as.integer(Sys.getenv("ARF_BENCH_ITERS", "1"))
 worker_grid <- bench_ints("ARF_BENCH_WORKERS", c(1, 2, 4, 8))
-n_grid      <- bench_ints("ARF_BENCH_N", c(5000, 20000))
-trees_grid  <- bench_ints("ARF_BENCH_TREES", c(100, 200))
-p           <- as.integer(Sys.getenv("ARF_BENCH_P", "30"))
-backends    <- c("sequential", "foreach", "mirai")
+n_grid <- bench_ints("ARF_BENCH_N", c(5000, 20000))
+trees_grid <- bench_ints("ARF_BENCH_TREES", c(100, 200))
+p <- as.integer(Sys.getenv("ARF_BENCH_P", "30"))
+backends <- c("sequential", "foreach", "mirai")
 
 message(sprintf(
   "Sweep | workers {%s} | n {%s} | trees {%s} | p %d | dt.threads %d | ranger.threads %d | iters %d | metric %s",
-  paste(worker_grid, collapse = ","), paste(n_grid, collapse = ","),
-  paste(trees_grid, collapse = ","), p, dt_threads, rgr_threads, iters, BENCH_METRIC))
+  paste(worker_grid, collapse = ","),
+  paste(n_grid, collapse = ","),
+  paste(trees_grid, collapse = ","),
+  p,
+  dt_threads,
+  rgr_threads,
+  iters,
+  BENCH_METRIC
+))
 
 # Warn on oversubscription: workers x data.table-threads should stay under the
 # core count (with headroom -- mirai needs CPU for its dispatch/collect, and it
@@ -48,7 +55,9 @@ peak_concurrency <- max(worker_grid) * dt_threads
 if (peak_concurrency > cores) {
   message(sprintf(
     "  WARNING: peak workers x dt.threads = %d exceeds %d cores -- OVERSUBSCRIBED.\n  Cells at high worker counts will thrash (mirai worst). Keep workers x threads\n  under the core count (with headroom), or lower ARF_BENCH_DT_THREADS / workers.",
-    peak_concurrency, cores))
+    peak_concurrency,
+    cores
+  ))
 }
 
 rows <- list()
@@ -59,22 +68,36 @@ for (n in n_grid) {
     arf <- adversarial_rf(X, num_trees = trees, verbose = FALSE, parallel = FALSE)
     data_path <- tempfile(fileext = ".rds")
     saveRDS(list(arf = arf, X = X), data_path)
-    rm(arf, X); invisible(gc())  # free the orchestrator; children read from disk
+    rm(arf, X)
+    invisible(gc()) # free the orchestrator; children read from disk
     for (w in worker_grid) {
       for (be in backends) {
         # sequential is worker-independent: run it once (at the first worker count)
-        if (be == "sequential" && w != worker_grid[1]) next
-        m <- bench_measure_cell(be, data_path, w, dt_threads, lib,
-                                ranger_threads = rgr_threads, iters = iters)
+        if (be == "sequential" && w != worker_grid[1]) {
+          next
+        }
+        m <- bench_measure_cell(be, data_path, w, dt_threads, lib, ranger_threads = rgr_threads, iters = iters)
         rows[[length(rows) + 1L]] <- data.frame(
-          n = n, trees = trees,
+          n = n,
+          trees = trees,
           workers = if (be == "sequential") NA_integer_ else w,
-          dt_threads = dt_threads, ranger_threads = rgr_threads, backend = be,
-          seconds = round(stats::median(m$seconds), 2), peak_mb = round(m$peak_mb, 1),
-          metric = BENCH_METRIC, commit = BENCH_COMMIT)
-        message(sprintf("  n=%-6d trees=%-4d w=%-3s %-10s %8.1fs %9.1f MB",
-                        n, trees, if (be == "sequential") "-" else as.character(w),
-                        be, stats::median(m$seconds), m$peak_mb))
+          dt_threads = dt_threads,
+          ranger_threads = rgr_threads,
+          backend = be,
+          seconds = round(stats::median(m$seconds), 2),
+          peak_mb = round(m$peak_mb, 1),
+          metric = BENCH_METRIC,
+          commit = BENCH_COMMIT
+        )
+        message(sprintf(
+          "  n=%-6d trees=%-4d w=%-3s %-10s %8.1fs %9.1f MB",
+          n,
+          trees,
+          if (be == "sequential") "-" else as.character(w),
+          be,
+          stats::median(m$seconds),
+          m$peak_mb
+        ))
       }
     }
     unlink(data_path)

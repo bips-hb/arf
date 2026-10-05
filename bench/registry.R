@@ -8,6 +8,9 @@ bench_make_registry <- function(
   slurm_template = Sys.getenv("ARF_BENCH_SLURM_TMPL", "")
 ) {
   cluster <- match.arg(cluster)
+  # batchtools asserts the parent exists rather than creating it, and the
+  # registry path is nested under bench/registry/<stamp>.
+  dir.create(dirname(dir), recursive = TRUE, showWarnings = FALSE)
   reg <- batchtools::makeRegistry(
     file.dir = dir,
     source = c(

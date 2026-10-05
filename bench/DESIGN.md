@@ -83,8 +83,26 @@ So every cell now also measures its floor, with a child that loads the ref and r
 Peak memory is then not reproducible from one sample, because R's peak depends on when the garbage collector decides to grow the heap rather than on the algorithm alone.
 Re-running identical code against itself gave marginal deltas of -2.7% to -11.6% at `n = 1e3` and as much as -38.6% at `n = 1e4`.
 The raw peak looked stable only because the 200 MB floor was hiding this.
-Consequently a single-sample memory delta is never reported as a finding: its verdict reads `single sample, not a finding`, and `ARF_BENCH_MEM_REPS` (default 1) raises the number of cell runs, with the minimum peak taken as the least GC-inflated estimate.
-The open question is how many replicates a 10% claim needs, which is a cost decision rather than a code one.
+What made the measurement usable was the estimator, not the replicate count.
+Replicating the cell peak alone did nothing: at `n = 1e3` the same-commit spread stayed between 24% and 42% whether one, two, three or five replicates were taken.
+Three mistakes were stacked in that first version.
+The floor was measured once while the peak was replicated, so un-replicated floor noise landed undiluted in a difference of two nearly equal numbers.
+All of a ref's replicates ran before the next ref's, so any drift over the cell's lifetime fell entirely on the later ref, which showed up as a one-sided outlier.
+And taking a minimum separately on each end of a subtraction inflates the spread rather than reducing it.
+
+The version in the code measures peak and floor in the same round, subtracts them there, interleaves one round per replicate across all refs, and takes the median of the per-round marginals.
+Same-commit spread at `n = 1e3` then fell to 1.4%, under the 3% threshold, so a 10% claim clears the noise by about sevenfold.
+
+`mem_reps` is therefore a tier property: 3 for quick, which keeps it affordable on bertha, and 5 for full, where the numbers get published and the cluster has the budget.
+`ARF_BENCH_MEM_REPS` overrides both for a one-off.
+A single replicate is never reported as a finding: its verdict reads `single sample, not a finding`.
+
+Replication has a resolution limit that no replicate count overcomes.
+The marginal is a difference against a floor of roughly 200 MB, so when an op allocates much less than the floor the shared-cgroup delta cannot resolve it.
+Same-commit spread against the ratio of marginal to floor: 0.29 gave 14-23%, 0.73 gave 4.2%, and 2.0 gave at most 3.6%.
+So a cell whose marginal is below its floor carries no memory verdict at all, and reads `cell too small to resolve memory`.
+Every current quick-tier cell falls under that line, which is consistent with the tier split: quick catches major regressions and reports time, and published memory numbers come from the full tier's large cells.
+Raising the quick tier's `n` until the marginal clears its floor, or measuring per-child PSS instead of a shared-cgroup delta, would both lift the limit and neither is done here.
 
 ### Output differences are flagged, never fatal
 
@@ -133,6 +151,8 @@ host kernel r_version job_id timestamp
 ```
 
 `peak_delta_mb` is the op's own marginal and the only memory column deltas are taken on; `peak_mb` and `floor_mb` are kept so the dilution stays visible.
+It is the median of the per-round paired differences, so it is close to but not identical to the difference of the two reported medians.
+`mem_reps` records how many rounds produced the row.
 
 `bench_git_commit()` already produces the commit hash, and its existing dirty detection becomes the precondition check rather than a column.
 `arf_version` comes from the installed ref's `DESCRIPTION`, which is what makes an anchor row self-describing.

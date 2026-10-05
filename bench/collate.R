@@ -2,6 +2,9 @@
 # bench/DESIGN.md: memory above 3% is real, time below 10% is inconclusive.
 
 BENCH_MEM_THRESHOLD <- 3
+# A marginal below this fraction of its floor is below the instrument's
+# resolution; see the note in bench_deltas().
+BENCH_MEM_RESOLUTION <- 1
 BENCH_TIME_THRESHOLD <- 10
 
 .bench_cell_key <- function(rows) {
@@ -51,6 +54,18 @@ bench_deltas <- function(rows, baseline = "main") {
   # n=1e3, up to -38.6% at n=1e4). Refuse to call such a delta a finding.
   single <- !is.na(rows$mem_reps) & rows$mem_reps < 2L & rows$mem_verdict == "real"
   rows$mem_verdict[single] <- "single sample, not a finding"
+  # Resolution guard. The marginal is a difference against a floor of an R
+  # interpreter plus arf plus the fixture, so when it is small relative to that
+  # floor the shared-cgroup delta cannot resolve it and no replicate count
+  # helps. Measured same-commit spread against the marginal-to-floor ratio:
+  # 0.29 -> 14-23%, 0.73 -> 4.2%, 2.0 -> <=3.6%, so the op must allocate at
+  # least as much as the fixed floor before a 3% verdict means anything.
+  # Suppress it rather than report noise as a finding.
+  thin <- !is.na(rows$peak_delta_mb) &
+    !is.na(rows$floor_mb) &
+    rows$peak_delta_mb < BENCH_MEM_RESOLUTION * rows$floor_mb &
+    rows$mem_verdict %in% c("real", "inconclusive")
+  rows$mem_verdict[thin] <- "cell too small to resolve memory"
   rows$key <- NULL
   rows
 }

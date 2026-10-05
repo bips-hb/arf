@@ -33,8 +33,12 @@ See `DESIGN.md` for why the job unit is one cell against every ref, and why a di
 Refs default to `HEAD`, `main`, and the anchors in `anchors.csv`, deduplicated by resolved commit, so a run on `main` does not compare `HEAD` with itself.
 
 Memory deltas are taken on `peak_delta_mb`, the peak minus a measured per-cell floor (an R interpreter plus `arf` plus the fixture, about 200 MB here).
-A single memory sample is never reported as a finding, because peak memory depends on GC scheduling: identical code re-run against itself gave -2.7% to -11.6% at `n = 1e3` and up to -38.6% at `n = 1e4`.
-Set `ARF_BENCH_MEM_REPS` above 1 to run each cell several times and take the minimum peak before citing a memory number.
+Peak and floor are measured in the same round and subtracted there, one round per replicate interleaved across refs, and the median of those paired differences is reported.
+That matters more than the replicate count: with the peak replicated but the floor measured once, same-commit spread at `n = 1e3` stayed between 24% and 42% no matter how many replicates were taken; paired and interleaved with three rounds it is 1.4%.
+
+`mem_reps` defaults to 3 in the quick tier and 5 in the full tier; `ARF_BENCH_MEM_REPS` overrides it.
+A single replicate is never reported as a finding, and neither is a cell whose marginal is smaller than its floor: that is below the instrument's resolution and reads `cell too small to resolve memory`.
+On current sizes that is every quick-tier cell, so `make bench` is a time check that also records memory; memory verdicts come from the full tier.
 Anchor rows are appended to `history.csv` automatically; committing them is manual, for the runs worth keeping.
 
 ## Process isolation (why, and how)

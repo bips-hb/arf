@@ -24,6 +24,10 @@
   cells$backend <- "sequential"
   cells$workers <- NA_integer_
   cells$iters <- 5L
+  # Peak memory is a stochastic function of GC scheduling, so one sample cannot
+  # support a percentage claim (see bench/DESIGN.md). Three cell runs is the
+  # floor for a quick tier that stays cheap enough to run on bertha mid-work.
+  cells$mem_reps <- 3L
   .bench_op_knobs(cells)
 }
 
@@ -49,6 +53,9 @@
   cells <- rbind(parallel_cells, seq_cells)
   cells$p <- 10L
   cells$iters <- 5L
+  # The cluster has the budget the quick tier does not, and these are the runs
+  # whose numbers get published.
+  cells$mem_reps <- 5L
   # The evidence ops get both row modes and a large variant, as
   # submit-ops.sh already defines: "or" is the branch that delegates
   # parallelism to cforde, which is exactly the mirai/mori code this suite

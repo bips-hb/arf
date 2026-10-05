@@ -409,8 +409,11 @@ test_that("the memory floor is measured and the marginal excludes it", {
   # and it dwarfs a small op, so percentages computed on peak_mb are diluted.
   expect_true(rows$floor_mb > 50)
   expect_true(rows$peak_mb >= rows$floor_mb)
-  # Computed from the unrounded values, so agreement is to within rounding.
-  expect_lt(abs(rows$peak_delta_mb - (rows$peak_mb - rows$floor_mb)), 0.11)
+  # peak_delta_mb is the median of PAIRED per-round differences, so it is
+  # deliberately not the difference of the two reported medians. The contract
+  # is that it is a positive quantity strictly smaller than the raw peak.
+  expect_gt(rows$peak_delta_mb, 0)
+  expect_lt(rows$peak_delta_mb, rows$peak_mb)
   expect_true(rows$peak_delta_mb < rows$peak_mb)
 })
 
@@ -437,9 +440,11 @@ test_that("provenance is asserted against the library actually loaded", {
 
 test_that("ref specs resolving to the same commit collapse to one", {
   skip_on_cran()
-  # On a checked-out branch HEAD and the branch name are the same commit, which
-  # is the default state of every run on main.
-  resolved <- bench_resolve_refs(c("HEAD", "main"))
+  # Branch-independent: on main, "HEAD" and "main" are the same commit and
+  # collapse; on a feature branch they differ and both are kept, which is the
+  # comparison the suite exists for. Pin the duplicate explicitly instead.
+  sha <- system2("git", c("rev-parse", "--short", "HEAD"), stdout = TRUE)[1]
+  resolved <- bench_resolve_refs(c("HEAD", paste0("git:", sha)))
   expect_length(resolved, 1L)
   expect_equal(resolved, "HEAD")
   expect_length(bench_resolve_refs(c("HEAD", "cran:0.2.5")), 2L)
@@ -536,4 +541,84 @@ test_that("a single memory sample is never reported as a finding", {
   rows$mem_reps <- 3L
   d3 <- bench_deltas(rows, baseline = "main")
   expect_equal(d3$mem_verdict[d3$ref == "HEAD"], "real")
+})
+
+test_that("a registry path whose parent does not exist is created", {
+  skip_on_cran()
+  skip_if_not_installed("batchtools")
+  # batchtools asserts the dirname exists rather than creating it, and run.R
+  # nests the registry under bench/registry/<stamp>.
+  root <- file.path(tempdir(), paste0("regparent-", Sys.getpid()))
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  nested <- file.path(root, "registry", "20260101-000000")
+  expect_false(dir.exists(dirname(nested)))
+  reg <- bench_make_registry(nested, "local")
+  expect_true(dir.exists(nested))
+})
+
+test_that("each tier carries its own memory replication budget", {
+  expect_equal(unique(bench_cells("quick")$mem_reps), 3L)
+  expect_equal(unique(bench_cells("full")$mem_reps), 5L)
+})
+
+test_that("a marginal too small relative to its floor carries no memory verdict", {
+  thin <- .bench_fake(
+    list(
+      ref = "main",
+      peak_mb = 255,
+      floor_mb = 200,
+      peak_delta_mb = 55,
+      mem_reps = 3L,
+      time_median = 1.84,
+      digest = "a"
+    ),
+    list(
+      ref = "HEAD",
+      peak_mb = 250,
+      floor_mb = 200,
+      peak_delta_mb = 48,
+      mem_reps = 3L,
+      time_median = 1.84,
+      digest = "a"
+    )
+  )
+  d <- bench_deltas(thin, baseline = "main")
+  expect_equal(d$mem_verdict[d$ref == "HEAD"], "cell too small to resolve memory")
+
+  # ratio 0.73 measured a 4.2% same-commit delta, so it carries no verdict either
+  borderline <- .bench_fake(
+    list(
+      ref = "main", peak_mb = 370, floor_mb = 214, peak_delta_mb = 156,
+      mem_reps = 3L, time_median = 1.84, digest = "a"
+    ),
+    list(
+      ref = "HEAD", peak_mb = 364, floor_mb = 214, peak_delta_mb = 150,
+      mem_reps = 3L, time_median = 1.84, digest = "a"
+    )
+  )
+  db <- bench_deltas(borderline, baseline = "main")
+  expect_equal(db$mem_verdict[db$ref == "HEAD"], "cell too small to resolve memory")
+
+  fat <- .bench_fake(
+    list(
+      ref = "main",
+      peak_mb = 825,
+      floor_mb = 275,
+      peak_delta_mb = 550,
+      mem_reps = 3L,
+      time_median = 1.84,
+      digest = "a"
+    ),
+    list(
+      ref = "HEAD",
+      peak_mb = 770,
+      floor_mb = 275,
+      peak_delta_mb = 495,
+      mem_reps = 3L,
+      time_median = 1.84,
+      digest = "a"
+    )
+  )
+  d2 <- bench_deltas(fat, baseline = "main")
+  expect_equal(d2$mem_verdict[d2$ref == "HEAD"], "real")
 })
