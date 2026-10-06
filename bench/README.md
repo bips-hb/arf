@@ -22,31 +22,65 @@ is in `.Rbuildignore`, so nothing here is committed or shipped).
 
 ## Version comparison
 
-`bench/run.R` compares refs rather than backends: it installs each ref into its own library, measures the same grid against all of them in one allocation, and reports deltas against `main`.
-See `DESIGN.md` for why the job unit is one cell against every ref, and why a dirty tree refuses to run.
+`bench/arf-bench` compares refs rather than backends: it installs each ref into
+its own library, measures the same grid against all of them in one allocation,
+and reports deltas against `main`. See `DESIGN.md` for why the job unit is one
+cell against every ref, and why a dirty tree refuses to run.
 
-    make bench                                        # quick tier, local
-    ARF_BENCH_TIER=full ARF_BENCH_CLUSTER=slurm \
-      Rscript bench/run.R                             # full tier, cluster
+It is an [Rapp](https://github.com/r-lib/Rapp) script, so the defaults in
+`--help` are the script's own top-level assignments and cannot drift from the
+code. Install the launcher once:
+
+    Rscript -e 'install.packages("Rapp"); Rapp::install_pkg_cli_apps("Rapp")'
+
+Then:
+
+    bench/arf-bench --help                  # commands
+    bench/arf-bench run --help              # every option, with its real default
+    bench/arf-bench plan                    # cells, executions and slurm sizing, nothing run
+
+    make bench                              # quick tier, local
+    bench/arf-bench run                     # the same thing
+
+    bench/arf-bench -t full -c slurm plan   # what the cluster run would cost
+    bench/arf-bench -t full -c slurm run    # submit and exit
+    bench/arf-bench collect                 # collate the newest registry
+
+Stage a big run with `--ops` and `--max-cells`, and cheapen a validation run
+with `--iters 1 --mem-reps 1`:
+
+    bench/arf-bench -t full -c slurm run -o forde -n 2 --iters 1 --mem-reps 1
+
+Refs default to `HEAD`, `main`, and the anchors in `anchors.csv`, deduplicated
+by resolved commit, so a run on `main` does not compare `HEAD` with itself.
+Anchor rows are appended to `history.csv` automatically; committing them is
+manual, for the runs worth keeping.
+
+`collect` re-derives the CSV and report from the stored per-ref rows, so the
+threshold and verdict rules can be revised and the report regenerated without
+recomputing anything.
 
 The cluster path needs no template argument: batchtools reads
 `/etc/xdg/batchtools/config.R`, which already names the site template and sets
-qos, partition and `max.concurrent.jobs`. `ARF_BENCH_SLURM_TMPL` overrides it.
-`ncpus` is derived from the cell's peak worker count at two hyperthreads per
-worker; `ARF_BENCH_SLURM_MEM` is TOTAL MB per job (not per cpu, and not
-`mem_per_cpu`, which the site defaults already conflict with).
-Stage a big run with `ARF_BENCH_OPS` and `ARF_BENCH_MAX_CELLS`.
+qos, partition and `max.concurrent.jobs`. `--cpus` is derived from the cell's
+peak worker count at two hyperthreads per worker; `--mem` is TOTAL MB per job
+(not per cpu, and not `mem_per_cpu`, which the site defaults conflict with).
 
-Refs default to `HEAD`, `main`, and the anchors in `anchors.csv`, deduplicated by resolved commit, so a run on `main` does not compare `HEAD` with itself.
+Memory deltas are taken on `peak_delta_mb`, the peak minus a measured per-cell
+floor (an R interpreter plus `arf` plus the fixture, about 200 MB here).
+Peak and floor are measured in the same round and subtracted there, one round
+per replicate interleaved and counterbalanced across refs, and the median of
+those paired differences is reported. That matters more than the replicate
+count: with the peak replicated but the floor measured once, same-commit spread
+at `n = 1e3` stayed between 24% and 42% no matter how many replicates were
+taken.
 
-Memory deltas are taken on `peak_delta_mb`, the peak minus a measured per-cell floor (an R interpreter plus `arf` plus the fixture, about 200 MB here).
-Peak and floor are measured in the same round and subtracted there, one round per replicate interleaved across refs, and the median of those paired differences is reported.
-That matters more than the replicate count: with the peak replicated but the floor measured once, same-commit spread at `n = 1e3` stayed between 24% and 42% no matter how many replicates were taken; paired and interleaved with three rounds it is 1.4%.
-
-`mem_reps` defaults to 3 in the quick tier and 5 in the full tier; `ARF_BENCH_MEM_REPS` overrides it.
-A single replicate is never reported as a finding, and neither is a cell whose marginal is smaller than its floor: that is below the instrument's resolution and reads `cell too small to resolve memory`.
-On current sizes that is every quick-tier cell, so `make bench` is a time check that also records memory; memory verdicts come from the full tier.
-Anchor rows are appended to `history.csv` automatically; committing them is manual, for the runs worth keeping.
+`--mem-reps` defaults to 3 in the quick tier and 5 in the full tier. A single
+replicate is never reported as a finding, and neither is a cell whose marginal
+is smaller than its floor: that is below the instrument's resolution and reads
+`cell too small to resolve memory`. On current sizes that is every quick-tier
+cell, so `make bench` is a time check that also records memory; memory verdicts
+come from the full tier's large cells.
 
 ## Process isolation (why, and how)
 

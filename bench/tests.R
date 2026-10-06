@@ -548,7 +548,7 @@ test_that("a single memory sample is never reported as a finding", {
 test_that("a registry path whose parent does not exist is created", {
   skip_on_cran()
   skip_if_not_installed("batchtools")
-  # batchtools asserts the dirname exists rather than creating it, and run.R
+  # batchtools asserts the dirname exists rather than creating it, and the CLI
   # nests the registry under bench/registry/<stamp>.
   root <- file.path(tempdir(), paste0("regparent-", Sys.getpid()))
   on.exit(unlink(root, recursive = TRUE), add = TRUE)

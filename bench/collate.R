@@ -159,3 +159,22 @@ bench_history_append <- function(rows, path = "bench/history.csv") {
   utils::write.csv(keep, path, row.names = FALSE)
   invisible(keep)
 }
+
+# Shared tail of a run and a collate: one place that writes the CSV, appends
+# anchor rows to the history, and renders the report.
+bench_write_results <- function(rows) {
+  dir.create("bench/results", showWarnings = FALSE, recursive = TRUE)
+  out <- file.path(
+    "bench/results",
+    sprintf("bench-%s-%s.csv", rows$tier[1], format(Sys.time(), "%Y%m%d-%H%M%S"))
+  )
+  utils::write.csv(rows, out, row.names = FALSE)
+  message("Written to ", out)
+  # Anchor rows are appended automatically; only the commit is manual.
+  bench_history_append(rows)
+  report <- bench_report(rows)
+  cat(report, sep = "\n")
+  writeLines(report, "bench/results/report.md")
+  message("Report at bench/results/report.md")
+  invisible(rows)
+}

@@ -125,6 +125,7 @@ The report says which kind of digest produced a flag, so a stochastic mismatch i
 
 ```
 bench/
+  arf-bench         the CLI: run / collect / plan subcommands   (new, Rapp)
   README.md         how to run, memory metric, topology        (exists, extend)
   DESIGN.md         this file                                   (new)
   bench-helpers.R   sampler, data generation, git stamping      (exists, keep)

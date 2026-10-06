@@ -1,0 +1,226 @@
+#!/usr/bin/env Rapp
+#| name: arf-bench
+#| title: arf benchmark suite
+#| description: |
+#|   Compare arf git refs and CRAN releases for runtime and peak memory.
+#|   Run from the repository root. See bench/DESIGN.md for the measurement
+#|   contract and bench/README.md for the operational notes.
+#|
+#|   Defaults below are the real ones: this script's top-level assignments ARE
+#|   the configuration, so --help cannot drift from the code.
+
+#| description: "Which grid: quick (sequential, small, runs anywhere) or full (backends, large, cluster)."
+#| short: t
+tier <- "quick"
+
+#| description: "Where to run: local (sequential, in-process) or slurm."
+#| short: c
+cluster <- "local"
+
+if (!file.exists("bench/bench-helpers.R")) {
+  cat("Run from the repository root (bench/ must be visible).\n", file = stderr())
+  quit(save = "no", status = 1L)
+}
+source("bench/bench-helpers.R")
+source("bench/refs.R")
+source("bench/cells.R")
+source("bench/run-cell.R")
+source("bench/registry.R")
+source("bench/collate.R")
+
+switch(
+  command <- "",
+
+  #| title: Submit a benchmark run
+  #| description: |
+  #|   Installs each ref into bench/lib, submits one job per cell, and on the
+  #|   local tier waits and reports. On slurm it submits and exits; collate
+  #|   afterwards with `arf-bench collect`.
+  run = {
+    #| description: "Restrict to these ops, comma separated. One or more of adversarial_rf, forde, lik, forge, expct."
+    #| short: o
+    ops <- NA_character_
+
+    #| description: Take only the first N cells, for validating a path cheaply.
+    #| short: n
+    max_cells <- NA_integer_
+
+    #| description: Timed calls inside each cell child. Overrides the tier default of 5.
+    iters <- NA_integer_
+
+    #| description: Memory replicate rounds per ref. Overrides the tier default (quick 3, full 5).
+    mem_reps <- NA_integer_
+
+    #| description: Refs to compare, comma separated. Defaults to HEAD, main and bench/anchors.csv.
+    refs <- NA_character_
+
+    #| description: Block until every job finishes. Default is to wait locally and not on slurm.
+    wait <- NA
+
+    #| description: Total memory per slurm job in MB, via --mem rather than per cpu.
+    mem <- 256000L
+
+    #| description: CPUs per slurm job. Default is 2 per worker plus one, since ncpus counts hyperthreads.
+    cpus <- NA_integer_
+
+    #| description: Walltime per slurm job in seconds. 8h fits the default medium QoS ceiling of one day.
+    walltime <- 28800L
+
+    #| description: Slurm partition. Omitted by default, so the site config decides.
+    partition <- NA_character_
+
+    #| description: Where ref libraries are installed. Must be readable from the compute nodes.
+    lib_root <- "bench/lib"
+
+    bench_assert_deps()
+    bench_assert_clean_tree()
+
+    ref_specs <- if (is.na(refs)) {
+      unique(c("HEAD", "main", bench_anchors()))
+    } else {
+      trimws(strsplit(refs, ",")[[1]])
+    }
+    ref_specs <- bench_resolve_refs(ref_specs[nzchar(ref_specs)])
+
+    cells <- bench_cells(tier)
+    if (!is.na(ops)) {
+      cells <- cells[cells$op %in% trimws(strsplit(ops, ",")[[1]]), ]
+    }
+    if (!is.na(max_cells)) {
+      cells <- utils::head(cells, max_cells)
+    }
+    if (!nrow(cells)) {
+      cat("No cells selected.\n", file = stderr())
+      quit(save = "no", status = 1L)
+    }
+    if (!is.na(iters)) {
+      cells$iters <- iters
+    }
+    if (!is.na(mem_reps)) {
+      cells$mem_reps <- mem_reps
+      # bench_run_cell() reads this for callers that pass no explicit value.
+      Sys.setenv(ARF_BENCH_MEM_REPS = as.character(mem_reps))
+    }
+
+    message(sprintf(
+      "arf bench | tier %s | %d cells | refs %s | metric %s",
+      tier, nrow(cells), paste(ref_specs, collapse = ", "), BENCH_METRIC
+    ))
+
+    lib_root <- normalizePath(lib_root, mustWork = FALSE)
+    dir.create(lib_root, recursive = TRUE, showWarnings = FALSE)
+    message("installing refs into ", lib_root, " ...")
+    installed <- lapply(ref_specs, bench_install_ref, root = lib_root)
+    for (r in installed) {
+      message(sprintf("  %-12s arf %-12s %s", r$label, r$arf_version, r$commit))
+    }
+
+    resources <- list()
+    if (identical(cluster, "slurm")) {
+      peak_workers <- suppressWarnings(max(cells$workers, na.rm = TRUE))
+      if (!is.finite(peak_workers)) {
+        peak_workers <- 1L
+      }
+      resources <- list(
+        ncpus = if (is.na(cpus)) 2L * (as.integer(peak_workers) + 1L) else cpus,
+        memory = mem,
+        walltime = walltime
+      )
+      if (!is.na(partition)) {
+        resources$partition <- partition
+      }
+      message(sprintf(
+        "slurm: %d cpus (~%d cores), %.0f GB/job total, %.1f h",
+        resources$ncpus, resources$ncpus %/% 2L,
+        resources$memory / 1024, resources$walltime / 3600
+      ))
+    }
+
+    dir <- file.path("bench", "registry", format(Sys.time(), "%Y%m%d-%H%M%S"))
+    reg <- bench_make_registry(dir, cluster)
+    reg <- bench_submit_cells(reg, cells, installed, resources = resources)
+
+    should_wait <- if (is.na(wait)) !identical(cluster, "slurm") else isTRUE(wait)
+    if (!should_wait) {
+      message(
+        "submitted; not waiting. Follow with:\n",
+        "  tail -f ", file.path(dir, "logs"), "/*.log\n",
+        "  arf-bench collect ", dir
+      )
+      quit(save = "no", status = 0L)
+    }
+    batchtools::waitForJobs(reg = reg)
+    rows <- bench_collect(reg)
+    bench_write_results(rows)
+  },
+
+  #| title: Collate a submitted run into a CSV and report
+  #| description: |
+  #|   Re-derives everything from the stored per-ref rows, so verdict rules can
+  #|   be revised and the report regenerated without recomputing anything.
+  collect = {
+    #| description: Registry directory. Defaults to the newest under bench/registry.
+    #| required: false
+    registry <- NULL
+
+    dir <- if (is.null(registry)) {
+      dirs <- sort(list.dirs("bench/registry", recursive = FALSE), decreasing = TRUE)
+      if (!length(dirs)) {
+        cat("No registry under bench/registry.\n", file = stderr())
+        quit(save = "no", status = 1L)
+      }
+      dirs[1]
+    } else {
+      registry
+    }
+    # writeable = FALSE: another session may still own this registry.
+    reg <- batchtools::loadRegistry(dir, writeable = FALSE)
+    print(batchtools::getStatus(reg = reg))
+    bench_write_results(bench_collect(reg))
+  },
+
+  #| title: Print the plan without submitting anything
+  #| description: |
+  #|   Shows the selected cells, the slurm resources that would be requested,
+  #|   and how many op executions the run implies. Nothing is installed or run.
+  plan = {
+    #| description: Restrict to these ops (comma separated).
+    #| short: o
+    ops <- NA_character_
+
+    #| description: Take only the first N cells.
+    #| short: n
+    max_cells <- NA_integer_
+
+    cells <- bench_cells(tier)
+    if (!is.na(ops)) {
+      cells <- cells[cells$op %in% trimws(strsplit(ops, ",")[[1]]), ]
+    }
+    if (!is.na(max_cells)) {
+      cells <- utils::head(cells, max_cells)
+    }
+    n_refs <- length(bench_resolve_refs(unique(c("HEAD", "main", bench_anchors()))))
+    peak_workers <- suppressWarnings(max(cells$workers, na.rm = TRUE))
+    if (!is.finite(peak_workers)) {
+      peak_workers <- 1L
+    }
+
+    cat(sprintf("tier %s | %d cells | %d refs | metric %s\n\n",
+      tier, nrow(cells), n_refs, BENCH_METRIC))
+    print(table(cells$op, cells$n))
+    cat(sprintf(
+      "\nper (cell, ref): iters %d x mem_reps %d = %d op executions\n",
+      cells$iters[1], cells$mem_reps[1], cells$iters[1] * cells$mem_reps[1]
+    ))
+    cat(sprintf(
+      "cell children total: %d cells x %d refs x %d rounds = %d (plus as many floor children)\n",
+      nrow(cells), n_refs, cells$mem_reps[1], nrow(cells) * n_refs * cells$mem_reps[1]
+    ))
+    if (identical(cluster, "slurm")) {
+      cat(sprintf(
+        "slurm would request: %d cpus (~%d cores) per job\n",
+        2L * (as.integer(peak_workers) + 1L), as.integer(peak_workers) + 1L
+      ))
+    }
+  }
+)
