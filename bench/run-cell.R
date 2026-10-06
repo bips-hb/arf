@@ -155,6 +155,23 @@ bench_run_cell <- function(
       # the same rounds: at small n the two are nearly equal and un-replicated
       # floor noise lands undiluted in peak_mb - floor_mb.
       m$floor_mb <- if (is.na(m$peak_mb)) NA_real_ else bench_measure_floor(ref$lib, data_path)
+      # One line per measurement: a full-tier cell runs for tens of minutes and
+      # the slurm log is otherwise silent until it finishes, which is
+      # indistinguishable from hung.
+      message(sprintf(
+        "  %s n=%g trees=%g %s w=%s | round %d/%d %-12s %6.2fs peak %6.1f floor %6.1f MB",
+        cell$op,
+        cell$n,
+        cell$trees,
+        cell$backend,
+        if (is.na(cell$workers)) "-" else cell$workers,
+        round,
+        mem_reps,
+        ref$label,
+        if (length(m$seconds)) stats::median(m$seconds, na.rm = TRUE) else NA_real_,
+        m$peak_mb,
+        m$floor_mb
+      ))
       m
     })
     measured[order(order)]

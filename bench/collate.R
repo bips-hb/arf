@@ -61,11 +61,17 @@ bench_deltas <- function(rows, baseline = "main") {
   # 0.29 -> 14-23%, 0.73 -> 4.2%, 2.0 -> <=3.6%, so the op must allocate at
   # least as much as the fixed floor before a 3% verdict means anything.
   # Suppress it rather than report noise as a finding.
-  thin <- !is.na(rows$peak_delta_mb) &
+  # Per CELL, not per row: a delta has two sides, so if either the ref or its
+  # baseline is below the instrument's resolution then so is the comparison.
+  # Judging each row on its own ratio let one ref in a cell read "real" while
+  # the other read "too small", which is how a +10.3% noise reading got a
+  # verdict on the cluster's first run.
+  thin_row <- !is.na(rows$peak_delta_mb) &
     !is.na(rows$floor_mb) &
-    rows$peak_delta_mb < BENCH_MEM_RESOLUTION * rows$floor_mb &
-    rows$mem_verdict %in% c("real", "inconclusive")
-  rows$mem_verdict[thin] <- "cell too small to resolve memory"
+    rows$peak_delta_mb < BENCH_MEM_RESOLUTION * rows$floor_mb
+  thin_cell <- rows$key %in% unique(rows$key[thin_row])
+  rows$mem_verdict[thin_cell & rows$mem_verdict %in% c("real", "inconclusive")] <-
+    "cell too small to resolve memory"
   rows$key <- NULL
   rows
 }

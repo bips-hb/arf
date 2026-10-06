@@ -634,3 +634,35 @@ test_that("a marginal too small relative to its floor carries no memory verdict"
   d2 <- bench_deltas(fat, baseline = "main")
   expect_equal(d2$mem_verdict[d2$ref == "HEAD"], "real")
 })
+
+test_that("the resolution guard applies to the whole cell, not one row", {
+  # One ref thin, the other not: the comparison is still unresolvable, and the
+  # cluster's first run reported +10.3% "real" for exactly this shape.
+  rows <- .bench_fake(
+    list(
+      ref = "main",
+      peak_mb = 300,
+      floor_mb = 200,
+      peak_delta_mb = 100,
+      mem_reps = 3L,
+      time_median = 2,
+      digest = NA_character_,
+      digest_kind = "none"
+    ),
+    list(
+      ref = "cran-0.2.5",
+      peak_mb = 530,
+      floor_mb = 200,
+      peak_delta_mb = 330,
+      mem_reps = 3L,
+      time_median = 2,
+      digest = NA_character_,
+      digest_kind = "none"
+    )
+  )
+  d <- bench_deltas(rows, baseline = "main")
+  expect_equal(
+    d$mem_verdict[d$ref == "cran-0.2.5"],
+    "cell too small to resolve memory"
+  )
+})

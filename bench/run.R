@@ -32,6 +32,13 @@ max_cells <- Sys.getenv("ARF_BENCH_MAX_CELLS", "")
 if (nzchar(max_cells)) {
   cells <- utils::head(cells, as.integer(max_cells))
 }
+# Cheapen a validation run: the tier defaults are sized for real numbers, and a
+# "does the cluster path work at all" run wants neither 5 iterations nor 5
+# memory rounds. ARF_BENCH_MEM_REPS is read in bench_run_cell().
+iters <- Sys.getenv("ARF_BENCH_ITERS", "")
+if (nzchar(iters)) {
+  cells$iters <- as.integer(iters)
+}
 message(sprintf(
   "arf bench | tier %s | %d cells | refs %s | metric %s",
   tier,
@@ -102,6 +109,21 @@ message(sprintf(
   }
 ))
 reg <- bench_submit_cells(reg, cells, installed, resources = resources)
+# Blocking is wrong for a long cluster run: the full tier is hours and would
+# hold the session hostage. Submit and exit by default there, collate later
+# with bench/collect.R; the local tier is short enough to just wait.
+wait <- Sys.getenv("ARF_BENCH_WAIT", if (identical(cluster, "slurm")) "0" else "1")
+if (!identical(wait, "1")) {
+  message(
+    "submitted; not waiting. Follow with:\n",
+    "  tail -f ",
+    file.path(dir, "logs"),
+    "/*.log\n",
+    "  Rscript bench/collect.R ",
+    dir
+  )
+  quit(save = "no", status = 0L)
+}
 batchtools::waitForJobs(reg = reg)
 
 rows <- bench_collect(reg)
