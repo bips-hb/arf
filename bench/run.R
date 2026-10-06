@@ -22,6 +22,16 @@ refs <- unique(c("HEAD", "main", bench_anchors()))
 refs <- bench_resolve_refs(refs[nzchar(refs)])
 
 cells <- bench_cells(tier)
+# Staging filter: validate the slurm path on a slice before committing the
+# whole grid (the full tier is 352 cells).
+ops <- Sys.getenv("ARF_BENCH_OPS", "")
+if (nzchar(ops)) {
+  cells <- cells[cells$op %in% strsplit(ops, ",")[[1]], ]
+}
+max_cells <- Sys.getenv("ARF_BENCH_MAX_CELLS", "")
+if (nzchar(max_cells)) {
+  cells <- utils::head(cells, as.integer(max_cells))
+}
 message(sprintf(
   "arf bench | tier %s | %d cells | refs %s | metric %s",
   tier,
@@ -30,17 +40,68 @@ message(sprintf(
   BENCH_METRIC
 ))
 
+# Installed ONCE, here, into a library on the shared filesystem rather than in
+# each job: see the note in .bench_job(). tempdir() would be node-local and
+# invisible to the compute nodes, so this lives in the repo (bench/lib is
+# gitignored).
+lib_root <- Sys.getenv("ARF_BENCH_LIB_ROOT", file.path("bench", "lib"))
+dir.create(lib_root, recursive = TRUE, showWarnings = FALSE)
+message("installing refs into ", normalizePath(lib_root), " ...")
+installed <- lapply(refs, bench_install_ref, root = normalizePath(lib_root))
+for (r in installed) {
+  message("  ", r$label, " -> arf ", r$arf_version, " (", r$commit, ")")
+}
+
 dir <- file.path("bench", "registry", format(Sys.time(), "%Y%m%d-%H%M%S"))
 reg <- bench_make_registry(dir, cluster)
-# DESIGN "Settled" names these as the starting point. Submitting a 16-worker
-# cell with the template's defaults would either cpu-throttle it, destroying
-# the timing, or get it OOM-killed, destroying the cell.
+# batchtools' slurm templates take `memory` as megabytes PER CPU
+# (#SBATCH --mem-per-cpu), not per job as submit-ops.sh's --mem=256G did.
+# Passing 256000 with ncpus=17 would request 4.3 TB and never schedule.
+# Check against the template in use: these names and that semantics are
+# template-specific, which is why every one is env-overridable.
 resources <- if (identical(cluster, "slurm")) {
-  list(ncpus = 17L, memory = 256000L, walltime = 8L * 3600L)
+  # ncpus counts HYPERTHREADS on this cluster (its config notes 1 physical core
+  # = 2 threads), so a 16-worker cell asking for 17 would get 8.5 cores and be
+  # oversubscribed, which degrades mirai catastrophically. Two threads per
+  # worker plus one for the orchestrator.
+  peak_workers <- suppressWarnings(max(cells$workers, na.rm = TRUE))
+  if (!is.finite(peak_workers)) {
+    peak_workers <- 1L
+  }
+  list(
+    ncpus = as.integer(Sys.getenv(
+      "ARF_BENCH_SLURM_CPUS",
+      as.character(2L * (as.integer(peak_workers) + 1L))
+    )),
+    # TOTAL megabytes, via --mem. Deliberately not mem_per_cpu: the site
+    # default.resources already sets `memory`, and the template rejects both
+    # together.
+    memory = as.integer(Sys.getenv("ARF_BENCH_SLURM_MEM", "256000")),
+    # 8h = 480 min, inside the default "medium" QoS ceiling of 1440 min.
+    walltime = as.integer(Sys.getenv("ARF_BENCH_SLURM_WALLTIME", as.character(8L * 3600L)))
+  )
 } else {
   list()
 }
-reg <- bench_submit_cells(reg, cells, refs, resources = resources)
+if (nzchar(Sys.getenv("ARF_BENCH_SLURM_PARTITION"))) {
+  resources$partition <- Sys.getenv("ARF_BENCH_SLURM_PARTITION")
+}
+message(sprintf(
+  "submitting %d cells%s",
+  nrow(cells),
+  if (identical(cluster, "slurm")) {
+    sprintf(
+      " | slurm: %d cpus (~%d cores), %.0f GB/job total, %.1f h",
+      resources$ncpus,
+      resources$ncpus %/% 2L,
+      resources$memory / 1024,
+      resources$walltime / 3600
+    )
+  } else {
+    ""
+  }
+))
+reg <- bench_submit_cells(reg, cells, installed, resources = resources)
 batchtools::waitForJobs(reg = reg)
 
 rows <- bench_collect(reg)

@@ -27,8 +27,15 @@ See `DESIGN.md` for why the job unit is one cell against every ref, and why a di
 
     make bench                                        # quick tier, local
     ARF_BENCH_TIER=full ARF_BENCH_CLUSTER=slurm \
-      ARF_BENCH_SLURM_TMPL=/path/to/slurm.tmpl \
       Rscript bench/run.R                             # full tier, cluster
+
+The cluster path needs no template argument: batchtools reads
+`/etc/xdg/batchtools/config.R`, which already names the site template and sets
+qos, partition and `max.concurrent.jobs`. `ARF_BENCH_SLURM_TMPL` overrides it.
+`ncpus` is derived from the cell's peak worker count at two hyperthreads per
+worker; `ARF_BENCH_SLURM_MEM` is TOTAL MB per job (not per cpu, and not
+`mem_per_cpu`, which the site defaults already conflict with).
+Stage a big run with `ARF_BENCH_OPS` and `ARF_BENCH_MAX_CELLS`.
 
 Refs default to `HEAD`, `main`, and the anchors in `anchors.csv`, deduplicated by resolved commit, so a run on `main` does not compare `HEAD` with itself.
 

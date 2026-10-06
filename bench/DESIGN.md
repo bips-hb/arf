@@ -42,6 +42,11 @@ batchtools' natural unit is one job per grid row, but if `ref` is a grid dimensi
 So the job unit is `(op, cell)` and the ref loop runs *inside* the job.
 Cells still parallelize across the cluster; each comparison stays on one node.
 
+The ref *libraries*, however, are built once by the orchestrator into `bench/lib` on the shared filesystem, not inside each job.
+Installing per job would have every job run `git worktree add` against the single shared `.git`, which at 352 cells means hundreds of concurrent mutations of `.git/worktrees`, plus a thousand redundant installs.
+This is safe only because arf is pure R, with no `src/` and no `NeedsCompilation`, so an installed tree is architecture-independent.
+A package with compiled code, or a cluster with heterogeneous nodes, would have to install inside the job and accept the cost.
+
 ### Rejected: targets with crew.cluster
 
 targets sells a dependency graph plus change-based invalidation.
@@ -234,7 +239,18 @@ grep -E '^(anon|shmem) ' "/sys/fs/cgroup$cg/memory.stat"
 Two printed lines mean the preferred metric works there.
 
 Slurm template: the BIPS cluster template already in use, in `bips/bips-cluster`, wired into `makeClusterFunctionsSlurm()`.
-`run.R` submits with 17 cpus, 256G and 8h on the slurm path, from the `submit-ops.sh` defaults; a 16-worker cell left on a template's defaults would be cpu-throttled, destroying the timing, or OOM-killed, destroying the cell.
+The BIPS cluster configures batchtools globally in `/etc/xdg/batchtools/config.R`, which supplies `cluster.functions` with the site template plus `default.resources` (qos, clusters, partition) and `max.concurrent.jobs`.
+So the slurm path reads that config and names no template; `ARF_BENCH_SLURM_TMPL` only overrides it.
+The local path keeps `conf.file = NA` for determinism, which is the right choice there and the wrong one on the cluster: it would discard every site default.
+
+Three units in that template are easy to get wrong, and all three were.
+`ncpus` becomes `--cpus-per-task` and counts **hyperthreads**, since the site config notes one physical core is two threads, so a 16-worker cell needs 34 rather than 17 or it is oversubscribed, which the harness README warns degrades mirai catastrophically.
+`memory` is **total** megabytes via `--mem`, and it is mutually exclusive with `mem_per_cpu`, which the template enforces with a `stop()`; since the site defaults already set `memory`, passing `mem_per_cpu` collides with them.
+Walltime must fit the QoS: the default `medium` allows 1440 minutes, so the 8h default is inside it, and `short` at 60 minutes is not.
+`ARF_BENCH_SLURM_CPUS`, `ARF_BENCH_SLURM_MEM`, `ARF_BENCH_SLURM_WALLTIME` and `ARF_BENCH_SLURM_PARTITION` override, and the submission prints the per-job totals it is asking for.
+
+Cost, for the record: the full tier is 352 cells, and each cell runs `iters x mem_reps` = 25 executions of its op per ref, so 5280 cell children plus as many floor children across three refs.
+`ARF_BENCH_OPS` and `ARF_BENCH_MAX_CELLS` cut that down for staging, and memory wants per-op sizing before the whole grid runs: `forde`, `lik` and `adversarial_rf` are modest, while `expct` and the large `forge` variants are what the 256 GB default exists for.
 
 `history.csv`: appended from a run's anchor rows and committed by hand afterwards, for the runs worth keeping.
 

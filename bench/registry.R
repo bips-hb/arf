@@ -11,43 +11,71 @@ bench_make_registry <- function(
   # batchtools asserts the parent exists rather than creating it, and the
   # registry path is nested under bench/registry/<stamp>.
   dir.create(dirname(dir), recursive = TRUE, showWarnings = FALSE)
-  reg <- batchtools::makeRegistry(
-    file.dir = dir,
-    source = c(
-      "bench/bench-helpers.R",
-      "bench/refs.R",
-      "bench/cells.R",
-      "bench/run-cell.R"
-    ),
-    packages = character(),
-    make.default = FALSE,
-    conf.file = NA_character_
+  srcs <- c(
+    "bench/bench-helpers.R",
+    "bench/refs.R",
+    "bench/cells.R",
+    "bench/run-cell.R"
   )
-  reg$cluster.functions <- if (cluster == "slurm") {
-    if (!nzchar(slurm_template)) {
-      stop("set ARF_BENCH_SLURM_TMPL to the BIPS cluster slurm template", call. = FALSE)
-    }
-    batchtools::makeClusterFunctionsSlurm(template = slurm_template)
+  # On the cluster, READ the system config: /etc/xdg/batchtools/config.R already
+  # supplies cluster.functions with the site template plus default.resources
+  # (qos, clusters, partition) and max.concurrent.jobs. Suppressing it with
+  # conf.file = NA, which is right for the local tier's determinism, would throw
+  # all of that away and demand a template we do not need to name.
+  reg <- if (cluster == "slurm") {
+    batchtools::makeRegistry(
+      file.dir = dir,
+      source = srcs,
+      packages = character(),
+      make.default = FALSE
+    )
   } else {
-    # Sequential and in-process on purpose: concurrent cells would contend for
-    # CPU and memory and spoil both metrics. Cell isolation comes from the
-    # callr child, not from the scheduler.
-    batchtools::makeClusterFunctionsInteractive()
+    batchtools::makeRegistry(
+      file.dir = dir,
+      source = srcs,
+      packages = character(),
+      make.default = FALSE,
+      conf.file = NA_character_
+    )
   }
+  if (cluster == "slurm") {
+    # Only override what the site config set if a template is named explicitly.
+    if (nzchar(slurm_template)) {
+      reg$cluster.functions <- batchtools::makeClusterFunctionsSlurm(
+        template = slurm_template,
+        array.jobs = TRUE
+      )
+    }
+    if (
+      is.null(reg$cluster.functions) ||
+        identical(reg$cluster.functions$name, "Interactive")
+    ) {
+      stop(
+        "no slurm cluster functions found: batchtools read no site config and ",
+        "no ARF_BENCH_SLURM_TMPL was given",
+        call. = FALSE
+      )
+    }
+    return(reg)
+  }
+  # Sequential and in-process on purpose: concurrent cells would contend for
+  # CPU and memory and spoil both metrics. Cell isolation comes from the callr
+  # child, not from the scheduler.
+  reg$cluster.functions <- batchtools::makeClusterFunctionsInteractive()
   reg
 }
 
-# One job per (op, cell) with every ref inside it. Refs are installed INSIDE
-# the job so each comparison uses libraries built on the node that measures it.
-.bench_job <- function(i, cells, ref_specs) {
-  # Computed HERE, not passed in: a lazy default evaluated in the orchestrator
-  # bakes ITS tempdir into every job, so two slurm jobs on one node would
-  # install into the same per-ref library concurrently and collide on
-  # 00LOCK-arf. Under the interactive cluster functions the jobs run in-process,
-  # so this is still the orchestrator's tempdir and the install cache is kept.
-  lib_root <- file.path(tempdir(), "arf-bench-lib")
+# One job per (op, cell), with every ref measured inside it so each comparison
+# stays on one node.
+.bench_job <- function(i, cells, refs) {
+  # Refs arrive already installed, from the orchestrator, into a library on the
+  # shared filesystem. Installing inside the job instead would mean every job
+  # running `git worktree add` against the one shared .git -- up to 352
+  # concurrent mutations of .git/worktrees -- and 1056 redundant installs.
+  # Safe here because arf is pure R: no src/, no NeedsCompilation, so the
+  # installed tree is architecture-independent. A package with compiled code,
+  # or heterogeneous nodes, would have to go back to installing per job.
   cell <- cells[i, ]
-  refs <- lapply(ref_specs, bench_install_ref, root = lib_root)
   # Must list every argument the run closures in .bench_cell_fn() actually
   # pass. adversarial_rf() has `...`, so an argument missing from an old ref is
   # absorbed and forwarded to ranger rather than erroring -- the one op where
@@ -65,11 +93,11 @@ bench_make_registry <- function(
   bench_run_cell(cell, refs, job_id = Sys.getenv("SLURM_JOB_ID", NA_character_))
 }
 
-bench_submit_cells <- function(reg, cells, ref_specs, resources = list()) {
+bench_submit_cells <- function(reg, cells, refs, resources = list()) {
   batchtools::batchMap(
     .bench_job,
     i = seq_len(nrow(cells)),
-    more.args = list(cells = cells, ref_specs = ref_specs),
+    more.args = list(cells = cells, refs = refs),
     reg = reg
   )
   batchtools::submitJobs(resources = resources, reg = reg)

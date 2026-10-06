@@ -253,8 +253,10 @@ test_that("a local registry runs a one-cell grid end to end", {
   cells$trees <- 5L
   cells$iters <- 1L
 
+  root <- file.path(tempdir(), paste0("submitlib-", Sys.getpid()))
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
   reg <- bench_make_registry(dir, "local")
-  reg <- bench_submit_cells(reg, cells, c("git:HEAD"))
+  reg <- bench_submit_cells(reg, cells, list(bench_install_ref("git:HEAD", root)))
   batchtools::waitForJobs(reg = reg)
   rows <- bench_collect(reg)
 
@@ -588,12 +590,22 @@ test_that("a marginal too small relative to its floor carries no memory verdict"
   # ratio 0.73 measured a 4.2% same-commit delta, so it carries no verdict either
   borderline <- .bench_fake(
     list(
-      ref = "main", peak_mb = 370, floor_mb = 214, peak_delta_mb = 156,
-      mem_reps = 3L, time_median = 1.84, digest = "a"
+      ref = "main",
+      peak_mb = 370,
+      floor_mb = 214,
+      peak_delta_mb = 156,
+      mem_reps = 3L,
+      time_median = 1.84,
+      digest = "a"
     ),
     list(
-      ref = "HEAD", peak_mb = 364, floor_mb = 214, peak_delta_mb = 150,
-      mem_reps = 3L, time_median = 1.84, digest = "a"
+      ref = "HEAD",
+      peak_mb = 364,
+      floor_mb = 214,
+      peak_delta_mb = 150,
+      mem_reps = 3L,
+      time_median = 1.84,
+      digest = "a"
     )
   )
   db <- bench_deltas(borderline, baseline = "main")
