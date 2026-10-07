@@ -185,6 +185,32 @@ switch(
     bench_write_results(bench_collect(reg))
   },
 
+  #| title: Render the results overview
+  #| description: |
+  #|   Renders bench/viz.qmd to bench/viz.html: the newest run as a delta
+  #|   table and plots, which cells can resolve memory, and the release trend.
+  viz = {
+    #| description: Render a specific results CSV instead of the newest.
+    csv <- NA_character_
+
+    #| description: Baseline ref for the comparison table.
+    base <- "main"
+
+    if (!nzchar(Sys.which("quarto"))) {
+      cat("quarto is not on PATH; see https://quarto.org/docs/get-started/\n", file = stderr())
+      quit(save = "no", status = 1L)
+    }
+    if (!is.na(csv)) {
+      Sys.setenv(QUARTO_BENCH_CSV = normalizePath(csv, mustWork = TRUE))
+    }
+    Sys.setenv(QUARTO_BENCH_BASELINE = base)
+    status <- system2("quarto", c("render", "bench/viz.qmd"))
+    if (status != 0L) {
+      quit(save = "no", status = status)
+    }
+    message("Overview at bench/viz.html")
+  },
+
   #| title: Print the plan without submitting anything
   #| description: |
   #|   Shows the selected cells, the slurm resources that would be requested,

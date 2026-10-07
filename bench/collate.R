@@ -7,6 +7,11 @@ BENCH_MEM_THRESHOLD <- 3
 BENCH_MEM_RESOLUTION <- 1
 # Above this many comparison rows the report summarises instead of tabulating.
 BENCH_REPORT_ROWS <- 40
+# Below this many seconds a percentage is not a finding: process and GC jitter
+# at tens of milliseconds easily exceeds the 10% line. Measured on a real quick
+# tier run, the ONLY "real" time verdict under a second was the fastest cell in
+# the grid (62 ms, +12.7%), while every cell above 1 s read inconclusive.
+BENCH_TIME_FLOOR_S <- 0.5
 BENCH_TIME_THRESHOLD <- 10
 
 .bench_cell_key <- function(rows) {
@@ -54,6 +59,10 @@ bench_deltas <- function(rows, baseline = "main") {
   # stochastic function of GC scheduling, and identical code re-run differs by
   # tens of percent on the marginal (measured same-commit: -2.7% to -11.6% at
   # n=1e3, up to -38.6% at n=1e4). Refuse to call such a delta a finding.
+  too_fast <- (!is.na(rows$time_median) & rows$time_median < BENCH_TIME_FLOOR_S) |
+    (!is.na(base$time_median[idx]) & base$time_median[idx] < BENCH_TIME_FLOOR_S)
+  rows$time_verdict[too_fast & rows$time_verdict %in% c("real", "inconclusive")] <-
+    "too fast to time reliably"
   single <- !is.na(rows$mem_reps) & rows$mem_reps < 2L & rows$mem_verdict == "real"
   rows$mem_verdict[single] <- "single sample, not a finding"
   # Resolution guard. The marginal is a difference against a floor of an R

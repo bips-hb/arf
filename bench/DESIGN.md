@@ -106,6 +106,10 @@ Replication has a resolution limit that no replicate count overcomes.
 The marginal is a difference against a floor of roughly 200 MB, so when an op allocates much less than the floor the shared-cgroup delta cannot resolve it.
 Same-commit spread against the ratio of marginal to floor: 0.29 gave 14-23%, 0.73 gave 4.2%, and 2.0 gave at most 3.6%.
 So a cell whose marginal is below its floor carries no memory verdict at all, and reads `cell too small to resolve memory`.
+
+Time has the same problem at the other end of the scale and the same answer.
+A percentage on a 62 ms call is jitter, not a finding: on a real quick-tier run the only `real` time verdict under a second was the fastest cell in the grid, at +12.7%, while every cell above a second read inconclusive.
+A comparison where either side is faster than `BENCH_TIME_FLOOR_S` (0.5 s) therefore reads `too fast to time reliably`.
 Every current quick-tier cell falls under that line, which is consistent with the tier split: quick catches major regressions and reports time, and published memory numbers come from the full tier's large cells.
 Raising the quick tier's `n` until the marginal clears its floor, or measuring per-child PSS instead of a shared-cgroup delta, would both lift the limit and neither is done here.
 
@@ -134,7 +138,8 @@ bench/
   run-cell.R        one cell against all refs, callr children   (new)
   registry.R        batchtools registry, local or slurm         (new)
   collate.R         reduceResultsDataTable to csv and report.md (new)
-  viz.qmd           plots, plus the release trend panel         (exists, extend)
+  viz.qmd           latest comparison, memory resolution,
+                    release trend, legacy sweep                 (exists, rewritten)
   anchors.csv       curated ref set: git tags and CRAN releases  (new)
   history.csv       committed cache of anchor rows               (new)
   lib/              per-ref and shared libraries, gitignored     (new)
@@ -204,16 +209,18 @@ Numbers still carry their `metric` column and are never compared across metrics;
 ## Report
 
 `report.md` is a delta table per op and cell, ready to paste into a PR, with the 3% and 10% thresholds applied and any `OUTPUT DIFFERS` lines directly beneath the affected rows.
-`viz.qmd` gains a panel plotting `history.csv` across releases for runtime and peak memory.
+`viz.qmd` is the overview, rendered from `bench/`: the newest run as a delta table and per-cell plots, a memory-resolution panel showing which cells can carry a memory verdict at all, the release trend from `history.csv`, and the legacy backend sweep when those CSVs are present.
 
 ## Non-goals
 
 CI integration.
 GitHub runners are noisy, shared, and give no cgroup isolation, so a memory number from one would be indefensible.
-The suite runs on bertha or the cluster, by hand or by `sbatch`.
+The suite runs on bertha, toefte or the cluster, by hand or by `sbatch`.
 
-Replacing the backend comparison.
-The existing sweep answers "which backend, at what size", which is a different question from "did this change make things worse".
+Nothing else is a non-goal: the backend comparison used to be listed here, and is not.
+Weighing `foreach` against `mirai` has practical consequences this suite is also meant to answer, not every version as a regression check, but going forward and after any significant parallelization work.
+The full tier already varies backend and worker count, so a version-comparison run answers it directly, and `viz.qmd` has a Backend comparison section for exactly that.
+The consequence for any later grid trim is that the worker series has to survive it: dropping to `workers` in {1, 8} would make the suite cheaper and would also stop it answering this question.
 
 ## Anchor compatibility
 

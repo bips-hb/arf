@@ -774,3 +774,35 @@ test_that("a run too large to tabulate is summarised with only real findings", {
   # the one real finding is shown, the 49 unchanged cells are not
   expect_equal(lengths(regmatches(txt, gregexpr("\\| `HEAD` \\|", txt))), 1L)
 })
+
+test_that("a percentage on a millisecond measurement is not a time finding", {
+  # From a real quick-tier run: adversarial_rf at n=1e3 reported +12.7% "real"
+  # on a 62 ms call, while every cell above a second read inconclusive.
+  fast <- .bench_fake(
+    list(
+      ref = "main",
+      peak_mb = 215,
+      floor_mb = 200,
+      peak_delta_mb = 14.3,
+      mem_reps = 3L,
+      time_median = 0.055,
+      digest = "a"
+    ),
+    list(
+      ref = "HEAD",
+      peak_mb = 215,
+      floor_mb = 200,
+      peak_delta_mb = 14.5,
+      mem_reps = 3L,
+      time_median = 0.062,
+      digest = "a"
+    )
+  )
+  d <- bench_deltas(fast, baseline = "main")
+  expect_equal(d$time_verdict[d$ref == "HEAD"], "too fast to time reliably")
+
+  slow <- fast
+  slow$time_median <- c(24.9, 27.5)
+  d2 <- bench_deltas(slow, baseline = "main")
+  expect_equal(d2$time_verdict[d2$ref == "HEAD"], "real")
+})

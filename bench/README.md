@@ -60,6 +60,18 @@ manual, for the runs worth keeping.
 threshold and verdict rules can be revised and the report regenerated without
 recomputing anything.
 
+`viz.qmd` is the overview: render it with `bench/arf-bench viz` (or
+`quarto render bench/viz.qmd`), which writes `bench/viz.html`. Sections: the
+latest version comparison (sortable and filterable once it is large), a
+**backend comparison** of `foreach` against `mirai` and `psock` by worker
+count, per-cell measurements, which cells can resolve memory at all, the
+release trend across anchors, and any earlier `sweep-ops-*.csv` runs. It shows the newest `results/bench-*.csv` as a delta table and
+per-cell plots, a memory-resolution panel (which cells can carry a memory
+verdict at all), the release trend from `history.csv`, and the legacy
+`sweep-ops-*.csv` backend comparison when those files are present. Point it at
+a specific run with `QUARTO_BENCH_CSV`, or change the baseline with
+`QUARTO_BENCH_BASELINE`.
+
 The cluster path needs no template argument: batchtools reads
 `/etc/xdg/batchtools/config.R`, which already names the site template and sets
 qos, partition and `max.concurrent.jobs`. `--cpus` is derived from the cell's
@@ -81,6 +93,11 @@ is smaller than its floor: that is below the instrument's resolution and reads
 `cell too small to resolve memory`. On current sizes that is every quick-tier
 cell, so `make bench` is a time check that also records memory; memory verdicts
 come from the full tier's large cells.
+
+Time gets the same treatment at the other end of the scale: a comparison where
+either side is faster than 0.5 s reads `too fast to time reliably`, because a
+percentage on a 62 ms call is jitter. Measured on a real quick-tier run, the
+only `real` time verdict under a second was the fastest cell in the grid.
 
 ## Process isolation (why, and how)
 

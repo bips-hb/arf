@@ -5,3 +5,6 @@ logs/
 lib/
 *.log
 registry/
+
+/.quarto/
+**/*.quarto_ipynb
