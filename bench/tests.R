@@ -326,6 +326,36 @@ test_that("a memory win above the threshold reads as real and a small time move 
   expect_false(head_row$digest_differs)
 })
 
+test_that("the report shows absolute marginals and the floor, not only percentages", {
+  rows <- .bench_fake(
+    list(
+      ref = "main",
+      peak_mb = 1450,
+      floor_mb = 216,
+      peak_delta_mb = 1234,
+      mem_reps = 3L,
+      time_median = 12.34,
+      digest = "a",
+      op = "expct"
+    ),
+    list(
+      ref = "cran-0.2.5",
+      peak_mb = 7840,
+      floor_mb = 216,
+      peak_delta_mb = 7623,
+      mem_reps = 3L,
+      time_median = 12.6,
+      digest = "a",
+      op = "expct"
+    )
+  )
+  txt <- paste(bench_report(rows, baseline = "main"), collapse = "\n")
+  # a +517% delta is unreadable without knowing whether it is MB or GB
+  expect_match(txt, "7623.0 vs 1234.0")
+  expect_match(txt, "216.0")
+  expect_match(txt, "12.600 vs 12.340")
+})
+
 test_that("a digest mismatch is flagged in the report", {
   rows <- .bench_fake(
     list(ref = "main", peak_mb = 412, peak_delta_mb = 200, time_median = 1.84, digest = "a3f1"),
@@ -524,7 +554,7 @@ test_that("the report names the worker count and refuses to mix metrics", {
     )
   )
   txt <- paste(bench_report(rows, baseline = "main"), collapse = "\n")
-  expect_match(txt, "w=8")
+  expect_match(txt, "\\| 8 \\|")
 
   mixed <- rows
   mixed$metric[2] <- "PSS"

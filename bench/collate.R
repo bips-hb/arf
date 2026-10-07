@@ -81,6 +81,7 @@ bench_deltas <- function(rows, baseline = "main") {
 
 bench_report <- function(rows, baseline = "main") {
   d <- bench_deltas(rows, baseline)
+  base <- d[d$ref == baseline, ]
   d <- d[d$ref != baseline, ]
   metrics <- unique(rows$metric)
   if (length(metrics) > 1L) {
@@ -92,6 +93,9 @@ bench_report <- function(rows, baseline = "main") {
       call. = FALSE
     )
   }
+  idx <- match(.bench_cell_key(d), .bench_cell_key(base))
+
+  num <- function(x, digits = 1) ifelse(is.na(x), "n/a", formatC(x, format = "f", digits = digits))
   out <- c(
     "# arf benchmark report",
     "",
@@ -104,26 +108,43 @@ bench_report <- function(rows, baseline = "main") {
       paste(unique(rows$r_version), collapse = ", ")
     ),
     sprintf(
-      "Memory deltas at or above %g%% are real; time deltas below %g%% are inconclusive.",
+      paste0(
+        "Memory is the marginal (peak minus the measured per-cell floor), median of ",
+        "%s paired rounds. Deltas at or above %g%% are real; time deltas below %g%% ",
+        "are inconclusive. A marginal below its floor is below the instrument's ",
+        "resolution and gets no verdict."
+      ),
+      paste(unique(stats::na.omit(rows$mem_reps)), collapse = "/"),
       BENCH_MEM_THRESHOLD,
       BENCH_TIME_THRESHOLD
     ),
-    ""
+    "",
+    paste(
+      "| op | backend | w | n | trees | ref | marginal MB | floor MB |",
+      "mem | time s | time |"
+    ),
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
   )
   for (i in seq_len(nrow(d))) {
     r <- d[i, ]
+    b <- base[idx[i], ]
     out <- c(
       out,
       sprintf(
-        "- %-14s %-10s w=%-3s n=%-6g trees=%-4g %-12s mem %s (%s)  time %s (%s)",
+        "| %s | %s | %s | %g | %g | `%s` | %s vs %s | %s | %s %s | %s vs %s | %s %s |",
         r$op,
         r$backend,
-        if (is.na(r$workers)) "-" else as.character(r$workers),
+        if (is.na(r$workers)) "-" else r$workers,
         r$n,
         r$trees,
         r$ref,
+        num(r$peak_delta_mb),
+        num(b$peak_delta_mb),
+        num(r$floor_mb),
         .bench_fmt_pct(r$delta_mem_pct),
         r$mem_verdict,
+        num(r$time_median, 3),
+        num(b$time_median, 3),
         .bench_fmt_pct(r$delta_time_pct),
         r$time_verdict
       )
@@ -133,8 +154,8 @@ bench_report <- function(rows, baseline = "main") {
         out,
         sprintf(
           paste0(
-            "    !! OUTPUT DIFFERS (%s digest) against %s: this delta is ",
-            "not apples-to-apples, confirm the change is intended"
+            "| | | | | | | | | **OUTPUT DIFFERS** (%s digest) against %s: ",
+            "this delta is not apples-to-apples, confirm the change is intended | | |"
           ),
           r$digest_kind,
           baseline

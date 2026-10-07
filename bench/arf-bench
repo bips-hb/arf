@@ -45,6 +45,9 @@ switch(
     #| short: n
     max_cells <- NA_integer_
 
+    #| description: Restrict to these dataset sizes, comma separated (for example 50000).
+    sizes <- NA_character_
+
     #| description: Timed calls inside each cell child. Overrides the tier default of 5.
     iters <- NA_integer_
 
@@ -85,6 +88,9 @@ switch(
     cells <- bench_cells(tier)
     if (!is.na(ops)) {
       cells <- cells[cells$op %in% trimws(strsplit(ops, ",")[[1]]), ]
+    }
+    if (!is.na(sizes)) {
+      cells <- cells[cells$n %in% as.numeric(trimws(strsplit(sizes, ",")[[1]])), ]
     }
     if (!is.na(max_cells)) {
       cells <- utils::head(cells, max_cells)
@@ -192,9 +198,15 @@ switch(
     #| short: n
     max_cells <- NA_integer_
 
+    #| description: Restrict to these dataset sizes, comma separated (for example 50000).
+    sizes <- NA_character_
+
     cells <- bench_cells(tier)
     if (!is.na(ops)) {
       cells <- cells[cells$op %in% trimws(strsplit(ops, ",")[[1]]), ]
+    }
+    if (!is.na(sizes)) {
+      cells <- cells[cells$n %in% as.numeric(trimws(strsplit(sizes, ",")[[1]])), ]
     }
     if (!is.na(max_cells)) {
       cells <- utils::head(cells, max_cells)
