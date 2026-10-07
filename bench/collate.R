@@ -5,6 +5,8 @@ BENCH_MEM_THRESHOLD <- 3
 # A marginal below this fraction of its floor is below the instrument's
 # resolution; see the note in bench_deltas().
 BENCH_MEM_RESOLUTION <- 1
+# Above this many comparison rows the report summarises instead of tabulating.
+BENCH_REPORT_ROWS <- 40
 BENCH_TIME_THRESHOLD <- 10
 
 .bench_cell_key <- function(rows) {
@@ -94,6 +96,10 @@ bench_report <- function(rows, baseline = "main") {
     )
   }
   idx <- match(.bench_cell_key(d), .bench_cell_key(base))
+  # A full-tier run is 704 non-baseline rows, which is not something anyone
+  # reads in a pull request. Past a readable size, summarise by op and show
+  # only the rows that carry a verdict, with the CSV as the full record.
+  full_table <- nrow(d) <= BENCH_REPORT_ROWS
 
   num <- function(x, digits = 1) ifelse(is.na(x), "n/a", formatC(x, format = "f", digits = digits))
   out <- c(
@@ -125,7 +131,38 @@ bench_report <- function(rows, baseline = "main") {
     ),
     "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
   )
-  for (i in seq_len(nrow(d))) {
+  shown <- if (full_table) {
+    seq_len(nrow(d))
+  } else {
+    which(d$mem_verdict == "real" | d$time_verdict == "real" | d$digest_differs)
+  }
+  if (!full_table) {
+    counts <- table(d$op, d$mem_verdict)
+    out <- c(
+      out[seq_len(length(out) - 2L)],
+      sprintf(
+        "%d comparisons across %d cells. Memory verdicts by op:",
+        nrow(d),
+        length(unique(.bench_cell_key(d)))
+      ),
+      "",
+      "```",
+      utils::capture.output(print(counts)),
+      "```",
+      "",
+      sprintf(
+        "Rows below are the %d comparison(s) with a verdict of `real`, or a digest mismatch. Full data in the CSV.",
+        length(shown)
+      ),
+      "",
+      paste(
+        "| op | backend | w | n | trees | ref | marginal MB | floor MB |",
+        "mem | time s | time |"
+      ),
+      "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
+    )
+  }
+  for (i in shown) {
     r <- d[i, ]
     b <- base[idx[i], ]
     out <- c(
@@ -170,6 +207,8 @@ bench_report <- function(rows, baseline = "main") {
 # by hand afterwards, for the runs worth keeping.
 bench_history_append <- function(rows, path = "bench/history.csv") {
   keep <- rows[!rows$ref %in% c("HEAD", "main"), bench_schema()]
+  # A row with no measurement is not history.
+  keep <- keep[!is.na(keep$peak_delta_mb) | !is.na(keep$time_median), ]
   if (!nrow(keep)) {
     return(invisible(keep))
   }
@@ -177,6 +216,27 @@ bench_history_append <- function(rows, path = "bench/history.csv") {
     old <- utils::read.csv(path, stringsAsFactors = FALSE)
     keep <- rbind(old, keep)
   }
+  # One row per anchor per cell per host and metric, newest kept: this file is
+  # committed and plotted, so re-running a configuration must replace its row
+  # rather than accumulate duplicates the trend panel would draw as a zig-zag.
+  id <- paste(
+    keep$ref,
+    keep$arf_version,
+    keep$op,
+    keep$backend,
+    keep$workers,
+    keep$n,
+    keep$p,
+    keep$trees,
+    keep$rowmode,
+    keep$host,
+    keep$metric,
+    sep = "|"
+  )
+  keep <- keep[order(id, keep$timestamp), ]
+  id <- id[order(id, keep$timestamp)]
+  keep <- keep[!duplicated(id, fromLast = TRUE), ]
+  keep <- keep[order(keep$op, keep$n, keep$trees, keep$backend, keep$workers), ]
   utils::write.csv(keep, path, row.names = FALSE)
   invisible(keep)
 }

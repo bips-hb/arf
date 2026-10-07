@@ -389,7 +389,7 @@ test_that("a failed baseline measurement does not render as Inf or NaN", {
   expect_false(grepl("Inf|NaN", txt))
 })
 
-test_that("history keeps anchor rows only and is append-only", {
+test_that("history keeps anchor rows only", {
   path <- file.path(tempdir(), paste0("hist-", Sys.getpid(), ".csv"))
   on.exit(unlink(path), add = TRUE)
   rows <- .bench_fake(
@@ -399,8 +399,10 @@ test_that("history keeps anchor rows only and is append-only", {
   h1 <- bench_history_append(rows, path)
   expect_equal(nrow(h1), 1L)
   expect_equal(h1$ref, "cran-0.2.5")
+  # Re-appending the same configuration replaces it rather than duplicating:
+  # this file is committed and plotted.
   h2 <- bench_history_append(rows, path)
-  expect_equal(nrow(h2), 2L)
+  expect_equal(nrow(h2), 1L)
   expect_equal(names(read.csv(path)), bench_schema())
 })
 
@@ -695,4 +697,80 @@ test_that("the resolution guard applies to the whole cell, not one row", {
     d$mem_verdict[d$ref == "cran-0.2.5"],
     "cell too small to resolve memory"
   )
+})
+
+test_that("history replaces a re-run configuration instead of duplicating it", {
+  path <- file.path(tempdir(), paste0("hist2-", Sys.getpid(), ".csv"))
+  on.exit(unlink(path), add = TRUE)
+  mk <- function(ts, mb) {
+    .bench_fake(list(
+      ref = "cran-0.2.5",
+      peak_mb = mb + 200,
+      floor_mb = 200,
+      peak_delta_mb = mb,
+      mem_reps = 3L,
+      time_median = 1.5,
+      digest = "a",
+      timestamp = ts
+    ))
+  }
+  bench_history_append(mk("2026-10-01T00:00:00", 100), path)
+  h <- bench_history_append(mk("2026-10-02T00:00:00", 120), path)
+  expect_equal(nrow(h), 1L)
+  expect_equal(h$peak_delta_mb, 120)
+
+  # a different cell is a different row, not a replacement
+  other <- mk("2026-10-02T00:00:00", 300)
+  other$n <- 5e4
+  h2 <- bench_history_append(other, path)
+  expect_equal(nrow(h2), 2L)
+})
+
+test_that("history refuses rows that measured nothing", {
+  path <- file.path(tempdir(), paste0("hist3-", Sys.getpid(), ".csv"))
+  on.exit(unlink(path), add = TRUE)
+  dead <- .bench_fake(list(
+    ref = "cran-0.2.5",
+    peak_mb = NA_real_,
+    floor_mb = NA_real_,
+    peak_delta_mb = NA_real_,
+    time_median = NA_real_,
+    digest = NA_character_
+  ))
+  expect_equal(nrow(bench_history_append(dead, path)), 0L)
+})
+
+test_that("a run too large to tabulate is summarised with only real findings", {
+  many <- do.call(
+    rbind,
+    lapply(seq_len(50), function(i) {
+      .bench_fake(
+        list(
+          ref = "main",
+          peak_mb = 1000,
+          floor_mb = 200,
+          peak_delta_mb = 800,
+          mem_reps = 3L,
+          time_median = 10,
+          digest = "a",
+          n = i * 1000
+        ),
+        list(
+          ref = "HEAD",
+          peak_mb = 1000,
+          floor_mb = 200,
+          peak_delta_mb = if (i == 1L) 400 else 800,
+          mem_reps = 3L,
+          time_median = 10,
+          digest = "a",
+          n = i * 1000
+        )
+      )
+    })
+  )
+  txt <- paste(bench_report(many, baseline = "main"), collapse = "\n")
+  expect_match(txt, "50 comparisons across 50 cells")
+  expect_match(txt, "1 comparison\\(s\\) with a verdict")
+  # the one real finding is shown, the 49 unchanged cells are not
+  expect_equal(lengths(regmatches(txt, gregexpr("\\| `HEAD` \\|", txt))), 1L)
 })
