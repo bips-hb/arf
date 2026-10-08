@@ -1058,3 +1058,12 @@ test_that("a single timing is not a time finding either", {
   expect_equal(d2$time_verdict[d2$ref == "cran-0.2.5"], "real")
   expect_equal(d2$mem_verdict[d2$ref == "cran-0.2.5"], "real")
 })
+
+test_that("the evidence variants are reachable by name, not only by position", {
+  cells <- bench_cells("full")
+  e <- cells[cells$op == "expct" & cells$n == 5e4, ]
+  # they sit after the worker grid, so --max-cells alone cannot reach them
+  expect_gt(which(e$n_evidence == 1000)[1], 4L)
+  expect_true(all(c("separate", "or") %in% unique(stats::na.omit(cells$rowmode))))
+  expect_true(all(c(100L, 1000L) %in% unique(stats::na.omit(cells$n_evidence))))
+})

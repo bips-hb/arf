@@ -48,6 +48,12 @@ switch(
     #| description: Restrict to these dataset sizes, comma separated (for example 50000).
     sizes <- NA_character_
 
+    #| description: Restrict to these evidence row modes, comma separated (separate, or).
+    rowmode <- NA_character_
+
+    #| description: Restrict to these evidence row counts, comma separated (100, 1000).
+    evidence <- NA_character_
+
     #| description: Timed calls inside each cell child. Overrides the tier default of 5.
     iters <- NA_integer_
 
@@ -101,6 +107,16 @@ switch(
     }
     if (!is.na(sizes)) {
       cells <- cells[cells$n %in% as.numeric(trimws(strsplit(sizes, ",")[[1]])), ]
+    }
+    # The row-mode and evidence-count variants sit after the worker grid in the
+    # cell order, so --max-cells cannot reach them; select them by name.
+    if (!is.na(rowmode)) {
+      cells <- cells[!is.na(cells$rowmode) &
+        cells$rowmode %in% trimws(strsplit(rowmode, ",")[[1]]), ]
+    }
+    if (!is.na(evidence)) {
+      cells <- cells[!is.na(cells$n_evidence) &
+        cells$n_evidence %in% as.integer(trimws(strsplit(evidence, ",")[[1]])), ]
     }
     if (!is.na(max_cells)) {
       cells <- utils::head(cells, max_cells)
@@ -293,12 +309,28 @@ switch(
     #| description: Restrict to these dataset sizes, comma separated (for example 50000).
     sizes <- NA_character_
 
+    #| description: Restrict to these evidence row modes, comma separated (separate, or).
+    rowmode <- NA_character_
+
+    #| description: Restrict to these evidence row counts, comma separated (100, 1000).
+    evidence <- NA_character_
+
     cells <- bench_cells(tier)
     if (!is.na(ops)) {
       cells <- cells[cells$op %in% trimws(strsplit(ops, ",")[[1]]), ]
     }
     if (!is.na(sizes)) {
       cells <- cells[cells$n %in% as.numeric(trimws(strsplit(sizes, ",")[[1]])), ]
+    }
+    # The row-mode and evidence-count variants sit after the worker grid in the
+    # cell order, so --max-cells cannot reach them; select them by name.
+    if (!is.na(rowmode)) {
+      cells <- cells[!is.na(cells$rowmode) &
+        cells$rowmode %in% trimws(strsplit(rowmode, ",")[[1]]), ]
+    }
+    if (!is.na(evidence)) {
+      cells <- cells[!is.na(cells$n_evidence) &
+        cells$n_evidence %in% as.integer(trimws(strsplit(evidence, ",")[[1]])), ]
     }
     if (!is.na(max_cells)) {
       cells <- utils::head(cells, max_cells)
