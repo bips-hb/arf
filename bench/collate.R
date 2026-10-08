@@ -132,6 +132,16 @@ bench_report <- function(rows, baseline = "main") {
       paste(unique(rows$kernel), collapse = ", "),
       paste(unique(rows$r_version), collapse = ", ")
     ),
+    if (all(is.na(rows$mem_limit_mb))) {
+      paste(
+        "**No memory limit recorded in these results**, so the cap guard could",
+        "not be applied: a peak that was clamped by its cgroup limit would",
+        "still read as a measurement here. Results from before `mem_limit_mb`",
+        "entered the schema."
+      )
+    } else {
+      NULL
+    },
     sprintf(
       paste0(
         "Memory is the marginal (peak minus the measured per-cell floor), median of ",

@@ -914,3 +914,55 @@ test_that("a whole-node request stays under the node's real memory", {
   expect_lte(max(req$memory), BENCH_NODE_MEM_MB)
   expect_lte(max(req$ncpus), BENCH_NODE_THREADS)
 })
+
+test_that("results predating a schema change are collected with a warning", {
+  skip_on_cran()
+  skip_if_not_installed("batchtools")
+  dir <- file.path(tempdir(), paste0("benchold-", Sys.getpid()))
+  on.exit(unlink(dir, recursive = TRUE), add = TRUE)
+  reg <- bench_make_registry(dir, "local")
+  # A job storing the schema as it was BEFORE mem_limit_mb existed.
+  batchtools::batchMap(
+    function(i) {
+      cols <- setdiff(bench_schema(), "mem_limit_mb")
+      row <- setNames(as.data.frame(as.list(rep(NA, length(cols)))), cols)
+      row$ref <- "main"
+      row$peak_mb <- 1000
+      row
+    },
+    i = 1L,
+    reg = reg
+  )
+  suppressWarnings(batchtools::submitJobs(reg = reg))
+  batchtools::waitForJobs(reg = reg, stop.on.error = FALSE)
+  expect_warning(rows <- bench_collect(reg), "predate the current schema")
+  expect_equal(names(rows), bench_schema())
+  expect_true(is.na(rows$mem_limit_mb))
+})
+
+test_that("a report with no recorded limit says the cap guard is inactive", {
+  rows <- .bench_fake(
+    list(
+      ref = "main",
+      peak_mb = 1000,
+      floor_mb = 200,
+      peak_delta_mb = 800,
+      mem_reps = 3L,
+      mem_limit_mb = NA_real_,
+      time_median = 10,
+      digest = "a"
+    ),
+    list(
+      ref = "HEAD",
+      peak_mb = 900,
+      floor_mb = 200,
+      peak_delta_mb = 700,
+      mem_reps = 3L,
+      mem_limit_mb = NA_real_,
+      time_median = 10,
+      digest = "a"
+    )
+  )
+  txt <- paste(bench_report(rows, baseline = "main"), collapse = "\n")
+  expect_match(txt, "cap guard could\nnot be applied|cap guard could not be applied")
+})

@@ -148,6 +148,22 @@ bench_collect <- function(reg) {
     )
   }
   rows <- batchtools::reduceResultsList(ids = done, reg = reg)
-  out <- do.call(rbind, rows)
+  # Tolerate results that predate a schema change. A job stores whatever the
+  # code produced when it RAN, so a grid running for days across an edit to
+  # bench_schema() holds both shapes, and a strict column select would make the
+  # whole run uncollectable at precisely the moment its results matter. Fill
+  # and say so instead.
+  out <- as.data.frame(data.table::rbindlist(rows, fill = TRUE, use.names = TRUE))
+  missing <- setdiff(bench_schema(), names(out))
+  if (length(missing)) {
+    warning(
+      "these results predate the current schema; filling with NA: ",
+      paste(missing, collapse = ", "),
+      call. = FALSE
+    )
+    for (m in missing) {
+      out[[m]] <- NA
+    }
+  }
   out[, bench_schema()]
 }
