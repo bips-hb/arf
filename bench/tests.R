@@ -904,3 +904,13 @@ test_that("memory is requested per cell, from measured peaks", {
 
   expect_true(all(mem[cells$op %in% c("expct", "forge")] >= mem[match(TRUE, !cells$op %in% c("expct", "forge"))]))
 })
+
+test_that("a whole-node request stays under the node's real memory", {
+  # slurm enforces RealMemory=1120665 MB on these nodes, below the kernel's
+  # MemTotal of 1,160,597 MB, and a request above RealMemory is rejected
+  # rather than queued.
+  expect_lt(BENCH_NODE_MEM_MB, 1120665L)
+  req <- bench_cell_resources(bench_cells("full"))
+  expect_lte(max(req$memory), BENCH_NODE_MEM_MB)
+  expect_lte(max(req$ncpus), BENCH_NODE_THREADS)
+})

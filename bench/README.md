@@ -51,8 +51,13 @@ with `--iters 1 --mem-reps 1`:
 
     bench/arf-bench -t full -c slurm run -o forde -n 2 --iters 1 --mem-reps 1
 
-Refs default to `HEAD`, `main`, and the anchors in `anchors.csv`, deduplicated
-by resolved commit, so a run on `main` does not compare `HEAD` with itself.
+Refs default to `HEAD` and `main` on the quick tier, plus the anchors in
+`anchors.csv` on the full tier, deduplicated by resolved commit so a run on
+`main` does not compare `HEAD` with itself. `--anchors` adds them to a quick
+run; `--refs` overrides entirely. The anchors answer a release-trend question
+the quick tier cannot (its cells are below the memory resolution limit), so
+paying for them on every mid-work check would add a third to the cost for
+nothing.
 Anchor rows are appended to `history.csv` automatically; committing them is
 manual, for the runs worth keeping.
 

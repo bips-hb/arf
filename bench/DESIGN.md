@@ -206,6 +206,24 @@ The `cgroup-anon+shmem` metric exists to compare copy-per-worker against shared-
 cgroup v2 is in fact available on bertha, so quick runs there get the preferred metric anyway; a laptop that lacks it still answers correctly for the same single-process reason.
 Numbers still carry their `metric` column and are never compared across metrics; a delta between refs measured on one machine with one metric stays valid.
 
+## Operating cadence
+
+A full run is an investment, not a routine. It is 352 cells at 25 op executions per cell and ref, which at the measured sizes is on the order of a hundred node-equivalents of scheduling, so it should not be repeated every other week.
+What makes that unnecessary:
+
+A routine pull request runs the quick tier against `HEAD` and `main` only.
+The anchors answer "how has this changed across releases", which the quick tier cannot answer anyway because its cells sit below the memory resolution limit, so measuring them on every check would add a third to the cost for nothing.
+`--anchors` includes them when wanted.
+
+The full tier runs when the question needs it: before a release, after significant parallelization work, or when a change is expected to move memory at scale.
+That is also when the backend comparison is worth re-measuring, since `foreach` against `mirai` only shifts when that code does.
+
+The anchor history persists in `history.csv` between runs, so the release trend does not need re-measuring to be read.
+Re-measuring anchors on one node remains available for when the trend itself has to be defensible, for instance in a release note, rather than being the price of every run.
+
+Once the first full run has landed, its resolution panel says which cells can carry a verdict at all, and the grid should be cut to those.
+Both costs trace to the same place: the cell count, and nothing has yet asked which of the 352 will ever change a decision.
+
 ## Report
 
 `report.md` is a delta table per op and cell, ready to paste into a PR, with the 3% and 10% thresholds applied and any `OUTPUT DIFFERS` lines directly beneath the affected rows.
@@ -255,10 +273,11 @@ Cores and memory are requested together, as matched fractions of a compute node,
 One global figure cannot serve this grid: a 64 GB request OOM-killed an `n = 5e4` cell while a 256 GB request was pinned at its own ceiling by `expct`.
 Requesting the two dimensions independently is almost as bad, because whichever is left over is stranded: a 36-thread job asking for 750 GB blocks 65% of a node's memory behind 19% of its cores, so nothing of the same shape fits beside it and the node sits half idle.
 
-A node is 192 threads (1 socket, 96 cores, 2 SMT) and 1152 GB, so 6 GB per thread.
+A node is 192 threads (1 socket, 96 cores, 2 SMT) and about 1.1 TB, so roughly 5.6 GB per thread.
 `bench_cell_resources()` takes a cell's thread need and memory need, converts each to a share of a node, and rounds the larger up to the next of 1/16, 1/8, 1/4, 1/2 or a whole node, requesting that fraction of **both**.
 A cell's footprint is then "a quarter of a node" in each dimension and the remainder stays usable.
-Note that `sinfo`'s MEMORY column reads 112066 MB for these nodes, which understates the real 1152 GB by an order of magnitude; the figures above are the real ones.
+Note that `sinfo`'s MEMORY column reads 112066 MB for these nodes, an order of magnitude below the `MemTotal` of 1,160,597 MB that `arf-bench diag` reports from inside a job, so it is not the number to trust.
+The configured node memory stays under that `MemTotal`, because slurm enforces its own `RealMemory`, set below it to leave the OS room, and a request above `RealMemory` is rejected rather than queued.
 `bench_cell_memory_mb()` holds the measured peaks the estimate is built from, and `bench_submit_cells()` calls `submitJobs()` once per distinct shape so no cell queues for the largest.
 A capped measurement is worthless and an over-request only costs queue position, so the heavy classes take headroom rather than a fitted estimate.
 
@@ -269,6 +288,11 @@ The thread need itself is `2 x (workers + 2)`, so `workers + 2` physical cores.
 The two spare cores are deliberate: mirai's dispatcher and the orchestrator's 5 ms cgroup sampler both need CPU, and mirai degrades badly when its dispatcher is starved, which would show up as mirai losing a comparison it should win.
 
 `arf-bench diag` prints what a machine looks like to the sampler: the cgroup it reads, every memory limit up the hierarchy, the real `MemTotal`, and whether the fixture lands on tmpfs. Run it under `sbatch` when a measured peak looks implausible.
+
+What it established on this cluster, which the sampler's correctness rests on:
+the cgroup read is the job's own innermost one (`.../job_<id>/step_batch/user/task_0`), not a parent shared with other jobs, so the delta cannot include another job's memory; the `slurmstepd.scope` level above it held 86.6 GB of other jobs at the time and is never read.
+The memory limit is set on `job_<id>` and on `step_batch/user`, so a cap is visible to the limit walk and the cap guard works.
+And `tempdir` is node-local disk (`/localdisk/...`, ext2/3), not tmpfs, so the fixture file does not inflate the `shmem` half of the counter.
 
 Three units in that template are easy to get wrong, and all three were.
 `ncpus` becomes `--cpus-per-task` and counts **hyperthreads**, since the site config notes one physical core is two threads, so a 16-worker cell needs 36 rather than 18 or it is oversubscribed, which the harness README warns degrades mirai catastrophically.

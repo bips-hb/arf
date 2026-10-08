@@ -90,10 +90,18 @@ bench_anchors <- function(path = "bench/anchors.csv") {
 }
 
 # Compute-node profile for the BIPS cluster: 192 threads (1 socket x 96 cores
-# x 2 SMT) and 1152 GB of RAM, so 6 GB per thread. sinfo's MEMORY column
-# understates the RAM badly; these are the real figures.
+# x 2 SMT) and about 1.1 TB of RAM, so roughly 5.6 GB per thread.
+#
+# Three numbers describe a node's memory and only one of them is the one that
+# matters for a request:
+#   MemTotal      1,160,597 MB  what the kernel sees (arf-bench diag on node03)
+#   RealMemory    1,120,665 MB  what slurm enforces (scontrol show node node03)
+#   sinfo MEMORY    112,066 MB  an order of magnitude low, not to be trusted
+# A request above RealMemory is rejected rather than queued, so the figure
+# below sits under it with room to spare: the cluster's RealMemory is set
+# conservatively on purpose, and the harness should not need it raised.
 BENCH_NODE_THREADS <- 192L
-BENCH_NODE_MEM_MB <- 1152L * 1024L
+BENCH_NODE_MEM_MB <- 1100000L
 
 # Allocate in matched fractions of a node. Requesting cores and memory
 # independently strands whichever one is left over: a 36-thread job asking for

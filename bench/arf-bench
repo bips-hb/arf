@@ -54,8 +54,11 @@ switch(
     #| description: Memory replicate rounds per ref. Overrides the tier default (quick 3, full 5).
     mem_reps <- NA_integer_
 
-    #| description: Refs to compare, comma separated. Defaults to HEAD, main and bench/anchors.csv.
+    #| description: Refs to compare, comma separated. Default is HEAD and main, plus the anchors on the full tier.
     refs <- NA_character_
+
+    #| description: Include the CRAN anchors even on the quick tier (they cost a third of the run).
+    anchors <- FALSE
 
     #| description: Block until every job finishes. Default is to wait locally and not on slurm.
     wait <- NA
@@ -78,10 +81,17 @@ switch(
     bench_assert_deps()
     bench_assert_clean_tree()
 
-    ref_specs <- if (is.na(refs)) {
+    # The anchors answer "how has this changed across releases", which the quick
+    # tier cannot answer anyway: its cells are below the memory resolution
+    # limit. Measuring them on every mid-work check would add a third to the
+    # cost for nothing, so quick compares HEAD against main and the full tier
+    # carries the anchors.
+    ref_specs <- if (!is.na(refs)) {
+      trimws(strsplit(refs, ",")[[1]])
+    } else if (isTRUE(anchors) || identical(tier, "full")) {
       unique(c("HEAD", "main", bench_anchors()))
     } else {
-      trimws(strsplit(refs, ",")[[1]])
+      c("HEAD", "main")
     }
     ref_specs <- bench_resolve_refs(ref_specs[nzchar(ref_specs)])
 
@@ -293,7 +303,9 @@ switch(
     if (!is.na(max_cells)) {
       cells <- utils::head(cells, max_cells)
     }
-    n_refs <- length(bench_resolve_refs(unique(c("HEAD", "main", bench_anchors()))))
+    n_refs <- length(bench_resolve_refs(
+      if (identical(tier, "full")) unique(c("HEAD", "main", bench_anchors())) else c("HEAD", "main")
+    ))
     peak_workers <- suppressWarnings(max(cells$workers, na.rm = TRUE))
     if (!is.finite(peak_workers)) {
       peak_workers <- 1L
@@ -312,15 +324,15 @@ switch(
     ))
     if (identical(cluster, "slurm")) {
       req <- bench_cell_resources(cells)
-      shapes <- unique(data.frame(
-        f = sprintf("1/%g", 1 / req$fraction),
-        cpus = req$ncpus, gb = round(req$memory / 1024), n = NA_integer_
-      ))
-      for (k in seq_len(nrow(shapes))) {
-        cnt <- sum(req$ncpus == shapes$cpus[k] & req$memory / 1024 == shapes$gb[k])
+      agg <- aggregate(list(cells = seq_len(nrow(req))), 
+        by = list(fraction = req$fraction, ncpus = req$ncpus, memory = req$memory),
+        FUN = length)
+      agg <- agg[order(agg$fraction), ]
+      for (k in seq_len(nrow(agg))) {
         cat(sprintf(
-          "slurm: %3d cell(s) at %-5s node = %3d cpus (%2d cores), %4d GB\n",
-          cnt, shapes$f[k], shapes$cpus[k], shapes$cpus[k] %/% 2L, shapes$gb[k]
+          "slurm: %3d cell(s) at %-5s node = %3d cpus (%2d cores), %4.0f GB\n",
+          agg$cells[k], sprintf("1/%g", 1 / agg$fraction[k]),
+          agg$ncpus[k], agg$ncpus[k] %/% 2L, agg$memory[k] / 1024
         ))
       }
     }
