@@ -74,9 +74,37 @@ a specific run with `QUARTO_BENCH_CSV`, or change the baseline with
 
 The cluster path needs no template argument: batchtools reads
 `/etc/xdg/batchtools/config.R`, which already names the site template and sets
-qos, partition and `max.concurrent.jobs`. `--cpus` is derived from the cell's
-peak worker count at two hyperthreads per worker; `--mem` is TOTAL MB per job
-(not per cpu, and not `mem_per_cpu`, which the site defaults conflict with).
+qos, partition and `max.concurrent.jobs`.
+
+Cores and memory are requested together as matched fractions of a node
+(1/16, 1/8, 1/4, 1/2, whole), per cell. A node is 192 threads and 1152 GB, so
+6 GB per thread; requesting the dimensions separately strands whichever is left
+over. `bench/arf-bench -t full -c slurm plan` prints the shapes:
+
+    slurm:  30 cell(s) at 1/16  node =  12 cpus ( 6 cores),   72 GB
+    slurm:   9 cell(s) at 1/8   node =  24 cpus (12 cores),  144 GB
+    slurm: 185 cell(s) at 1/4   node =  48 cpus (24 cores),  288 GB
+    slurm: 128 cell(s) at 1/2   node =  96 cpus (48 cores),  576 GB
+
+The thread need is `2 x (workers + 2)`: the two spare cores are for mirai's
+dispatcher and the 5 ms cgroup sampler, since a starved dispatcher makes mirai
+lose comparisons it should win. The memory need comes from measured peaks,
+because one figure cannot serve the grid: 64 GB OOM-killed an `n = 5e4` cell
+while 256 GB was pinned at its own ceiling by `expct`. Every row records
+`mem_limit_mb`, and a peak within 95% of it reads `hit the memory cap, not a
+measurement`. `--cpus` and `--mem` override with one figure for every cell
+(`--mem` is TOTAL MB, not `mem_per_cpu`, which the site defaults conflict
+with).
+
+`bench/arf-bench diag` prints what a machine looks like to the sampler: the
+cgroup it reads, every limit up the hierarchy, the real `MemTotal`, and whether
+the fixture lands on tmpfs. Run it under `sbatch` when a peak looks
+implausible.
+
+The three backend labels cover two arf backends: `foreach` and `psock` both set
+`arf.backend = "foreach"` and differ in the foreach adapter, forked workers
+versus a PSOCK cluster. That separates fork's parent-heap duplication from the
+per-worker input copies `mori` removes.
 
 Memory deltas are taken on `peak_delta_mb`, the peak minus a measured per-cell
 floor (an R interpreter plus `arf` plus the fixture, about 200 MB here).

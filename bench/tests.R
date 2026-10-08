@@ -286,6 +286,7 @@ source("bench/collate.R")
     floor_mb = NA_real_,
     peak_delta_mb = NA_real_,
     mem_reps = 3L,
+    mem_limit_mb = NA_real_,
     time_median = NA_real_,
     time_min = NA_real_,
     time_max = NA_real_,
@@ -805,4 +806,101 @@ test_that("a percentage on a millisecond measurement is not a time finding", {
   slow$time_median <- c(24.9, 27.5)
   d2 <- bench_deltas(slow, baseline = "main")
   expect_equal(d2$time_verdict[d2$ref == "HEAD"], "real")
+})
+
+test_that("a peak at the cgroup cap is not reported as a measurement", {
+  # From a real cluster run: six cells sat at 99.75% of a 256 GB cap, identical
+  # to the megabyte across a fivefold difference in n.
+  rows <- .bench_fake(
+    list(
+      ref = "main",
+      peak_mb = 13500,
+      floor_mb = 482,
+      peak_delta_mb = 13018,
+      mem_reps = 5L,
+      mem_limit_mb = 256000,
+      time_median = 50,
+      digest = "a"
+    ),
+    list(
+      ref = "cran-0.2.5",
+      peak_mb = 255354,
+      floor_mb = 482,
+      peak_delta_mb = 254872,
+      mem_reps = 5L,
+      mem_limit_mb = 256000,
+      time_median = 220,
+      digest = "a"
+    )
+  )
+  d <- bench_deltas(rows, baseline = "main")
+  expect_equal(
+    d$mem_verdict[d$ref == "cran-0.2.5"],
+    "hit the memory cap, not a measurement"
+  )
+  # the capped verdict wins over the resolution and single-sample guards
+  expect_equal(
+    d$mem_verdict[d$ref == "main"],
+    "hit the memory cap, not a measurement"
+  )
+
+  roomy <- rows
+  roomy$mem_limit_mb <- 900000
+  d2 <- bench_deltas(roomy, baseline = "main")
+  expect_equal(d2$mem_verdict[d2$ref == "cran-0.2.5"], "real")
+})
+
+test_that("an unlimited cgroup yields no cap and no cap verdict", {
+  expect_true(is.na(.bench_cgroup_limit_mb(NULL)))
+  rows <- .bench_fake(
+    list(
+      ref = "main",
+      peak_mb = 1000,
+      floor_mb = 200,
+      peak_delta_mb = 800,
+      mem_reps = 3L,
+      mem_limit_mb = NA_real_,
+      time_median = 10,
+      digest = "a"
+    ),
+    list(
+      ref = "HEAD",
+      peak_mb = 900,
+      floor_mb = 200,
+      peak_delta_mb = 700,
+      mem_reps = 3L,
+      mem_limit_mb = NA_real_,
+      time_median = 10,
+      digest = "a"
+    )
+  )
+  expect_equal(bench_deltas(rows, baseline = "main")$mem_verdict[2], "real")
+})
+
+test_that("cores and memory are matched fractions of a node", {
+  cells <- bench_cells("full")
+  req <- bench_cell_resources(cells)
+  # every request is a whole fraction of the node in BOTH dimensions, so
+  # neither cores nor memory are stranded behind the other
+  expect_true(all(req$ncpus / BENCH_NODE_THREADS - req$memory / BENCH_NODE_MEM_MB < 1e-9))
+  expect_true(all(req$ncpus >= bench_cell_threads(cells)))
+  expect_true(all(req$memory >= bench_cell_memory_mb(cells)))
+  expect_true(all(req$fraction %in% BENCH_NODE_FRACTIONS))
+  # a 16-worker cell needs 36 threads, which no 1/16 node (12) can serve
+  w16 <- cells$backend != "sequential" & cells$workers == 16L
+  expect_true(all(req$ncpus[w16] >= 36L))
+})
+
+test_that("memory is requested per cell, from measured peaks", {
+  cells <- bench_cells("full")
+  mem <- bench_cell_memory_mb(cells)
+  # full tier: 48 GB (n=1e4 cheap), 192 GB (n=1e4 heavy and n=5e4 cheap),
+  # 500 GB (n=5e4 heavy)
+  expect_length(unique(mem), 3L)
+  expect_length(unique(bench_cell_memory_mb(bench_cells("quick"))), 3L)
+  expect_equal(unique(mem[cells$n == 5e4 & cells$op == "expct"]), 500000L)
+  # n=1e4 cheap ops peaked at 17.9 GB; n=5e4 heavy ops were capped at 250 GB
+  expect_equal(unique(mem[cells$n == 1e4 & cells$op == "lik"]), 48000L)
+
+  expect_true(all(mem[cells$op %in% c("expct", "forge")] >= mem[match(TRUE, !cells$op %in% c("expct", "forge"))]))
 })

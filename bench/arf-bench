@@ -60,8 +60,8 @@ switch(
     #| description: Block until every job finishes. Default is to wait locally and not on slurm.
     wait <- NA
 
-    #| description: Total memory per slurm job in MB, via --mem rather than per cpu.
-    mem <- 256000L
+    #| description: Force one total-memory figure per slurm job in MB. Default is per-cell, from measured peaks.
+    mem <- NA_integer_
 
     #| description: CPUs per slurm job. Default is 2 per worker plus one, since ncpus counts hyperthreads.
     cpus <- NA_integer_
@@ -123,23 +123,34 @@ switch(
 
     resources <- list()
     if (identical(cluster, "slurm")) {
-      peak_workers <- suppressWarnings(max(cells$workers, na.rm = TRUE))
-      if (!is.finite(peak_workers)) {
-        peak_workers <- 1L
+      # Cores and memory are matched fractions of a node, per cell: see
+      # bench_cell_resources(). Passing --cpus or --mem overrides both with one
+      # figure for every cell.
+      resources <- list(walltime = walltime)
+      if (!is.na(cpus)) {
+        resources$ncpus <- cpus
       }
-      resources <- list(
-        ncpus = if (is.na(cpus)) 2L * (as.integer(peak_workers) + 1L) else cpus,
-        memory = mem,
-        walltime = walltime
-      )
-      if (!is.na(partition)) {
-        resources$partition <- partition
+      if (!is.na(mem)) {
+        resources$memory <- mem
       }
-      message(sprintf(
-        "slurm: %d cpus (~%d cores), %.0f GB/job total, %.1f h",
-        resources$ncpus, resources$ncpus %/% 2L,
-        resources$memory / 1024, resources$walltime / 3600
-      ))
+      if (is.na(cpus) && is.na(mem)) {
+        req <- bench_cell_resources(cells)
+        shapes <- unique(data.frame(
+          f = sprintf("1/%g", 1 / req$fraction),
+          cpus = req$ncpus, gb = round(req$memory / 1024)
+        ))
+        message("slurm: per-cell node fractions -> ", paste(
+          sprintf("%s node (%d cpus, %d GB)", shapes$f, shapes$cpus, shapes$gb),
+          collapse = "; "
+        ), sprintf(" | %.1f h", walltime / 3600))
+      } else {
+        message(sprintf(
+          "slurm: %s cpus, %s, %.1f h",
+          if (is.na(cpus)) "per-cell" else as.character(cpus),
+          if (is.na(mem)) "per-cell memory" else sprintf("%.0f GB/job", mem / 1024),
+          walltime / 3600
+        ))
+      }
     }
 
     dir <- file.path("bench", "registry", format(Sys.time(), "%Y%m%d-%H%M%S"))
@@ -183,6 +194,51 @@ switch(
     reg <- batchtools::loadRegistry(dir, writeable = FALSE)
     print(batchtools::getStatus(reg = reg))
     bench_write_results(bench_collect(reg))
+  },
+
+  #| title: Report what this machine looks like to the sampler
+  #| description: |
+  #|   Prints the cgroup the sampler reads, every memory limit up the
+  #|   hierarchy, the machine's real memory, and where the fixture will be
+  #|   written. Run it where a benchmark would run, e.g. under sbatch, to check
+  #|   that a measured peak can be believed.
+  diag = {
+    cg <- grep("^0::", readLines("/proc/self/cgroup"), value = TRUE)
+    cat("host:              ", Sys.info()[["nodename"]], "\n")
+    cat("slurm job:         ", Sys.getenv("SLURM_JOB_ID", "<none>"), "\n")
+    cat("cores (nproc):     ", parallel::detectCores(), "\n")
+    cat("MemTotal:          ",
+      sub("^MemTotal:\\s*", "", grep("^MemTotal", readLines("/proc/meminfo"), value = TRUE)),
+      "\n")
+    cat("metric:            ", BENCH_METRIC, "\n")
+    cat("cgroup line:       ", if (length(cg)) cg else "<none>", "\n")
+    if (!is.null(BENCH_CGROUP)) {
+      cat("cgroup dir:        ", BENCH_CGROUP, "\n")
+      # Every limit up the tree: slurm sets the job's on a parent, and the
+      # sampler's delta is only trustworthy if the cgroup it reads is the
+      # job's own rather than one shared with other jobs.
+      d <- BENCH_CGROUP
+      repeat {
+        vals <- vapply(c("memory.max", "memory.high", "memory.current"), function(nm) {
+          v <- .bench_read(file.path(d, nm))
+          if (length(v)) v[1] else "-"
+        }, character(1))
+        cat(sprintf(
+          "  %-56s max=%-14s high=%-14s current=%s\n",
+          d, vals[[1]], vals[[2]], vals[[3]]
+        ))
+        if (nchar(d) <= nchar("/sys/fs/cgroup")) break
+        d <- dirname(d)
+      }
+      cat("limit seen by harness:",
+        if (is.na(BENCH_MEM_LIMIT_MB)) "none (unlimited)" else sprintf("%.0f MB", BENCH_MEM_LIMIT_MB),
+        "\n")
+    }
+    tmp <- tempdir()
+    cat("tempdir:           ", tmp, "\n")
+    fs <- suppressWarnings(system2("stat", c("-f", "-c", "%T", shQuote(tmp)), stdout = TRUE))
+    cat("tempdir fs type:   ", if (length(fs)) fs[1] else "unknown",
+      "(tmpfs would make the fixture count as cgroup shmem)\n")
   },
 
   #| title: Render the results overview
@@ -255,10 +311,18 @@ switch(
       nrow(cells), n_refs, cells$mem_reps[1], nrow(cells) * n_refs * cells$mem_reps[1]
     ))
     if (identical(cluster, "slurm")) {
-      cat(sprintf(
-        "slurm would request: %d cpus (~%d cores) per job\n",
-        2L * (as.integer(peak_workers) + 1L), as.integer(peak_workers) + 1L
+      req <- bench_cell_resources(cells)
+      shapes <- unique(data.frame(
+        f = sprintf("1/%g", 1 / req$fraction),
+        cpus = req$ncpus, gb = round(req$memory / 1024), n = NA_integer_
       ))
+      for (k in seq_len(nrow(shapes))) {
+        cnt <- sum(req$ncpus == shapes$cpus[k] & req$memory / 1024 == shapes$gb[k])
+        cat(sprintf(
+          "slurm: %3d cell(s) at %-5s node = %3d cpus (%2d cores), %4d GB\n",
+          cnt, shapes$f[k], shapes$cpus[k], shapes$cpus[k] %/% 2L, shapes$gb[k]
+        ))
+      }
     }
   }
 )

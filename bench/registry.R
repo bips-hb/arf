@@ -100,7 +100,32 @@ bench_submit_cells <- function(reg, cells, refs, resources = list()) {
     more.args = list(cells = cells, refs = refs),
     reg = reg
   )
-  batchtools::submitJobs(resources = resources, reg = reg)
+  # Submit in memory classes rather than once with a single figure: see
+  # bench_cell_memory_mb(). batchtools takes resources per submitJobs call, so
+  # one call per distinct request gets each cell what it needs without making
+  # every cell queue for the largest.
+  if (is.null(resources$memory) && is.null(resources$ncpus)) {
+    req <- bench_cell_resources(cells)
+    grp <- paste(req$ncpus, req$memory)
+    for (g in unique(grp[order(req$fraction)])) {
+      i <- which(grp == g)
+      ids <- data.table::data.table(job.id = i)
+      message(sprintf(
+        "  submitting %d cell(s) at 1/%g node: %d cpus, %.0f GB",
+        length(i),
+        1 / req$fraction[i[1]],
+        req$ncpus[i[1]],
+        req$memory[i[1]] / 1024
+      ))
+      batchtools::submitJobs(
+        ids = ids,
+        resources = c(resources, list(ncpus = req$ncpus[i[1]], memory = req$memory[i[1]])),
+        reg = reg
+      )
+    }
+  } else {
+    batchtools::submitJobs(resources = resources, reg = reg)
+  }
   reg
 }
 

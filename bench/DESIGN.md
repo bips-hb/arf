@@ -251,8 +251,27 @@ The BIPS cluster configures batchtools globally in `/etc/xdg/batchtools/config.R
 So the slurm path reads that config and names no template; `ARF_BENCH_SLURM_TMPL` only overrides it.
 The local path keeps `conf.file = NA` for determinism, which is the right choice there and the wrong one on the cluster: it would discard every site default.
 
+Cores and memory are requested together, as matched fractions of a compute node, per cell.
+One global figure cannot serve this grid: a 64 GB request OOM-killed an `n = 5e4` cell while a 256 GB request was pinned at its own ceiling by `expct`.
+Requesting the two dimensions independently is almost as bad, because whichever is left over is stranded: a 36-thread job asking for 750 GB blocks 65% of a node's memory behind 19% of its cores, so nothing of the same shape fits beside it and the node sits half idle.
+
+A node is 192 threads (1 socket, 96 cores, 2 SMT) and 1152 GB, so 6 GB per thread.
+`bench_cell_resources()` takes a cell's thread need and memory need, converts each to a share of a node, and rounds the larger up to the next of 1/16, 1/8, 1/4, 1/2 or a whole node, requesting that fraction of **both**.
+A cell's footprint is then "a quarter of a node" in each dimension and the remainder stays usable.
+Note that `sinfo`'s MEMORY column reads 112066 MB for these nodes, which understates the real 1152 GB by an order of magnitude; the figures above are the real ones.
+`bench_cell_memory_mb()` holds the measured peaks the estimate is built from, and `bench_submit_cells()` calls `submitJobs()` once per distinct shape so no cell queues for the largest.
+A capped measurement is worthless and an over-request only costs queue position, so the heavy classes take headroom rather than a fitted estimate.
+
+That a peak can be the cap rather than the workload is detected rather than assumed: every row records `mem_limit_mb`, read by walking up the cgroup hierarchy since slurm sets the limit on a parent, and a peak within 95% of it reads `hit the memory cap, not a measurement`.
+Eleven cells of the first full run were pinned at 99.75% of a 256 GB cap, identical to the megabyte across a fivefold difference in `n`, which is how it was found.
+
+The thread need itself is `2 x (workers + 2)`, so `workers + 2` physical cores.
+The two spare cores are deliberate: mirai's dispatcher and the orchestrator's 5 ms cgroup sampler both need CPU, and mirai degrades badly when its dispatcher is starved, which would show up as mirai losing a comparison it should win.
+
+`arf-bench diag` prints what a machine looks like to the sampler: the cgroup it reads, every memory limit up the hierarchy, the real `MemTotal`, and whether the fixture lands on tmpfs. Run it under `sbatch` when a measured peak looks implausible.
+
 Three units in that template are easy to get wrong, and all three were.
-`ncpus` becomes `--cpus-per-task` and counts **hyperthreads**, since the site config notes one physical core is two threads, so a 16-worker cell needs 34 rather than 17 or it is oversubscribed, which the harness README warns degrades mirai catastrophically.
+`ncpus` becomes `--cpus-per-task` and counts **hyperthreads**, since the site config notes one physical core is two threads, so a 16-worker cell needs 36 rather than 18 or it is oversubscribed, which the harness README warns degrades mirai catastrophically.
 `memory` is **total** megabytes via `--mem`, and it is mutually exclusive with `mem_per_cpu`, which the template enforces with a `stop()`; since the site defaults already set `memory`, passing `mem_per_cpu` collides with them.
 Walltime must fit the QoS: the default `medium` allows 1440 minutes, so the 8h default is inside it, and `short` at 60 minutes is not.
 `ARF_BENCH_SLURM_CPUS`, `ARF_BENCH_SLURM_MEM`, `ARF_BENCH_SLURM_WALLTIME` and `ARF_BENCH_SLURM_PARTITION` override, and the submission prints the per-job totals it is asking for.

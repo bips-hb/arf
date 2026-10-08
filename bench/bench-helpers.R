@@ -116,7 +116,38 @@ bench_make_data <- function(n, p) {
   (as.numeric(sub("^anon ", "", a[1])) + as.numeric(sub("^shmem ", "", h[1]))) / 1024 # bytes -> kB
 }
 
+# The memory ceiling this process runs under, in MB, or NA when unlimited.
+# Walk UP the hierarchy: slurm sets the limit on the job's cgroup while the
+# process often sits in a child whose own memory.max reads "max". A peak that
+# reaches this is a measurement of the cap, not of the workload, and must never
+# be reported as the latter.
+.bench_cgroup_limit_mb <- function(dir = .bench_cgroup_dir()) {
+  if (is.null(dir)) {
+    return(NA_real_)
+  }
+  root <- "/sys/fs/cgroup"
+  lim <- Inf
+  d <- dir
+  repeat {
+    for (nm in c("memory.max", "memory.high")) {
+      v <- .bench_read(file.path(d, nm))
+      if (length(v) && !identical(v[1], "max")) {
+        n <- suppressWarnings(as.numeric(v[1]))
+        if (!is.na(n) && n > 0) {
+          lim <- min(lim, n / 1024 / 1024)
+        }
+      }
+    }
+    if (nchar(d) <= nchar(root)) {
+      break
+    }
+    d <- dirname(d)
+  }
+  if (is.finite(lim)) lim else NA_real_
+}
+
 BENCH_CGROUP <- .bench_cgroup_dir()
+BENCH_MEM_LIMIT_MB <- .bench_cgroup_limit_mb()
 BENCH_USE_PSS <- file.exists("/proc/self/smaps_rollup")
 BENCH_METRIC <- if (!is.null(BENCH_CGROUP)) {
   "cgroup-anon+shmem"

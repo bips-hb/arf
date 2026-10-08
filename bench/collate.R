@@ -12,6 +12,10 @@ BENCH_REPORT_ROWS <- 40
 # tier run, the ONLY "real" time verdict under a second was the fastest cell in
 # the grid (62 ms, +12.7%), while every cell above 1 s read inconclusive.
 BENCH_TIME_FLOOR_S <- 0.5
+# A peak this close to the cgroup limit is the limit, not the workload: six
+# cells of a real cluster run sat at 99.75% of a 256 GB cap, identical to the
+# megabyte across a fivefold difference in n.
+BENCH_MEM_CAP_FRACTION <- 0.95
 BENCH_TIME_THRESHOLD <- 10
 
 .bench_cell_key <- function(rows) {
@@ -77,12 +81,18 @@ bench_deltas <- function(rows, baseline = "main") {
   # Judging each row on its own ratio let one ref in a cell read "real" while
   # the other read "too small", which is how a +10.3% noise reading got a
   # verdict on the cluster's first run.
+  capped <- !is.na(rows$mem_limit_mb) &
+    !is.na(rows$peak_mb) &
+    rows$peak_mb >= BENCH_MEM_CAP_FRACTION * rows$mem_limit_mb
+  capped_cell <- rows$key %in% unique(rows$key[capped])
+  rows$mem_verdict[capped_cell] <- "hit the memory cap, not a measurement"
   thin_row <- !is.na(rows$peak_delta_mb) &
     !is.na(rows$floor_mb) &
     rows$peak_delta_mb < BENCH_MEM_RESOLUTION * rows$floor_mb
   thin_cell <- rows$key %in% unique(rows$key[thin_row])
   rows$mem_verdict[thin_cell & rows$mem_verdict %in% c("real", "inconclusive")] <-
     "cell too small to resolve memory"
+  rows$mem_verdict[capped_cell] <- "hit the memory cap, not a measurement"
   rows$key <- NULL
   rows
 }

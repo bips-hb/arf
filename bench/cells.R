@@ -88,3 +88,71 @@ bench_cells <- function(tier = c("quick", "full")) {
 bench_anchors <- function(path = "bench/anchors.csv") {
   read.csv(path, stringsAsFactors = FALSE)$spec
 }
+
+# Compute-node profile for the BIPS cluster: 192 threads (1 socket x 96 cores
+# x 2 SMT) and 1152 GB of RAM, so 6 GB per thread. sinfo's MEMORY column
+# understates the RAM badly; these are the real figures.
+BENCH_NODE_THREADS <- 192L
+BENCH_NODE_MEM_MB <- 1152L * 1024L
+
+# Allocate in matched fractions of a node. Requesting cores and memory
+# independently strands whichever one is left over: a 36-thread job asking for
+# 750 GB blocks 65% of a node's memory behind 19% of its cores, so nothing else
+# of the same shape fits and the node is effectively half idle. Taking the same
+# fraction of both means a job's footprint is "an eighth of a node" in each
+# dimension and the remainder stays usable.
+BENCH_NODE_FRACTIONS <- c(1 / 16, 1 / 8, 1 / 4, 1 / 2, 1)
+
+# Memory a cell needs, in MB, before rounding to a node fraction.
+#
+# Measured peaks, cluster run 2026-10-08 (cran-0.2.5, the hungriest ref):
+#   n=1e3, any op                      < 1 GB
+#   n=1e4, adversarial_rf/forde/lik   <= 18 GB
+#   n=1e4, expct/forge                 39-91 GB
+#   n=5e4, expct/forge                 >= 250 GB, true value unknown: these
+#                                      cells were clamped at a 256 GB cap
+# The heavy classes take headroom rather than a fitted estimate, because a
+# clamped measurement is worthless while an over-request only costs queue
+# position.
+bench_cell_memory_mb <- function(cells) {
+  heavy <- cells$op %in% c("expct", "forge")
+  ifelse(
+    cells$n <= 1000,
+    16000L,
+    ifelse(
+      cells$n <= 10000,
+      ifelse(heavy, 192000L, 48000L),
+      ifelse(heavy, 500000L, 192000L)
+    )
+  )
+}
+
+# Threads a cell needs: two per worker, plus two spare cores for mirai's
+# dispatcher and the orchestrator's 5 ms cgroup sampler, since a starved
+# dispatcher makes mirai lose comparisons it should win.
+bench_cell_threads <- function(cells) {
+  w <- ifelse(is.na(cells$workers), 1L, as.integer(cells$workers))
+  2L * (w + 2L)
+}
+
+# Per-cell slurm request, rounded up to the smallest node fraction that
+# satisfies both dimensions.
+bench_cell_resources <- function(cells) {
+  need <- pmax(
+    bench_cell_threads(cells) / BENCH_NODE_THREADS,
+    bench_cell_memory_mb(cells) / BENCH_NODE_MEM_MB
+  )
+  frac <- vapply(
+    need,
+    function(x) {
+      ok <- BENCH_NODE_FRACTIONS[BENCH_NODE_FRACTIONS >= x]
+      if (length(ok)) min(ok) else 1
+    },
+    numeric(1)
+  )
+  data.frame(
+    fraction = frac,
+    ncpus = as.integer(ceiling(frac * BENCH_NODE_THREADS)),
+    memory = as.integer(ceiling(frac * BENCH_NODE_MEM_MB))
+  )
+}
