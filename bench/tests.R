@@ -668,6 +668,56 @@ test_that("a marginal too small relative to its floor carries no memory verdict"
   expect_equal(d2$mem_verdict[d2$ref == "HEAD"], "real")
 })
 
+test_that("one ref capping does not invalidate the others' comparison", {
+  # Scaled from the real n=5e4 cell: at n_evidence=1000 the anchor would need
+  # ~1.8 TB and cap, while main needs ~270 GB and does not. The HEAD-vs-main
+  # delta in that cell is still a measurement.
+  rows <- .bench_fake(
+    list(
+      ref = "main",
+      peak_mb = 270000,
+      floor_mb = 1685,
+      peak_delta_mb = 268315,
+      mem_reps = 5L,
+      iters = 2L,
+      mem_limit_mb = 550000,
+      time_median = 300,
+      digest = "a",
+      op = "expct",
+      n = 5e4
+    ),
+    list(
+      ref = "HEAD",
+      peak_mb = 255000,
+      floor_mb = 1685,
+      peak_delta_mb = 253315,
+      mem_reps = 5L,
+      iters = 2L,
+      mem_limit_mb = 550000,
+      time_median = 300,
+      digest = "a",
+      op = "expct",
+      n = 5e4
+    ),
+    list(
+      ref = "cran-0.2.5",
+      peak_mb = 549000,
+      floor_mb = 1685,
+      peak_delta_mb = 547315,
+      mem_reps = 5L,
+      iters = 2L,
+      mem_limit_mb = 550000,
+      time_median = 260,
+      digest = "a",
+      op = "expct",
+      n = 5e4
+    )
+  )
+  d <- bench_deltas(rows, baseline = "main")
+  expect_equal(d$mem_verdict[d$ref == "cran-0.2.5"], "hit the memory cap, not a measurement")
+  expect_equal(d$mem_verdict[d$ref == "HEAD"], "real")
+})
+
 test_that("the resolution guard applies to the whole cell, not one row", {
   # One ref thin, the other not: the comparison is still unresolvable, and the
   # cluster's first run reported +10.3% "real" for exactly this shape.
@@ -838,11 +888,9 @@ test_that("a peak at the cgroup cap is not reported as a measurement", {
     d$mem_verdict[d$ref == "cran-0.2.5"],
     "hit the memory cap, not a measurement"
   )
-  # the capped verdict wins over the resolution and single-sample guards
-  expect_equal(
-    d$mem_verdict[d$ref == "main"],
-    "hit the memory cap, not a measurement"
-  )
+  # The baseline's own row compares it with itself and never reaches the report,
+  # so what matters is that the capped REF is flagged, which it is above.
+  expect_equal(d$mem_verdict[d$ref == "main"], "unchanged")
 
   roomy <- rows
   roomy$mem_limit_mb <- 900000
@@ -965,4 +1013,48 @@ test_that("a report with no recorded limit says the cap guard is inactive", {
   )
   txt <- paste(bench_report(rows, baseline = "main"), collapse = "\n")
   expect_match(txt, "cap guard could\nnot be applied|cap guard could not be applied")
+})
+
+test_that("a single timing is not a time finding either", {
+  # From a real validation run: --iters 1 --mem-reps 1 gave one timing per ref
+  # and printed -13.3% "real".
+  one <- .bench_fake(
+    list(
+      ref = "main",
+      peak_mb = 28616,
+      floor_mb = 1685,
+      peak_delta_mb = 26931,
+      iters = 1L,
+      mem_reps = 1L,
+      mem_limit_mb = 550000,
+      time_median = 233.815,
+      digest = "a",
+      op = "expct",
+      n = 5e4
+    ),
+    list(
+      ref = "cran-0.2.5",
+      peak_mb = 184305,
+      floor_mb = 1685,
+      peak_delta_mb = 182620,
+      iters = 1L,
+      mem_reps = 1L,
+      mem_limit_mb = 550000,
+      time_median = 202.752,
+      digest = "a",
+      op = "expct",
+      n = 5e4
+    )
+  )
+  d <- bench_deltas(one, baseline = "main")
+  expect_equal(d$time_verdict[d$ref == "cran-0.2.5"], "single sample, not a finding")
+  expect_equal(d$mem_verdict[d$ref == "cran-0.2.5"], "single sample, not a finding")
+
+  # the full tier's 2 x 5 = 10 timings per ref do carry a verdict
+  many <- one
+  many$iters <- 2L
+  many$mem_reps <- 5L
+  d2 <- bench_deltas(many, baseline = "main")
+  expect_equal(d2$time_verdict[d2$ref == "cran-0.2.5"], "real")
+  expect_equal(d2$mem_verdict[d2$ref == "cran-0.2.5"], "real")
 })

@@ -67,6 +67,12 @@ bench_deltas <- function(rows, baseline = "main") {
     (!is.na(base$time_median[idx]) & base$time_median[idx] < BENCH_TIME_FLOOR_S)
   rows$time_verdict[too_fast & rows$time_verdict %in% c("real", "inconclusive")] <-
     "too fast to time reliably"
+  # Time has the same replication problem as memory and had no guard for it: a
+  # validation run at --iters 1 --mem-reps 1 produced one timing per ref and
+  # still printed "real" on a 13% delta. Timings per ref are iters x mem_reps.
+  n_timings <- ifelse(is.na(rows$iters) | is.na(rows$mem_reps), NA_integer_, rows$iters * rows$mem_reps)
+  one_timing <- !is.na(n_timings) & n_timings < 2L & rows$time_verdict %in% c("real", "inconclusive")
+  rows$time_verdict[one_timing] <- "single sample, not a finding"
   single <- !is.na(rows$mem_reps) & rows$mem_reps < 2L & rows$mem_verdict == "real"
   rows$mem_verdict[single] <- "single sample, not a finding"
   # Resolution guard. The marginal is a difference against a floor of an R
@@ -84,15 +90,21 @@ bench_deltas <- function(rows, baseline = "main") {
   capped <- !is.na(rows$mem_limit_mb) &
     !is.na(rows$peak_mb) &
     rows$peak_mb >= BENCH_MEM_CAP_FRACTION * rows$mem_limit_mb
-  capped_cell <- rows$key %in% unique(rows$key[capped])
-  rows$mem_verdict[capped_cell] <- "hit the memory cap, not a measurement"
+  # Per COMPARISON, not per cell: a delta has two sides, so it is invalid
+  # when the ref or its baseline capped, and unaffected when some third ref
+  # in the same cell did. Where only the hungriest anchor caps, HEAD against
+  # main is still a measurement and must not be discarded with it.
+  capped_pair <- capped | (!is.na(idx) & capped[match(rows$key, base$key)])
+  rows$mem_verdict[capped_pair] <- "hit the memory cap, not a measurement"
   thin_row <- !is.na(rows$peak_delta_mb) &
     !is.na(rows$floor_mb) &
     rows$peak_delta_mb < BENCH_MEM_RESOLUTION * rows$floor_mb
-  thin_cell <- rows$key %in% unique(rows$key[thin_row])
-  rows$mem_verdict[thin_cell & rows$mem_verdict %in% c("real", "inconclusive")] <-
+  # Same pairing. Usually identical to a cell-wide rule anyway, since both
+  # sides share the cell's floor.
+  thin_pair <- thin_row | (!is.na(idx) & thin_row[match(rows$key, base$key)])
+  rows$mem_verdict[thin_pair & rows$mem_verdict %in% c("real", "inconclusive")] <-
     "cell too small to resolve memory"
-  rows$mem_verdict[capped_cell] <- "hit the memory cap, not a measurement"
+  rows$mem_verdict[capped_pair] <- "hit the memory cap, not a measurement"
   rows$key <- NULL
   rows
 }
