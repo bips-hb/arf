@@ -1,6 +1,6 @@
 # batchtools orchestrates; the cgroup sampler in bench-helpers.R measures.
 # Slurm's own accounting (MaxRSS) is unusable for this comparison, which is why
-# the metric never comes from the scheduler (bench/DESIGN.md).
+# the metric never comes from the scheduler.
 
 bench_make_registry <- function(
   dir,
@@ -106,11 +106,9 @@ bench_submit_cells <- function(reg, cells, refs, resources = list()) {
   # every cell queue for the largest.
   if (is.null(resources$memory) && is.null(resources$ncpus)) {
     req <- bench_cell_resources(cells)
-    # Walltime is a third per-cell dimension, not one figure for the grid: a
-    # cell's timed calls span two orders of magnitude, so a single walltime
-    # either reserves hours for a two-minute cell or loses the long ones. A
-    # full run lost 19 cells to an 8 h ceiling while its cheapest cells held
-    # the same reservation for 44 seconds of work.
+    # Per cell, not one figure for the grid: timed calls span two orders of
+    # magnitude, so a single walltime either reserves hours for a two-minute
+    # cell or kills the long ones.
     req$walltime <- if (is.null(resources$walltime)) {
       bench_cell_walltime(cells, n_refs = length(refs), fallback = 28800)
     } else {
@@ -166,9 +164,8 @@ bench_collect <- function(reg) {
       call. = FALSE
     )
   }
-  # Expired jobs are neither done nor errored, so they would otherwise leave no
-  # trace: a walltime-killed cell simply vanishes and a 45-of-64 report reads
-  # as a complete grid. A full run lost 19 cells to an 8 h walltime this way.
+  # Expired jobs are neither done nor errored, so without this a walltime-killed
+  # cell vanishes and a partial grid reads as a complete one.
   missing <- setdiff(
     batchtools::findJobs(reg = reg)$job.id,
     c(done$job.id, err$job.id)

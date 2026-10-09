@@ -1,4 +1,5 @@
-# Ref resolution for the version-comparing benchmark: see bench/DESIGN.md.
+# Ref resolution for the version-comparing benchmark: a ref spec becomes an
+# installed library. See bench/README.md for the spec syntax.
 
 # "git:<ref>", "cran:<version>", or a bare git ref such as "HEAD" or "main".
 bench_parse_ref <- function(spec) {
@@ -34,7 +35,8 @@ bench_tree_dirty <- function(dir = ".") {
 }
 
 # A number from a tree nobody can reconstruct cannot be cited, so refuse it
-# rather than label it (bench/DESIGN.md, "A dirty tree refuses to run").
+# rather than label it: a number from a tree nobody can reconstruct cannot be
+# cited, so refusing beats labelling.
 bench_assert_clean_tree <- function(dir = ".", ignore = "bench/history.csv") {
   # history.csv is benchmark OUTPUT that the suite appends to and the author
   # commits afterwards. Its modification cannot make a measurement
@@ -206,9 +208,7 @@ bench_assert_args <- function(lib, calls) {
 # and two measurement sets per cell to print a verdict on sampling noise.
 # Identity for deduplication: the PACKAGE content, not the commit. A branch
 # that only touches bench/ or the Makefile is the same arf as its base, and
-# benchmarking both doubles a cluster run to prove 0.0%. A full 64-job run
-# compared HEAD against main this way and returned 43 inconclusive verdicts,
-# because the two differed in no file the package installs.
+# benchmarking both doubles a cluster run to prove 0.0%.
 .bench_pkg_id <- function(ref) {
   if (ref$kind == "cran") {
     return(paste0("cran-", ref$value))

@@ -1,5 +1,5 @@
 # Deltas, the PR report, and the anchor history. Thresholds come from
-# bench/DESIGN.md: memory above 3% is real, time below 10% is inconclusive.
+# Memory above 3% is real, time below 10% is inconclusive.
 
 BENCH_MEM_THRESHOLD <- 3
 # A marginal below this fraction of its floor is below the instrument's
@@ -53,7 +53,8 @@ bench_deltas <- function(rows, baseline = "main") {
     stop("baseline ref '", baseline, "' is not in the results", call. = FALSE)
   }
   idx <- match(rows$key, base$key)
-  # On the marginal, not the floor-inflated total (bench/DESIGN.md).
+  # On the marginal, not the floor-inflated total: a ~200 MB floor of
+  # interpreter plus arf plus fixture dilutes a raw-peak percentage fivefold.
   rows$delta_mem_pct <- .bench_pct(rows$peak_delta_mb, base$peak_delta_mb[idx])
   rows$delta_time_pct <- .bench_pct(rows$time_median, base$time_median[idx])
   rows$mem_verdict <- .bench_verdict(rows$delta_mem_pct, BENCH_MEM_THRESHOLD)
@@ -114,10 +115,8 @@ bench_deltas <- function(rows, baseline = "main") {
     "ref did not complete"
   rows$time_verdict[is.na(rows$time_median) & !is.na(base$time_median[idx])] <-
     "ref did not complete"
-  # Both sides dead is its own case, and "no baseline" describes it worst of
-  # all: the cell is beyond this hardware for every ref, not missing a
-  # reference point. Seen at n=5e4, evidence=1000, rowmode "or", where both
-  # HEAD and main exceeded a 550 GB allocation.
+  # Both sides dead means the cell is beyond this hardware for every ref, not
+  # missing a reference point.
   neither <- is.na(rows$peak_delta_mb) & is.na(base$peak_delta_mb[idx])
   rows$mem_verdict[neither] <- "no ref completed this cell"
   rows$time_verdict[is.na(rows$time_median) & is.na(base$time_median[idx])] <-
@@ -298,28 +297,38 @@ bench_history_append <- function(rows, path = "bench/history.csv") {
   # One row per anchor per cell per host and metric, newest kept: this file is
   # committed and plotted, so re-running a configuration must replace its row
   # rather than accumulate duplicates the trend panel would draw as a zig-zag.
-  id <- paste(
-    keep$ref,
-    keep$arf_version,
-    keep$op,
-    keep$backend,
-    keep$workers,
-    keep$n,
-    keep$p,
-    keep$trees,
-    keep$rowmode,
-    keep$host,
-    keep$metric,
-    sep = "|"
+  keep <- .bench_newest_by(
+    keep,
+    key = c(
+      "ref",
+      "arf_version",
+      "op",
+      "backend",
+      "workers",
+      "n",
+      "p",
+      "trees",
+      "rowmode",
+      "host",
+      "metric"
+    ),
+    stamp = "timestamp",
+    sort_by = c("op", "n", "trees", "backend", "workers")
   )
-  o <- order(id, keep$timestamp)
-  keep <- keep[o, ]
-  id <- id[o]
-  keep <- keep[!duplicated(id, fromLast = TRUE), ]
-  keep <- keep[order(keep$op, keep$n, keep$trees, keep$backend, keep$workers), ]
   utils::write.csv(keep, path, row.names = FALSE)
   message("History at ", path, ": ", nrow(keep), " row(s) total, ", added, " new or replaced.")
   invisible(keep)
+}
+
+# Newest row per key, replacing rather than accumulating. Both committed CSVs
+# need it: re-running a configuration must replace its row, or the trend panel
+# draws a zig-zag and the scheduler averages stale timings.
+.bench_newest_by <- function(df, key, stamp, sort_by = key) {
+  dt <- data.table::as.data.table(df)
+  data.table::setorderv(dt, c(key, stamp))
+  dt <- unique(dt, by = key, fromLast = TRUE)
+  data.table::setorderv(dt, sort_by)
+  as.data.frame(dt)
 }
 
 # Measured per-call seconds per cell, committed so the scheduler can size
@@ -334,10 +343,9 @@ bench_timings_append <- function(rows, path = "bench/timings.csv") {
   key <- c("op", "backend", "workers", "n", "p", "trees", "n_evidence", "rowmode")
   # Worst ref in the cell, not the mean: a walltime that fits the fast ref and
   # not the slow one loses the whole cell.
-  # data.table rather than aggregate(), which drops every group with an NA in
-  # its `by` columns -- that is sequential cells (no worker count) and every op
-  # without evidence arguments (forde, lik, adversarial_rf), so the scheduler
-  # would have had timings for expct and forge alone.
+  # data.table, not aggregate(): aggregate() drops every group with an NA in a
+  # `by` column, which here is every sequential cell and every op with no
+  # evidence arguments.
   agg <- as.data.frame(
     data.table::as.data.table(have)[,
       list(call_seconds = max(time_median, na.rm = TRUE)),
@@ -350,12 +358,12 @@ bench_timings_append <- function(rows, path = "bench/timings.csv") {
     old <- utils::read.csv(path, stringsAsFactors = FALSE)
     agg <- rbind(old[, names(agg)], agg)
   }
-  id <- do.call(paste, c(agg[key], list(sep = "|")))
-  o <- order(id, agg$measured)
-  agg <- agg[o, ]
-  id <- id[o]
-  agg <- agg[!duplicated(id, fromLast = TRUE), ]
-  agg <- agg[order(agg$op, agg$n, agg$n_evidence, agg$rowmode, agg$backend, agg$workers), ]
+  agg <- .bench_newest_by(
+    agg,
+    key = key,
+    stamp = "measured",
+    sort_by = c("op", "n", "n_evidence", "rowmode", "backend", "workers")
+  )
   utils::write.csv(agg, path, row.names = FALSE)
   message("Timings at ", path, ": ", nrow(agg), " cell(s) known to the scheduler.")
   invisible(agg)

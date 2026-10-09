@@ -1,4 +1,5 @@
-# The benchmark grid as data. Tiers and sizes come from bench/DESIGN.md.
+# The benchmark grid as data: which (op, backend, workers, size, variant)
+# combinations get measured. See bench/README.md to run it.
 
 .bench_op_knobs <- function(cells, n_evidence = 100L, n_synth = 1L, rowmode = "separate") {
   ev <- cells$op %in% c("forge", "expct")
@@ -25,7 +26,7 @@
   cells$workers <- NA_integer_
   cells$iters <- 5L
   # Peak memory is a stochastic function of GC scheduling, so one sample cannot
-  # support a percentage claim (see bench/DESIGN.md). Three cell runs is the
+  # support a percentage claim. Three cell runs is the
   # floor for a quick tier that stays cheap enough to run on bertha mid-work.
   cells$mem_reps <- 3L
   .bench_op_knobs(cells)
@@ -143,10 +144,9 @@ bench_cell_memory_mb <- function(cells) {
 # neither: one figure for every heavy cell both wasted half a node on the light
 # corner and lost the heavy one to its own cap. Each figure here is the
 # measurement rounded up to the next node fraction.
-# Per measurement, on top of the timed calls: the callr child starts, loads
-# arf, reads the fixture, and the sampler polls until the memory counter stops
-# moving. Calibrated against two full-tier jobs whose runtime is known, where
-# the whole estimate landed within 5% of the wall clock.
+# Per measurement, on top of the timed calls: child startup, arf load, fixture
+# read, and the sampler settling. Calibrated against two full-tier jobs of
+# known runtime, within 5% both times.
 BENCH_MEASURE_OVERHEAD_S <- 120
 # Headroom over the estimate. Slurm kills at the limit, and an estimate from
 # another host or an older commit can be optimistic.
@@ -173,7 +173,10 @@ bench_call_seconds <- function(cells, path = "bench/timings.csv") {
   t <- utils::read.csv(path, stringsAsFactors = FALSE)
   exact <- t$call_seconds[match(.bench_timing_key(cells), .bench_timing_key(t))]
   cls <- function(x) paste(x$op, x$n, x$n_evidence, x$rowmode, sep = "|")
-  worst <- stats::aggregate(list(s = t$call_seconds), list(k = cls(t)), max, na.rm = TRUE)
+  worst <- data.table::data.table(k = cls(t), s = t$call_seconds)[,
+    list(s = max(s, na.rm = TRUE)),
+    by = "k"
+  ]
   ifelse(is.na(exact), worst$s[match(cls(cells), worst$k)], exact)
 }
 

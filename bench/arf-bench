@@ -3,8 +3,8 @@
 #| title: arf benchmark suite
 #| description: |
 #|   Compare arf git refs and CRAN releases for runtime and peak memory.
-#|   Run from the repository root. See bench/DESIGN.md for the measurement
-#|   contract and bench/README.md for the operational notes.
+#|   Run from the repository root. See bench/README.md for how to run
+#|   configurations, aggregate results, and read a verdict.
 #|
 #|   Defaults below are the real ones: this script's top-level assignments ARE
 #|   the configuration, so --help cannot drift from the code.
@@ -100,6 +100,17 @@ switch(
       c("HEAD", "main")
     }
     ref_specs <- bench_resolve_refs(ref_specs[nzchar(ref_specs)])
+    if (length(ref_specs) < 2L) {
+      # Every ref collapsed into one, which on the quick tier means a branch
+      # that changed no package file. The run still fills bench/timings.csv,
+      # but no delta can come out of it, so say that before spending the time.
+      message(
+        "Only one ref to measure (", ref_specs,
+        "): no comparison is possible, and the report will have no delta rows. ",
+        "This is what a branch that touches no package file looks like. ",
+        "Pass --refs to name refs explicitly."
+      )
+    }
 
     cells <- bench_cells(tier)
     if (!is.na(ops)) {
@@ -379,11 +390,9 @@ switch(
       req <- bench_cell_resources(cells)
       req$walltime <- bench_cell_walltime(cells, n_refs = n_refs, fallback = 28800)
       req$measured <- !is.na(bench_call_seconds(cells))
-      agg <- aggregate(list(cells = seq_len(nrow(req))),
-        by = list(fraction = req$fraction, ncpus = req$ncpus, memory = req$memory,
-          walltime = req$walltime),
-        FUN = length)
-      agg <- agg[order(agg$fraction, agg$walltime), ]
+      shape <- c("fraction", "ncpus", "memory", "walltime")
+      agg <- data.table::as.data.table(req)[, list(cells = .N), by = shape]
+      data.table::setorderv(agg, c("fraction", "walltime"))
       for (k in seq_len(nrow(agg))) {
         cat(sprintf(
           "slurm: %3d cell(s) at %-5s node = %3d cpus (%2d cores), %4.0f GB, %5.1f h\n",

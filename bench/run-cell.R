@@ -1,7 +1,7 @@
 # One cell measured against every ref, in one process, on one node.
 # The ref loop lives HERE rather than in the batchtools grid on purpose: if
 # `ref` were a job dimension, refs would scatter across nodes and reintroduce
-# the drift that same-node A/B exists to remove (bench/DESIGN.md).
+# the drift that same-node A/B exists to remove.
 
 bench_schema <- function() {
   c(
