@@ -143,6 +143,63 @@ bench_cell_memory_mb <- function(cells) {
 # neither: one figure for every heavy cell both wasted half a node on the light
 # corner and lost the heavy one to its own cap. Each figure here is the
 # measurement rounded up to the next node fraction.
+# Per measurement, on top of the timed calls: the callr child starts, loads
+# arf, reads the fixture, and the sampler polls until the memory counter stops
+# moving. Calibrated against two full-tier jobs whose runtime is known, where
+# the whole estimate landed within 5% of the wall clock.
+BENCH_MEASURE_OVERHEAD_S <- 120
+# Headroom over the estimate. Slurm kills at the limit, and an estimate from
+# another host or an older commit can be optimistic.
+BENCH_WALLTIME_SAFETY <- 1.3
+# The medium QoS ceiling. A cell estimated above this cannot complete whatever
+# is requested, so the estimate is the warning, not the request.
+BENCH_WALLTIME_MAX_S <- 86400L
+BENCH_WALLTIME_MIN_S <- 1800L
+
+.bench_timing_key <- function(x) {
+  paste(x$op, x$backend, x$workers, x$n, x$p, x$trees, x$n_evidence, x$rowmode, sep = "|")
+}
+
+# Seconds for one timed call of each cell, from bench/timings.csv. An exact
+# cell match is a measurement; otherwise fall back to the slowest cell sharing
+# the op, size, evidence count and row mode, since the worker axis is where
+# the estimate is least transferable: on expct, foreach scales as 1/w while
+# mirai measurably gets SLOWER with more workers (413 s at 1 worker, 1104 s at
+# 16), so no per-worker rule is safe in either direction.
+bench_call_seconds <- function(cells, path = "bench/timings.csv") {
+  if (!file.exists(path)) {
+    return(rep(NA_real_, nrow(cells)))
+  }
+  t <- utils::read.csv(path, stringsAsFactors = FALSE)
+  exact <- t$call_seconds[match(.bench_timing_key(cells), .bench_timing_key(t))]
+  cls <- function(x) paste(x$op, x$n, x$n_evidence, x$rowmode, sep = "|")
+  worst <- stats::aggregate(list(s = t$call_seconds), list(k = cls(t)), max, na.rm = TRUE)
+  ifelse(is.na(exact), worst$s[match(cls(cells), worst$k)], exact)
+}
+
+# A cell runs mem_reps rounds, each round measuring every ref once, and each
+# measurement runs `iters` timed calls plus a floor measurement.
+bench_cell_walltime <- function(
+  cells,
+  n_refs,
+  mem_reps = cells$mem_reps,
+  iters = cells$iters,
+  fallback = NA_real_,
+  path = "bench/timings.csv"
+) {
+  t <- bench_call_seconds(cells, path)
+  est <- BENCH_WALLTIME_SAFETY *
+    mem_reps *
+    n_refs *
+    (iters * t + BENCH_MEASURE_OVERHEAD_S)
+  est[is.na(est)] <- fallback
+  # Rounded up to half an hour: batchtools takes resources per submitJobs call,
+  # so every distinct figure is another call, and 30 minutes of slack on a
+  # multi-hour job buys a tenth as many submissions.
+  est <- BENCH_WALLTIME_MIN_S * ceiling(est / BENCH_WALLTIME_MIN_S)
+  as.integer(pmax(BENCH_WALLTIME_MIN_S, pmin(BENCH_WALLTIME_MAX_S, est)))
+}
+
 .bench_heavy_mb <- function(cells) {
   wide <- !is.na(cells$rowmode) & cells$rowmode == "or"
   much <- !is.na(cells$n_evidence) & cells$n_evidence >= 1000

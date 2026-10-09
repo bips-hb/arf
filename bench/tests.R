@@ -804,6 +804,110 @@ test_that("history says how many rows it wrote", {
   expect_message(bench_history_append(rows, path), "1 row\\(s\\) total, 1 new")
 })
 
+test_that("walltime comes from the measured call time of the cell itself", {
+  path <- file.path(tempdir(), paste0("tim-", Sys.getpid(), ".csv"))
+  on.exit(unlink(path), add = TRUE)
+  cells <- bench_cells("full")
+  cells <- cells[cells$op == "expct" & cells$n == 5e4, ][1:2, ]
+  utils::write.csv(
+    data.frame(
+      op = "expct",
+      backend = cells$backend,
+      workers = cells$workers,
+      n = cells$n,
+      p = cells$p,
+      trees = cells$trees,
+      n_evidence = cells$n_evidence,
+      rowmode = cells$rowmode,
+      call_seconds = c(100, 1000),
+      host = "h",
+      measured = "2026-10-09T00:00:00"
+    ),
+    path,
+    row.names = FALSE
+  )
+  expect_equal(bench_call_seconds(cells, path), c(100, 1000))
+  w <- bench_cell_walltime(cells, n_refs = 2, mem_reps = 5, iters = 2, path = path)
+  # 1.3 safety x 5 rounds x 2 refs x (2 calls x t + 120 s overhead), rounded up
+  # to the half hour that keeps the submission count down.
+  raw <- 1.3 * 5 * 2 * (2 * c(100, 1000) + 120)
+  expect_equal(w, as.integer(BENCH_WALLTIME_MIN_S * ceiling(raw / BENCH_WALLTIME_MIN_S)))
+  expect_true(all(w >= raw))
+  expect_true(all(w %% BENCH_WALLTIME_MIN_S == 0))
+  # More replication, more walltime; and never past the QoS ceiling.
+  expect_true(all(
+    bench_cell_walltime(cells, 2, mem_reps = 10, iters = 2, path = path) > w
+  ))
+  expect_lte(
+    max(bench_cell_walltime(cells, 2, mem_reps = 500, iters = 50, path = path)),
+    BENCH_WALLTIME_MAX_S
+  )
+})
+
+test_that("a cell with no timing of its own falls back to its class, then the caller", {
+  path <- file.path(tempdir(), paste0("tim2-", Sys.getpid(), ".csv"))
+  on.exit(unlink(path), add = TRUE)
+  cells <- bench_cells("full")
+  cells <- cells[cells$op == "expct" & cells$n == 5e4, ]
+  one <- cells[1, ]
+  utils::write.csv(
+    data.frame(
+      op = one$op,
+      backend = one$backend,
+      workers = one$workers,
+      n = one$n,
+      p = one$p,
+      trees = one$trees,
+      n_evidence = one$n_evidence,
+      rowmode = one$rowmode,
+      call_seconds = 777,
+      host = "h",
+      measured = "2026-10-09T00:00:00"
+    ),
+    path,
+    row.names = FALSE
+  )
+  sibling <- cells[
+    cells$rowmode == one$rowmode &
+      cells$n_evidence == one$n_evidence &
+      cells$backend != one$backend,
+  ][1, ]
+  # Same class, different backend: inherits the class figure rather than
+  # guessing from the worker count, which mirai inverts.
+  expect_equal(bench_call_seconds(sibling, path), 777)
+  # No timings file at all: the caller's fallback stands.
+  expect_equal(
+    bench_cell_walltime(one, 2, fallback = 3600, path = file.path(tempdir(), "absent.csv")),
+    3600L
+  )
+})
+
+test_that("refs that install the same package content are measured once", {
+  # A bench-only branch is the same arf as its base, and running both doubles
+  # a cluster run to prove 0.0%.
+  expect_equal(bench_resolve_refs(c("HEAD", "main")), "main")
+  # The baseline survives the collapse: dropping "main" would leave
+  # bench_deltas() with no baseline to compare against.
+  expect_true("main" %in% bench_resolve_refs(c("HEAD", "main", "cran:0.2.5")))
+  expect_length(bench_resolve_refs(c("HEAD", "main", "cran:0.2.5")), 2L)
+})
+
+test_that("timings keep the slowest ref per cell and the newest run", {
+  path <- file.path(tempdir(), paste0("tim3-", Sys.getpid(), ".csv"))
+  on.exit(unlink(path), add = TRUE)
+  rows <- rbind(
+    .bench_fake(list(ref = "main", time_median = 10)),
+    .bench_fake(list(ref = "cran-0.2.5", time_median = 90))
+  )
+  t <- bench_timings_append(rows, path)
+  expect_equal(nrow(t), 1L)
+  expect_equal(t$call_seconds, 90)
+  # Re-running the same cell replaces its row instead of accumulating.
+  t2 <- bench_timings_append(.bench_fake(list(ref = "main", time_median = 5)), path)
+  expect_equal(nrow(t2), 1L)
+  expect_equal(t2$call_seconds, 5)
+})
+
 test_that("heavy cells are sized by evidence count and row mode", {
   g <- expand.grid(
     op = "expct",

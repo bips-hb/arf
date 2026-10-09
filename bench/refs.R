@@ -204,7 +204,48 @@ bench_assert_args <- function(lib, calls) {
 # Two specs can name the same commit, which is the default state of every run
 # on main ("HEAD" and "main"). Comparing a ref with itself pays two installs
 # and two measurement sets per cell to print a verdict on sampling noise.
-bench_resolve_refs <- function(specs) {
-  ids <- vapply(specs, function(s) .bench_ref_id(bench_parse_ref(s)), character(1))
-  specs[!duplicated(ids)]
+# Identity for deduplication: the PACKAGE content, not the commit. A branch
+# that only touches bench/ or the Makefile is the same arf as its base, and
+# benchmarking both doubles a cluster run to prove 0.0%. A full 64-job run
+# compared HEAD against main this way and returned 43 inconclusive verdicts,
+# because the two differed in no file the package installs.
+.bench_pkg_id <- function(ref) {
+  if (ref$kind == "cran") {
+    return(paste0("cran-", ref$value))
+  }
+  paths <- c("DESCRIPTION", "NAMESPACE", "R", "src", "inst", "man")
+  tree <- suppressWarnings(system2(
+    "git",
+    c("ls-tree", "-r", shQuote(ref$value), "--", paths),
+    stdout = TRUE,
+    stderr = FALSE
+  ))
+  if (!length(tree)) {
+    # No package paths resolved: fall back to the commit rather than treating
+    # every such ref as identical.
+    return(.bench_ref_id(ref))
+  }
+  paste(tree, collapse = "\n")
+}
+
+# `baseline` survives a collapse. Deduplication keeps the first spec, and the
+# default order is HEAD before main, so on the main branch itself the two
+# resolve alike and "main" was the one dropped -- leaving bench_deltas() to
+# stop on "baseline ref 'main' is not in the results".
+bench_resolve_refs <- function(specs, baseline = "main") {
+  ids <- vapply(specs, function(s) .bench_pkg_id(bench_parse_ref(s)), character(1))
+  prefer <- order(specs != baseline)
+  specs <- specs[prefer]
+  ids <- ids[prefer]
+  first <- !duplicated(ids)
+  for (i in which(!first)) {
+    message(
+      "Skipping ",
+      specs[i],
+      ": installs the same package content as ",
+      specs[first][match(ids[i], ids[first])],
+      ", so it would measure the same code twice."
+    )
+  }
+  specs[first]
 }

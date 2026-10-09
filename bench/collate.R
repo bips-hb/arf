@@ -322,6 +322,45 @@ bench_history_append <- function(rows, path = "bench/history.csv") {
   invisible(keep)
 }
 
+# Measured per-call seconds per cell, committed so the scheduler can size
+# slurm walltimes from data instead of one global figure. Separate from the
+# history, which keeps anchors only: scheduling cares about the SLOWEST ref in
+# a cell, whichever that is, and about cells no anchor ever runs.
+bench_timings_append <- function(rows, path = "bench/timings.csv") {
+  have <- rows[!is.na(rows$time_median), ]
+  if (!nrow(have)) {
+    return(invisible(NULL))
+  }
+  key <- c("op", "backend", "workers", "n", "p", "trees", "n_evidence", "rowmode")
+  # Worst ref in the cell, not the mean: a walltime that fits the fast ref and
+  # not the slow one loses the whole cell.
+  # data.table rather than aggregate(), which drops every group with an NA in
+  # its `by` columns -- that is sequential cells (no worker count) and every op
+  # without evidence arguments (forde, lik, adversarial_rf), so the scheduler
+  # would have had timings for expct and forge alone.
+  agg <- as.data.frame(
+    data.table::as.data.table(have)[,
+      list(call_seconds = max(time_median, na.rm = TRUE)),
+      by = key
+    ]
+  )
+  agg$host <- rows$host[1]
+  agg$measured <- format(Sys.time(), "%Y-%m-%dT%H:%M:%S")
+  if (file.exists(path) && length(readLines(path, warn = FALSE)) > 1L) {
+    old <- utils::read.csv(path, stringsAsFactors = FALSE)
+    agg <- rbind(old[, names(agg)], agg)
+  }
+  id <- do.call(paste, c(agg[key], list(sep = "|")))
+  o <- order(id, agg$measured)
+  agg <- agg[o, ]
+  id <- id[o]
+  agg <- agg[!duplicated(id, fromLast = TRUE), ]
+  agg <- agg[order(agg$op, agg$n, agg$n_evidence, agg$rowmode, agg$backend, agg$workers), ]
+  utils::write.csv(agg, path, row.names = FALSE)
+  message("Timings at ", path, ": ", nrow(agg), " cell(s) known to the scheduler.")
+  invisible(agg)
+}
+
 # Shared tail of a run and a collate: one place that writes the CSV, appends
 # anchor rows to the history, and renders the report.
 bench_write_results <- function(rows) {
@@ -334,6 +373,7 @@ bench_write_results <- function(rows) {
   message("Written to ", out)
   # Anchor rows are appended automatically; only the commit is manual.
   bench_history_append(rows)
+  bench_timings_append(rows)
   report <- bench_report(rows)
   cat(report, sep = "\n")
   writeLines(report, "bench/results/report.md")

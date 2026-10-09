@@ -106,20 +106,39 @@ bench_submit_cells <- function(reg, cells, refs, resources = list()) {
   # every cell queue for the largest.
   if (is.null(resources$memory) && is.null(resources$ncpus)) {
     req <- bench_cell_resources(cells)
-    grp <- paste(req$ncpus, req$memory)
-    for (g in unique(grp[order(req$fraction)])) {
+    # Walltime is a third per-cell dimension, not one figure for the grid: a
+    # cell's timed calls span two orders of magnitude, so a single walltime
+    # either reserves hours for a two-minute cell or loses the long ones. A
+    # full run lost 19 cells to an 8 h ceiling while its cheapest cells held
+    # the same reservation for 44 seconds of work.
+    req$walltime <- if (is.null(resources$walltime)) {
+      bench_cell_walltime(cells, n_refs = length(refs), fallback = 28800)
+    } else {
+      rep(as.integer(resources$walltime), nrow(cells))
+    }
+    resources$walltime <- NULL
+    grp <- paste(req$ncpus, req$memory, req$walltime)
+    for (g in unique(grp[order(req$fraction, req$walltime)])) {
       i <- which(grp == g)
       ids <- data.table::data.table(job.id = i)
       message(sprintf(
-        "  submitting %d cell(s) at 1/%g node: %d cpus, %.0f GB",
+        "  submitting %d cell(s) at 1/%g node: %d cpus, %.0f GB, %.1f h",
         length(i),
         1 / req$fraction[i[1]],
         req$ncpus[i[1]],
-        req$memory[i[1]] / 1024
+        req$memory[i[1]] / 1024,
+        req$walltime[i[1]] / 3600
       ))
       batchtools::submitJobs(
         ids = ids,
-        resources = c(resources, list(ncpus = req$ncpus[i[1]], memory = req$memory[i[1]])),
+        resources = c(
+          resources,
+          list(
+            ncpus = req$ncpus[i[1]],
+            memory = req$memory[i[1]],
+            walltime = req$walltime[i[1]]
+          )
+        ),
         reg = reg
       )
     }

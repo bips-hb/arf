@@ -125,6 +125,31 @@ Deterministic ops (`forde` parameters, `lik` values) hash the rounded output dir
 Stochastic ops (`forge`, `expct`) run under a fixed seed and hash a rounded summary vector (column means and standard deviations), because an exact hash there also moves when a refactor merely consumes RNG draws in a different order.
 The report says which kind of digest produced a flag, so a stochastic mismatch is read as "look at this" rather than "this is broken".
 
+### Slurm resources are per cell, in all three dimensions
+
+Memory, cores, and walltime are requested per cell, not once for the grid.
+Cores and memory were per cell from the start; walltime was one global figure, and that was a mistake with two costs.
+A full run lost 19 of 64 cells to an 8 h ceiling while its cheapest cells held the same 8 h reservation for 44 seconds of work.
+
+Walltime is estimated from measured per-call times in `bench/timings.csv`, which every collate updates, so the estimate sharpens as the suite runs.
+The model is `safety x mem_reps x n_refs x (iters x call_seconds + overhead)`, with a 120 s per-measurement overhead for child startup, fixture load, and sampler settling.
+Checked against two full-tier jobs of known runtime it landed within 5% of the wall clock both times.
+
+A cell with no timing of its own inherits the slowest cell sharing its op, size, evidence count, and row mode, and never scales by worker count.
+Worker count is where an estimate is least transferable: on `expct`, `foreach` scales as `1/w` while `mirai` measurably gets slower with more workers, 413 s at one worker against 1104 s at sixteen.
+No per-worker rule is safe in either direction, so there is none.
+
+`plan` prints the walltime per shape and names any cell whose estimate is already at the QoS ceiling, because such a cell will be killed at that ceiling whatever is requested.
+That warning is the point of planning before submitting.
+
+### Refs are deduplicated by package content
+
+Two refs that install the same `DESCRIPTION`, `NAMESPACE`, `R/`, `src/`, `inst/`, and `man/` are measured once.
+A branch that only touches `bench/` or the Makefile is the same arf as its base: a 64-job run compared `HEAD` against `main` across that difference and returned 43 inconclusive verdicts, which is half a run spent proving 0.0%.
+
+The baseline survives the collapse.
+Deduplication keeps the first spec and the default order is `HEAD` before `main`, so on the main branch itself the two resolve alike and `main` was the one dropped, leaving the report to stop on its own missing baseline.
+
 ## Layout
 
 ```
@@ -142,6 +167,8 @@ bench/
                     release trend, legacy sweep                 (exists, rewritten)
   anchors.csv       curated ref set: git tags and CRAN releases  (new)
   history.csv       committed cache of anchor rows               (new)
+  timings.csv       committed per-cell call times, for sizing
+                    slurm walltimes from data                     (new)
   lib/              per-ref and shared libraries, gitignored     (new)
   results/ logs/    raw runs, gitignored                        (exists)
 ```

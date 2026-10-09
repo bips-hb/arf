@@ -75,8 +75,8 @@ switch(
     #| description: CPUs per slurm job. Default is 2 per worker plus one, since ncpus counts hyperthreads.
     cpus <- NA_integer_
 
-    #| description: Walltime per slurm job in seconds. 8h fits the default medium QoS ceiling of one day.
-    walltime <- 28800L
+    #| description: "Walltime per slurm job in seconds. Default: estimated per cell from bench/timings.csv, 8h where a cell has no timing yet."
+    walltime <- NA_integer_
 
     #| description: Slurm partition. Omitted by default, so the site config decides.
     partition <- NA_character_
@@ -152,7 +152,8 @@ switch(
       # Cores and memory are matched fractions of a node, per cell: see
       # bench_cell_resources(). Passing --cpus or --mem overrides both with one
       # figure for every cell.
-      resources <- list(walltime = walltime)
+      # Left NA, bench_submit_cells() estimates a walltime per cell.
+      resources <- if (is.na(walltime)) list() else list(walltime = walltime)
       if (!is.na(cpus)) {
         resources$ncpus <- cpus
       }
@@ -168,13 +169,21 @@ switch(
         message("slurm: per-cell node fractions -> ", paste(
           sprintf("%s node (%d cpus, %d GB)", shapes$f, shapes$cpus, shapes$gb),
           collapse = "; "
-        ), sprintf(" | %.1f h", walltime / 3600))
+        ), sprintf(
+          " | %s",
+          if (is.na(walltime)) {
+            w <- bench_cell_walltime(cells, n_refs = length(installed), fallback = 28800) / 3600
+            sprintf("walltime %.1f-%.1f h per cell", min(w), max(w))
+          } else {
+            sprintf("%.1f h", walltime / 3600)
+          }
+        ))
       } else {
         message(sprintf(
           "slurm: %s cpus, %s, %.1f h",
           if (is.na(cpus)) "per-cell" else as.character(cpus),
           if (is.na(mem)) "per-cell memory" else sprintf("%.0f GB/job", mem / 1024),
-          walltime / 3600
+          if (is.na(walltime)) 8 else walltime / 3600
         ))
       }
     }
@@ -315,6 +324,12 @@ switch(
     #| description: Restrict to these evidence row counts, comma separated (100, 1000).
     evidence <- NA_character_
 
+    #| description: Timed calls per measurement, as `run` would take it. Changes the walltime estimate.
+    iters <- NA_integer_
+
+    #| description: Memory replicate rounds per ref, as `run` would take it. Changes the walltime estimate.
+    mem_reps <- NA_integer_
+
     cells <- bench_cells(tier)
     if (!is.na(ops)) {
       cells <- cells[cells$op %in% trimws(strsplit(ops, ",")[[1]]), ]
@@ -334,6 +349,12 @@ switch(
     }
     if (!is.na(max_cells)) {
       cells <- utils::head(cells, max_cells)
+    }
+    if (!is.na(iters)) {
+      cells$iters <- iters
+    }
+    if (!is.na(mem_reps)) {
+      cells$mem_reps <- mem_reps
     }
     n_refs <- length(bench_resolve_refs(
       if (identical(tier, "full")) unique(c("HEAD", "main", bench_anchors())) else c("HEAD", "main")
@@ -356,16 +377,36 @@ switch(
     ))
     if (identical(cluster, "slurm")) {
       req <- bench_cell_resources(cells)
-      agg <- aggregate(list(cells = seq_len(nrow(req))), 
-        by = list(fraction = req$fraction, ncpus = req$ncpus, memory = req$memory),
+      req$walltime <- bench_cell_walltime(cells, n_refs = n_refs, fallback = 28800)
+      req$measured <- !is.na(bench_call_seconds(cells))
+      agg <- aggregate(list(cells = seq_len(nrow(req))),
+        by = list(fraction = req$fraction, ncpus = req$ncpus, memory = req$memory,
+          walltime = req$walltime),
         FUN = length)
-      agg <- agg[order(agg$fraction), ]
+      agg <- agg[order(agg$fraction, agg$walltime), ]
       for (k in seq_len(nrow(agg))) {
         cat(sprintf(
-          "slurm: %3d cell(s) at %-5s node = %3d cpus (%2d cores), %4.0f GB\n",
+          "slurm: %3d cell(s) at %-5s node = %3d cpus (%2d cores), %4.0f GB, %5.1f h\n",
           agg$cells[k], sprintf("1/%g", 1 / agg$fraction[k]),
-          agg$ncpus[k], agg$ncpus[k] %/% 2L, agg$memory[k] / 1024
+          agg$ncpus[k], agg$ncpus[k] %/% 2L, agg$memory[k] / 1024,
+          agg$walltime[k] / 3600
         ))
+      }
+      cat(sprintf(
+        "total: %.0f node-hours; %d of %d cells have a measured timing\n",
+        sum(req$fraction * req$walltime) / 3600, sum(req$measured), nrow(req)
+      ))
+      # A cell whose estimate is already at the ceiling will be killed at the
+      # ceiling. Naming them here is the whole point of planning first.
+      atmax <- req$walltime >= BENCH_WALLTIME_MAX_S
+      if (any(atmax)) {
+        cat(sprintf(
+          "WARNING: %d cell(s) estimate at or above the %g h QoS ceiling and cannot complete as configured:\n",
+          sum(atmax), BENCH_WALLTIME_MAX_S / 3600
+        ))
+        bad <- unique(cells[atmax, c("op", "backend", "workers", "n", "n_evidence", "rowmode")])
+        print(bad, row.names = FALSE)
+        cat("  lower --mem-reps or --iters for these, or drop them from the grid.\n")
       }
     }
   }
