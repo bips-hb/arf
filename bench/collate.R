@@ -105,6 +105,15 @@ bench_deltas <- function(rows, baseline = "main") {
   rows$mem_verdict[thin_pair & rows$mem_verdict %in% c("real", "inconclusive")] <-
     "cell too small to resolve memory"
   rows$mem_verdict[capped_pair] <- "hit the memory cap, not a measurement"
+  # Last, so it survives the guards above. "no baseline" blames the wrong side
+  # when the baseline measured fine and the ref is the one that died: the
+  # evidence=1000 expct cell needs ~1.8 TB on cran-0.2.5, more than a node has,
+  # so its child is OOM-killed and returns NA while main returns 267 GB. That
+  # a ref cannot run a cell at all is a finding, not a missing baseline.
+  rows$mem_verdict[is.na(rows$peak_delta_mb) & !is.na(base$peak_delta_mb[idx])] <-
+    "ref did not complete"
+  rows$time_verdict[is.na(rows$time_median) & !is.na(base$time_median[idx])] <-
+    "ref did not complete"
   rows$key <- NULL
   rows
 }
@@ -247,12 +256,33 @@ bench_report <- function(rows, baseline = "main") {
 # Anchors only: HEAD and main move, so recording them would be noise. Committed
 # by hand afterwards, for the runs worth keeping.
 bench_history_append <- function(rows, path = "bench/history.csv") {
-  keep <- rows[!rows$ref %in% c("HEAD", "main"), bench_schema()]
-  # A row with no measurement is not history.
-  keep <- keep[!is.na(keep$peak_delta_mb) | !is.na(keep$time_median), ]
+  anchors <- rows[!rows$ref %in% c("HEAD", "main"), bench_schema()]
+  # A row with no measurement is not history. Say so: a cell whose anchor was
+  # OOM-killed leaves nothing to append, and a silent return looks exactly like
+  # a collate that never ran.
+  keep <- anchors[!is.na(anchors$peak_delta_mb) | !is.na(anchors$time_median), ]
   if (!nrow(keep)) {
+    message(
+      "Nothing appended to ",
+      path,
+      ": of ",
+      nrow(rows),
+      " row(s), ",
+      nrow(anchors),
+      " were anchors and ",
+      nrow(anchors) - nrow(keep),
+      " of those carried no measurement (HEAD and main are never history)."
+    )
     return(invisible(keep))
   }
+  if (nrow(keep) < nrow(anchors)) {
+    message(
+      nrow(anchors) - nrow(keep),
+      " anchor row(s) carried no measurement and ",
+      "are not in the history; see the report for which cells those were."
+    )
+  }
+  added <- nrow(keep)
   if (file.exists(path) && length(readLines(path, warn = FALSE)) > 1L) {
     old <- utils::read.csv(path, stringsAsFactors = FALSE)
     keep <- rbind(old, keep)
@@ -274,11 +304,13 @@ bench_history_append <- function(rows, path = "bench/history.csv") {
     keep$metric,
     sep = "|"
   )
-  keep <- keep[order(id, keep$timestamp), ]
-  id <- id[order(id, keep$timestamp)]
+  o <- order(id, keep$timestamp)
+  keep <- keep[o, ]
+  id <- id[o]
   keep <- keep[!duplicated(id, fromLast = TRUE), ]
   keep <- keep[order(keep$op, keep$n, keep$trees, keep$backend, keep$workers), ]
   utils::write.csv(keep, path, row.names = FALSE)
+  message("History at ", path, ": ", nrow(keep), " row(s) total, ", added, " new or replaced.")
   invisible(keep)
 }
 

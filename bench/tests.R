@@ -789,6 +789,30 @@ test_that("history refuses rows that measured nothing", {
     digest = NA_character_
   ))
   expect_equal(nrow(bench_history_append(dead, path)), 0L)
+  # An OOM-killed anchor leaves nothing to append. Silence there is
+  # indistinguishable from a collate that never ran.
+  expect_message(bench_history_append(dead, path), "Nothing appended")
+})
+
+test_that("history says how many rows it wrote", {
+  path <- file.path(tempdir(), paste0("hist4-", Sys.getpid(), ".csv"))
+  on.exit(unlink(path), add = TRUE)
+  rows <- rbind(
+    .bench_fake(list(ref = "main", peak_delta_mb = 100, time_median = 1)),
+    .bench_fake(list(ref = "cran-0.2.5", peak_delta_mb = 120, time_median = 2))
+  )
+  expect_message(bench_history_append(rows, path), "1 row\\(s\\) total, 1 new")
+})
+
+test_that("a ref that died gets a verdict naming the ref, not the baseline", {
+  rows <- rbind(
+    .bench_fake(list(ref = "main", peak_mb = 200, floor_mb = 10, peak_delta_mb = 190, time_median = 5)),
+    .bench_fake(list(ref = "cran-0.2.5"))
+  )
+  d <- bench_deltas(rows)
+  dead <- d[d$ref == "cran-0.2.5", ]
+  expect_equal(dead$mem_verdict, "ref did not complete")
+  expect_equal(dead$time_verdict, "ref did not complete")
 })
 
 test_that("a run too large to tabulate is summarised with only real findings", {
