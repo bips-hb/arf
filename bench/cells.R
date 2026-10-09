@@ -130,9 +130,23 @@ bench_cell_memory_mb <- function(cells) {
     ifelse(
       cells$n <= 10000,
       ifelse(heavy, 192000L, 48000L),
-      ifelse(heavy, 500000L, 192000L)
+      ifelse(heavy, .bench_heavy_mb(cells), 192000L)
     )
   )
+}
+
+# Measured peaks of the hungriest ref in an expct cell at n = 5e4:
+#   evidence =  100, separate:  183 GB (cran-0.2.5; HEAD and main need 27)
+#   evidence = 1000, separate:  267 GB (no anchor can run it at all)
+#   evidence = 1000, "or":      545 GB at 8 workers, and over 550 at 16
+# Evidence count and row mode move the peak twentyfold, and the allocator saw
+# neither: one figure for every heavy cell both wasted half a node on the light
+# corner and lost the heavy one to its own cap. Each figure here is the
+# measurement rounded up to the next node fraction.
+.bench_heavy_mb <- function(cells) {
+  wide <- !is.na(cells$rowmode) & cells$rowmode == "or"
+  much <- !is.na(cells$n_evidence) & cells$n_evidence >= 1000
+  ifelse(much & wide, 1100000L, ifelse(much | wide, 500000L, 275000L))
 }
 
 # Threads a cell needs: two per worker, plus two spare cores for mirai's

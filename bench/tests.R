@@ -804,6 +804,53 @@ test_that("history says how many rows it wrote", {
   expect_message(bench_history_append(rows, path), "1 row\\(s\\) total, 1 new")
 })
 
+test_that("heavy cells are sized by evidence count and row mode", {
+  g <- expand.grid(
+    op = "expct",
+    n = 5e4,
+    n_evidence = c(100, 1000),
+    rowmode = c("separate", "or"),
+    workers = 8L,
+    stringsAsFactors = FALSE
+  )
+  r <- bench_cell_resources(g)
+  # The measured 545 GB "or" cell at evidence 1000 must get a whole node; the
+  # 27 GB evidence-100 cell must not get the same allocation it did.
+  expect_equal(r$fraction[g$n_evidence == 1000 & g$rowmode == "or"], 1)
+  expect_lt(
+    max(r$fraction[g$n_evidence == 100 & g$rowmode == "separate"]),
+    min(r$fraction[g$n_evidence == 1000 & g$rowmode == "or"])
+  )
+  # Still covers the hungriest ref: cran-0.2.5 peaks at 183 GB there.
+  expect_gt(min(r$memory[g$n_evidence == 100 & g$rowmode == "separate"]), 183000)
+})
+
+test_that("a cell no ref could run says so instead of blaming the baseline", {
+  rows <- rbind(
+    .bench_fake(list(ref = "main")),
+    .bench_fake(list(ref = "cran-0.2.5"))
+  )
+  d <- bench_deltas(rows)
+  expect_true(all(d$mem_verdict == "no ref completed this cell"))
+  expect_true(all(d$time_verdict == "no ref completed this cell"))
+})
+
+test_that("collect warns about jobs that neither finished nor errored", {
+  skip_if_not_installed("batchtools")
+  dir <- file.path(tempdir(), paste0("expired-", Sys.getpid()))
+  on.exit(unlink(dir, recursive = TRUE), add = TRUE)
+  reg <- suppressMessages(batchtools::makeRegistry(
+    file.dir = dir,
+    make.default = FALSE,
+    conf.file = NA_character_
+  ))
+  reg$cluster.functions <- batchtools::makeClusterFunctionsInteractive()
+  suppressMessages(batchtools::batchMap(function(i) .bench_fake(list(ref = "main")), i = 1:2, reg = reg))
+  suppressMessages(batchtools::submitJobs(ids = 1, reg = reg))
+  # Job 2 was never submitted, which collect must treat the same as expired.
+  expect_warning(bench_collect(reg), "neither finished nor errored")
+})
+
 test_that("a ref that died gets a verdict naming the ref, not the baseline", {
   rows <- rbind(
     .bench_fake(list(ref = "main", peak_mb = 200, floor_mb = 10, peak_delta_mb = 190, time_median = 5)),
@@ -966,11 +1013,15 @@ test_that("cores and memory are matched fractions of a node", {
 test_that("memory is requested per cell, from measured peaks", {
   cells <- bench_cells("full")
   mem <- bench_cell_memory_mb(cells)
-  # full tier: 48 GB (n=1e4 cheap), 192 GB (n=1e4 heavy and n=5e4 cheap),
-  # 500 GB (n=5e4 heavy)
-  expect_length(unique(mem), 3L)
+  # full tier: 48 GB (n=1e4 cheap), 192 GB (n=1e4 heavy and n=5e4 cheap), and
+  # the three heavy n=5e4 classes that evidence count and row mode split
+  # (275 / 500 / 1100 GB; see .bench_heavy_mb).
+  expect_length(unique(mem), 5L)
   expect_length(unique(bench_cell_memory_mb(bench_cells("quick"))), 3L)
-  expect_equal(unique(mem[cells$n == 5e4 & cells$op == "expct"]), 500000L)
+  expect_setequal(
+    unique(mem[cells$n == 5e4 & cells$op == "expct"]),
+    c(275000L, 500000L, 1100000L)
+  )
   # n=1e4 cheap ops peaked at 17.9 GB; n=5e4 heavy ops were capped at 250 GB
   expect_equal(unique(mem[cells$n == 1e4 & cells$op == "lik"]), 48000L)
 

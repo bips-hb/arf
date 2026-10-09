@@ -114,6 +114,14 @@ bench_deltas <- function(rows, baseline = "main") {
     "ref did not complete"
   rows$time_verdict[is.na(rows$time_median) & !is.na(base$time_median[idx])] <-
     "ref did not complete"
+  # Both sides dead is its own case, and "no baseline" describes it worst of
+  # all: the cell is beyond this hardware for every ref, not missing a
+  # reference point. Seen at n=5e4, evidence=1000, rowmode "or", where both
+  # HEAD and main exceeded a 550 GB allocation.
+  neither <- is.na(rows$peak_delta_mb) & is.na(base$peak_delta_mb[idx])
+  rows$mem_verdict[neither] <- "no ref completed this cell"
+  rows$time_verdict[is.na(rows$time_median) & is.na(base$time_median[idx])] <-
+    "no ref completed this cell"
   rows$key <- NULL
   rows
 }

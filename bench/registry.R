@@ -147,6 +147,23 @@ bench_collect <- function(reg) {
       call. = FALSE
     )
   }
+  # Expired jobs are neither done nor errored, so they would otherwise leave no
+  # trace: a walltime-killed cell simply vanishes and a 45-of-64 report reads
+  # as a complete grid. A full run lost 19 cells to an 8 h walltime this way.
+  missing <- setdiff(
+    batchtools::findJobs(reg = reg)$job.id,
+    c(done$job.id, err$job.id)
+  )
+  if (length(missing)) {
+    warning(
+      length(missing),
+      " job(s) neither finished nor errored (expired, killed, or still ",
+      "running) and are missing from these results: ids ",
+      paste(missing, collapse = ", "),
+      "; batchtools::findExpired(reg = reg) separates the dead from the live",
+      call. = FALSE
+    )
+  }
   rows <- batchtools::reduceResultsList(ids = done, reg = reg)
   # Tolerate results that predate a schema change. A job stores whatever the
   # code produced when it RAN, so a grid running for days across an edit to
