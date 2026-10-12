@@ -292,6 +292,8 @@ source("bench/collate.R")
     time_max = NA_real_,
     digest = NA_character_,
     digest_kind = "exact",
+    digest_stable = TRUE,
+    out_rows = NA_integer_,
     tier = "quick",
     n_evidence = NA_integer_,
     n_synth = NA_integer_,
@@ -507,7 +509,9 @@ test_that("the full tier covers both evidence row modes and a large variant", {
   cells <- bench_cells("full")
   rowmodes <- cells$rowmode[!is.na(cells$rowmode)]
   expect_true(all(c("separate", "or") %in% rowmodes))
-  expect_true(any(cells$n_evidence == 1000, na.rm = TRUE))
+  # Two evidence counts, so the axis has a slope; the exact high value is a
+  # feasibility decision made in .bench_cells_full(), not a fixture here.
+  expect_length(unique(stats::na.omit(cells$n_evidence)), 2L)
   expect_true(any(cells$n_synth == 100, na.rm = TRUE))
 })
 
@@ -892,6 +896,35 @@ test_that("refs that install the same package content are measured once", {
   expect_length(bench_resolve_refs(c("HEAD", "main", "cran:0.2.5")), 2L)
 })
 
+test_that("timings survive a key column being added later", {
+  path <- file.path(tempdir(), paste0("tim4-", Sys.getpid(), ".csv"))
+  on.exit(unlink(path), add = TRUE)
+  # A file written before n_synth joined the key: readable, not fatal.
+  utils::write.csv(
+    data.frame(
+      op = "forge",
+      backend = "foreach",
+      workers = 2L,
+      n = 1e4,
+      p = 10L,
+      trees = 200L,
+      n_evidence = 100L,
+      rowmode = "separate",
+      call_seconds = 42,
+      host = "h",
+      measured = "2026-10-01T00:00:00"
+    ),
+    path,
+    row.names = FALSE
+  )
+  t <- bench_timings_append(
+    .bench_fake(list(ref = "main", op = "forge", time_median = 7)),
+    path
+  )
+  expect_true("n_synth" %in% names(t))
+  expect_equal(nrow(t), 2L)
+})
+
 test_that("timings keep the slowest ref per cell and the newest run", {
   path <- file.path(tempdir(), paste0("tim3-", Sys.getpid(), ".csv"))
   on.exit(unlink(path), add = TRUE)
@@ -908,25 +941,142 @@ test_that("timings keep the slowest ref per cell and the newest run", {
   expect_equal(t2$call_seconds, 5)
 })
 
-test_that("heavy cells are sized by evidence count and row mode", {
+test_that("a truncated result is reported as truncation, not as a value change", {
+  # A forked worker that dies takes its whole chunk with it: foreach warns,
+  # rbind returns fewer rows than the evidence had, and arf does not error. The
+  # digest then moves for a reason that has nothing to do with the code.
+  rows <- rbind(
+    .bench_fake(list(
+      ref = "main",
+      op = "expct",
+      n_evidence = 1000L,
+      out_rows = 1000L,
+      digest = "aaa",
+      peak_delta_mb = 100,
+      time_median = 1
+    )),
+    .bench_fake(list(
+      ref = "cran-0.2.5",
+      op = "expct",
+      n_evidence = 1000L,
+      out_rows = 937L,
+      digest = "bbb",
+      peak_delta_mb = 100,
+      time_median = 1
+    ))
+  )
+  d <- bench_deltas(rows)
+  anchor <- d[d$ref == "cran-0.2.5", ]
+  expect_true(anchor$out_rows_differ)
+  # Not reported as an output difference: the result is incomplete, not changed.
+  expect_false(anchor$digest_differs)
+  # Equal row counts leave the digest comparison alone.
+  rows$out_rows <- 1000L
+  expect_true(bench_deltas(rows)$digest_differs[rows$ref == "cran-0.2.5"])
+})
+
+test_that("an output difference needs both refs to be self-consistent first", {
+  # forge under 2+ fork or mirai workers ignores the seed, so its own digest
+  # moves between rounds. Comparing two such digests across refs says nothing.
+  rows <- rbind(
+    .bench_fake(list(
+      ref = "main",
+      op = "forge",
+      digest = "aaa",
+      digest_kind = "summary",
+      digest_stable = FALSE,
+      peak_delta_mb = 100,
+      time_median = 1
+    )),
+    .bench_fake(list(
+      ref = "cran-0.2.5",
+      op = "forge",
+      digest = "bbb",
+      digest_kind = "summary",
+      digest_stable = FALSE,
+      peak_delta_mb = 100,
+      time_median = 1
+    ))
+  )
+  expect_false(any(bench_deltas(rows)$digest_differs))
+  # Stable on both sides and still different: that is a real output difference.
+  rows$digest_stable <- TRUE
+  expect_true(any(bench_deltas(rows)$digest_differs))
+})
+
+test_that("cells differing only in evidence count are not the same cell", {
+  # expct and forge carry evidence-count and synth-count variants at otherwise
+  # identical settings. A key that omits them collapses the pair, and match()
+  # then compares every variant against whichever baseline row comes first.
+  rows <- rbind(
+    .bench_fake(list(ref = "main", op = "expct", n_evidence = 100L, peak_delta_mb = 6000, time_median = 10)),
+    .bench_fake(list(ref = "main", op = "expct", n_evidence = 1000L, peak_delta_mb = 60000, time_median = 100)),
+    .bench_fake(list(ref = "cran-0.2.5", op = "expct", n_evidence = 100L, peak_delta_mb = 6060, time_median = 10.1)),
+    .bench_fake(list(ref = "cran-0.2.5", op = "expct", n_evidence = 1000L, peak_delta_mb = 60600, time_median = 101))
+  )
+  expect_length(unique(.bench_cell_key(rows)), 2L)
+  d <- bench_deltas(rows)
+  anchor <- d[d$ref == "cran-0.2.5", ]
+  # Each variant against its own baseline: 1% either way, not 910%.
+  expect_equal(round(anchor$delta_mem_pct, 1), c(1, 1))
+  expect_equal(round(anchor$delta_time_pct, 1), c(1, 1))
+})
+
+test_that("history keeps evidence variants as separate rows", {
+  path <- file.path(tempdir(), paste0("hist5-", Sys.getpid(), ".csv"))
+  on.exit(unlink(path), add = TRUE)
+  rows <- rbind(
+    .bench_fake(list(
+      ref = "cran-0.2.5",
+      op = "forge",
+      n_evidence = 100L,
+      n_synth = 1L,
+      peak_delta_mb = 10,
+      time_median = 1
+    )),
+    .bench_fake(list(
+      ref = "cran-0.2.5",
+      op = "forge",
+      n_evidence = 1000L,
+      n_synth = 100L,
+      peak_delta_mb = 900,
+      time_median = 90
+    ))
+  )
+  expect_equal(nrow(bench_history_append(rows, path)), 2L)
+})
+
+test_that("the evidence axis stays inside what the anchor can actually run", {
+  cells <- bench_cells("full")
+  ev <- cells[!is.na(cells$n_evidence), ]
+  # Two points, and the high one is reachable by cran-0.2.5: at 1000 evidence
+  # rows its expct peak exceeded a whole node and was clamped, so the cell
+  # measured the cap instead of the workload.
+  expect_setequal(unique(ev$n_evidence), c(100L, 200L))
+  req <- bench_cell_resources(cells)
+  # No cell needs a whole node any more.
+  expect_lte(max(req$fraction), 1 / 2)
+  # The hungriest ref needs about 506 GB at n = 5e4, 200 rows, "or".
+  big <- cells$n == 5e4 & !is.na(cells$n_evidence) & cells$n_evidence == 200L
+  expect_gte(min(req$memory[big]), 506000)
+})
+
+test_that("heavy cells are sized by their evidence count", {
   g <- expand.grid(
     op = "expct",
     n = 5e4,
-    n_evidence = c(100, 1000),
+    n_evidence = c(100L, 200L),
     rowmode = c("separate", "or"),
     workers = 8L,
     stringsAsFactors = FALSE
   )
   r <- bench_cell_resources(g)
-  # The measured 545 GB "or" cell at evidence 1000 must get a whole node; the
-  # 27 GB evidence-100 cell must not get the same allocation it did.
-  expect_equal(r$fraction[g$n_evidence == 1000 & g$rowmode == "or"], 1)
-  expect_lt(
-    max(r$fraction[g$n_evidence == 100 & g$rowmode == "separate"]),
-    min(r$fraction[g$n_evidence == 1000 & g$rowmode == "or"])
-  )
-  # Still covers the hungriest ref: cran-0.2.5 peaks at 183 GB there.
-  expect_gt(min(r$memory[g$n_evidence == 100 & g$rowmode == "separate"]), 183000)
+  # cran-0.2.5 peaks at 231 GB (separate) and 253 GB ("or") at 100 evidence
+  # rows, and close to double that at 200, so the two counts cannot share one
+  # figure: one of them would either waste a node fraction or hit its own cap.
+  expect_lt(max(r$memory[g$n_evidence == 100L]), min(r$memory[g$n_evidence == 200L]))
+  expect_gt(min(r$memory[g$n_evidence == 100L]), 253000)
+  expect_gt(min(r$memory[g$n_evidence == 200L]), 506000)
 })
 
 test_that("a cell no ref could run says so instead of blaming the baseline", {
@@ -1118,13 +1268,13 @@ test_that("memory is requested per cell, from measured peaks", {
   cells <- bench_cells("full")
   mem <- bench_cell_memory_mb(cells)
   # full tier: 48 GB (n=1e4 cheap), 192 GB (n=1e4 heavy and n=5e4 cheap), and
-  # the three heavy n=5e4 classes that evidence count and row mode split
-  # (275 / 500 / 1100 GB; see .bench_heavy_mb).
-  expect_length(unique(mem), 5L)
+  # the two heavy n=5e4 classes the evidence count splits (275 / 500 GB; see
+  # .bench_heavy_mb).
+  expect_length(unique(mem), 4L)
   expect_length(unique(bench_cell_memory_mb(bench_cells("quick"))), 3L)
   expect_setequal(
     unique(mem[cells$n == 5e4 & cells$op == "expct"]),
-    c(275000L, 500000L, 1100000L)
+    c(275000L, 500000L)
   )
   # n=1e4 cheap ops peaked at 17.9 GB; n=5e4 heavy ops were capped at 250 GB
   expect_equal(unique(mem[cells$n == 1e4 & cells$op == "lik"]), 48000L)
@@ -1241,8 +1391,10 @@ test_that("a single timing is not a time finding either", {
 test_that("the evidence variants are reachable by name, not only by position", {
   cells <- bench_cells("full")
   e <- cells[cells$op == "expct" & cells$n == 5e4, ]
-  # they sit after the worker grid, so --max-cells alone cannot reach them
-  expect_gt(which(e$n_evidence == 1000)[1], 4L)
+  counts <- sort(unique(stats::na.omit(cells$n_evidence)))
+  # The high variant sits after the worker grid, so --max-cells alone cannot
+  # reach it and --evidence has to select it by name.
+  expect_gt(which(e$n_evidence == max(counts))[1], 4L)
   expect_true(all(c("separate", "or") %in% unique(stats::na.omit(cells$rowmode))))
-  expect_true(all(c(100L, 1000L) %in% unique(stats::na.omit(cells$n_evidence))))
+  expect_length(counts, 2L)
 })

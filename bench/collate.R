@@ -18,8 +18,22 @@ BENCH_TIME_FLOOR_S <- 0.5
 BENCH_MEM_CAP_FRACTION <- 0.95
 BENCH_TIME_THRESHOLD <- 10
 
+# Evidence and synth counts are part of the cell, not decoration: expct and
+# forge carry variants at otherwise identical settings, and omitting them makes
+# match() compare each variant against whichever baseline row comes first.
 .bench_cell_key <- function(rows) {
-  paste(rows$op, rows$backend, rows$workers, rows$n, rows$p, rows$trees, rows$rowmode, sep = "|")
+  paste(
+    rows$op,
+    rows$backend,
+    rows$workers,
+    rows$n,
+    rows$p,
+    rows$trees,
+    rows$rowmode,
+    rows$n_evidence,
+    rows$n_synth,
+    sep = "|"
+  )
 }
 
 .bench_pct <- function(new, old) {
@@ -59,7 +73,25 @@ bench_deltas <- function(rows, baseline = "main") {
   rows$delta_time_pct <- .bench_pct(rows$time_median, base$time_median[idx])
   rows$mem_verdict <- .bench_verdict(rows$delta_mem_pct, BENCH_MEM_THRESHOLD)
   rows$time_verdict <- .bench_verdict(rows$delta_time_pct, BENCH_TIME_THRESHOLD)
-  rows$digest_differs <- !is.na(rows$digest) & !is.na(base$digest[idx]) & rows$digest != base$digest[idx]
+  # Both sides must agree with themselves before disagreeing with each other
+  # means anything. Absent the column (results predating it) assume stable, so
+  # old runs keep the behaviour they were collated with.
+  stable <- function(x) if (is.null(x)) TRUE else is.na(x) | x
+  # An incomplete result is not a changed result. Compared first so a lost
+  # worker chunk is never reported as an output difference.
+  rows$out_rows_differ <- if (is.null(rows$out_rows)) {
+    rep(FALSE, nrow(rows))
+  } else {
+    !is.na(rows$out_rows) &
+      !is.na(base$out_rows[idx]) &
+      rows$out_rows != base$out_rows[idx]
+  }
+  rows$digest_differs <- !rows$out_rows_differ &
+    !is.na(rows$digest) &
+    !is.na(base$digest[idx]) &
+    rows$digest != base$digest[idx] &
+    stable(rows$digest_stable) &
+    stable(base$digest_stable[idx])
   # One peak sample cannot support a percentage claim: peak memory is a
   # stochastic function of GC scheduling, and identical code re-run differs by
   # tens of percent on the marginal (measured same-commit: -2.7% to -11.6% at
@@ -191,7 +223,12 @@ bench_report <- function(rows, baseline = "main") {
   shown <- if (full_table) {
     seq_len(nrow(d))
   } else {
-    which(d$mem_verdict == "real" | d$time_verdict == "real" | d$digest_differs)
+    which(
+      d$mem_verdict == "real" |
+        d$time_verdict == "real" |
+        d$digest_differs |
+        d$out_rows_differ
+    )
   }
   if (!full_table) {
     counts <- table(d$op, d$mem_verdict)
@@ -243,7 +280,22 @@ bench_report <- function(rows, baseline = "main") {
         r$time_verdict
       )
     )
-    if (isTRUE(r$digest_differs)) {
+    if (isTRUE(r$out_rows_differ)) {
+      out <- c(
+        out,
+        sprintf(
+          paste0(
+            "| | | | | | | | | **INCOMPLETE RESULT**: %s rows against %s's %s. ",
+            "A parallel worker that dies drops its whole chunk and arf returns ",
+            "the short result without erroring, so neither side's timing or ",
+            "peak is for the full workload | | |"
+          ),
+          format(r$out_rows),
+          baseline,
+          format(b$out_rows)
+        )
+      )
+    } else if (isTRUE(r$digest_differs)) {
       out <- c(
         out,
         sprintf(
@@ -309,6 +361,8 @@ bench_history_append <- function(rows, path = "bench/history.csv") {
       "p",
       "trees",
       "rowmode",
+      "n_evidence",
+      "n_synth",
       "host",
       "metric"
     ),
@@ -340,7 +394,7 @@ bench_timings_append <- function(rows, path = "bench/timings.csv") {
   if (!nrow(have)) {
     return(invisible(NULL))
   }
-  key <- c("op", "backend", "workers", "n", "p", "trees", "n_evidence", "rowmode")
+  key <- c("op", "backend", "workers", "n", "p", "trees", "n_evidence", "n_synth", "rowmode")
   # Worst ref in the cell, not the mean: a walltime that fits the fast ref and
   # not the slow one loses the whole cell.
   # data.table, not aggregate(): aggregate() drops every group with an NA in a
@@ -356,6 +410,11 @@ bench_timings_append <- function(rows, path = "bench/timings.csv") {
   agg$measured <- format(Sys.time(), "%Y-%m-%dT%H:%M:%S")
   if (file.exists(path) && length(readLines(path, warn = FALSE)) > 1L) {
     old <- utils::read.csv(path, stringsAsFactors = FALSE)
+    # A file written before a key column existed is still usable: fill the
+    # missing column rather than refusing to read the scheduler's own history.
+    for (nm in setdiff(names(agg), names(old))) {
+      old[[nm]] <- NA
+    }
     agg <- rbind(old[, names(agg)], agg)
   }
   agg <- .bench_newest_by(

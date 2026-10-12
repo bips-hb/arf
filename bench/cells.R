@@ -63,11 +63,16 @@
   # exists to guard. Ops without evidence appear once.
   plain <- .bench_op_knobs(cells[!cells$op %in% c("forge", "expct"), ])
   ev <- cells[cells$op %in% c("forge", "expct"), ]
+  # The high evidence point is 200, not 1000. At 1000 the 0.2.5 anchor exceeds
+  # a whole node for expct, so its peak was clamped at the cap rather than
+  # measured and the release-trend comparison was unavailable in 58 of 64
+  # cells. 200 keeps the anchor inside half a node at n = 5e4 and a quarter at
+  # n = 1e4, which is what makes the evidence axis carry a verdict at all.
   variants <- list(
     list(n_evidence = 100L, n_synth = 1L, rowmode = "separate"),
-    list(n_evidence = 1000L, n_synth = 100L, rowmode = "separate"),
+    list(n_evidence = 200L, n_synth = 100L, rowmode = "separate"),
     list(n_evidence = 100L, n_synth = 1L, rowmode = "or"),
-    list(n_evidence = 1000L, n_synth = 100L, rowmode = "or")
+    list(n_evidence = 200L, n_synth = 100L, rowmode = "or")
   )
   ev <- do.call(
     rbind,
@@ -136,14 +141,6 @@ bench_cell_memory_mb <- function(cells) {
   )
 }
 
-# Measured peaks of the hungriest ref in an expct cell at n = 5e4:
-#   evidence =  100, separate:  183 GB (cran-0.2.5; HEAD and main need 27)
-#   evidence = 1000, separate:  267 GB (no anchor can run it at all)
-#   evidence = 1000, "or":      545 GB at 8 workers, and over 550 at 16
-# Evidence count and row mode move the peak twentyfold, and the allocator saw
-# neither: one figure for every heavy cell both wasted half a node on the light
-# corner and lost the heavy one to its own cap. Each figure here is the
-# measurement rounded up to the next node fraction.
 # Per measurement, on top of the timed calls: child startup, arf load, fixture
 # read, and the sampler settling. Calibrated against two full-tier jobs of
 # known runtime, within 5% both times.
@@ -203,10 +200,15 @@ bench_cell_walltime <- function(
   as.integer(pmax(BENCH_WALLTIME_MIN_S, pmin(BENCH_WALLTIME_MAX_S, est)))
 }
 
+# Measured peaks of the hungriest ref (cran-0.2.5) in an expct cell at n = 5e4:
+# 231 GB at 100 evidence rows "separate", 253 GB "or". Peak is close to linear
+# in the evidence count, so the 200-row variant needs about 462 and 506 GB.
+# Row mode moves it far less than the evidence count does, so both modes share
+# a class; one figure for every heavy cell instead wasted half a node on the
+# light corner and lost the heavy one to its own cap.
 .bench_heavy_mb <- function(cells) {
-  wide <- !is.na(cells$rowmode) & cells$rowmode == "or"
-  much <- !is.na(cells$n_evidence) & cells$n_evidence >= 1000
-  ifelse(much & wide, 1100000L, ifelse(much | wide, 500000L, 275000L))
+  much <- !is.na(cells$n_evidence) & cells$n_evidence >= 200
+  ifelse(much, 500000L, 275000L)
 }
 
 # Threads a cell needs: two per worker, plus two spare cores for mirai's

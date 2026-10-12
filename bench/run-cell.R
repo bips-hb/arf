@@ -28,6 +28,8 @@ bench_schema <- function() {
     "time_max",
     "digest",
     "digest_kind",
+    "digest_stable",
+    "out_rows",
     "tier",
     "n_evidence",
     "n_synth",
@@ -190,11 +192,21 @@ bench_run_cell <- function(
     mid <- function(v) if (all(is.na(v))) NA_real_ else stats::median(v, na.rm = TRUE)
     field <- function(nm) vapply(per_round, function(x) x[[nm]], numeric(1))
     first <- per_round[[1]]
+    # Whether this ref agreed with ITSELF across rounds. A configuration whose
+    # own output moves between identical rounds cannot support a cross-ref
+    # output comparison: forge under 2+ fork or mirai workers ignores the seed.
+    digests <- stats::na.omit(vapply(
+      per_round,
+      function(x) x$digest %||% NA_character_,
+      character(1)
+    ))
     m <- list(
       seconds = unlist(lapply(per_round, function(x) x$seconds)),
       peak_mb = mid(field("peak_mb")),
       digest = first$digest,
       digest_kind = first$digest_kind,
+      out_rows = first$out_rows %||% NA_integer_,
+      digest_stable = length(digests) > 0L && length(unique(digests)) == 1L,
       arf_version = first$arf_version
     )
     floor_mb <- mid(field("floor_mb"))
@@ -229,6 +241,8 @@ bench_run_cell <- function(
       time_max = if (length(secs)) round(max(secs), 3) else NA_real_,
       digest = m$digest,
       digest_kind = m$digest_kind,
+      digest_stable = m$digest_stable,
+      out_rows = m$out_rows,
       tier = cell$tier,
       n_evidence = cell$n_evidence,
       n_synth = cell$n_synth,

@@ -190,6 +190,23 @@ independent cells each labelled `single sample` while agreeing closely is
 stronger evidence than one cell labelled `real`, and no rule here will say so;
 read the CSV.
 
+### Reading a memory trend across worker counts
+
+The grid leaves `stepsize = 0`, forge's and expct's default, which is
+`ceiling(nrow(evidence) / workers)` under parallel execution and
+`nrow(evidence)` sequentially. In `evidence_row_mode = "separate"` the step is
+also the unit of parallel work (`foreach(step = 1:step_no)`, and parallelism is
+skipped entirely when `step_no == 1`), so stepsize is not an independent knob:
+pinning it to `nrow(evidence)` would serialise the op, and pinning it smaller
+just re-measures the worker axis.
+
+The consequence is that a worker sweep is not a "same work, more workers"
+experiment. Going from 1 to 8 workers gives eight concurrent workers, each
+holding an eighth of the evidence. Net peak stays roughly flat when per-step
+memory is linear in stepsize; where it rises, that is per-worker overhead
+showing through. Read such a trend as "the default configuration at w workers",
+which is what a user gets, rather than as parallel overhead on fixed work.
+
 ### Output differences
 
 Each cell hashes its own result, and the report prints `OUTPUT DIFFERS` beside

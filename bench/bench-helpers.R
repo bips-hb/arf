@@ -310,6 +310,13 @@ BENCH_METRIC <- if (!is.null(BENCH_CGROUP)) {
     seconds = secs,
     digest = tryCatch(bench_digest(first, kind), error = function(e) NA_character_),
     digest_kind = kind,
+    # A forked worker that dies takes its whole chunk with it: foreach warns,
+    # the rbind returns fewer rows than the evidence had, and arf does not
+    # error. Without this the short result shows up only as a changed digest.
+    out_rows = tryCatch(
+      if (is.null(first)) NA_integer_ else as.integer(NROW(first)),
+      error = function(e) NA_integer_
+    ),
     arf_version = as.character(utils::packageVersion("arf"))
   )
 }
