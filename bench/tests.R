@@ -896,6 +896,30 @@ test_that("refs that install the same package content are measured once", {
   expect_length(bench_resolve_refs(c("HEAD", "main", "cran:0.2.5")), 2L)
 })
 
+test_that("a damaged timings file costs the fallback, not the run", {
+  path <- file.path(tempdir(), paste0("tim5-", Sys.getpid(), ".csv"))
+  on.exit(unlink(path), add = TRUE)
+  # A shifted row, as a botched merge produces: call_seconds reads as character
+  # and the walltime arithmetic would otherwise fail deep inside the estimate.
+  writeLines(
+    c(
+      "op,backend,workers,n,p,trees,n_evidence,rowmode,call_seconds,host,measured",
+      "expct,foreach,2,10000,10,200,100,separate,42,h,2026-10-01T00:00:00",
+      "expct,foreach,2,10000,10,200,100,separate,or,h,2026-10-01T00:00:00"
+    ),
+    path
+  )
+  cells <- bench_cells("full")
+  expect_warning(s <- bench_call_seconds(cells, path), "not usable")
+  expect_true(all(is.na(s)))
+  expect_equal(
+    unique(suppressWarnings(
+      bench_cell_walltime(cells, 2, fallback = 3600, path = path)
+    )),
+    3600L
+  )
+})
+
 test_that("timings survive a key column being added later", {
   path <- file.path(tempdir(), paste0("tim4-", Sys.getpid(), ".csv"))
   on.exit(unlink(path), add = TRUE)

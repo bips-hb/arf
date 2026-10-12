@@ -168,6 +168,22 @@ bench_call_seconds <- function(cells, path = "bench/timings.csv") {
     return(rep(NA_real_, nrow(cells)))
   }
   t <- utils::read.csv(path, stringsAsFactors = FALSE)
+  # The file is committed, so it can arrive hand-edited or mangled by a merge:
+  # one shifted row makes call_seconds character and the arithmetic below fails
+  # several frames deep. The timings are a scheduling hint, not a requirement,
+  # so a damaged file costs the fallback walltime rather than the whole run.
+  need <- c("op", "n", "n_evidence", "rowmode", "call_seconds")
+  if (!all(need %in% names(t)) || !is.numeric(t$call_seconds)) {
+    warning(
+      path,
+      " is not usable (needs columns ",
+      paste(need, collapse = ", "),
+      " with a numeric call_seconds); falling back to the default walltime. ",
+      "Regenerate it with arf-bench collect.",
+      call. = FALSE
+    )
+    return(rep(NA_real_, nrow(cells)))
+  }
   exact <- t$call_seconds[match(.bench_timing_key(cells), .bench_timing_key(t))]
   cls <- function(x) paste(x$op, x$n, x$n_evidence, x$rowmode, sep = "|")
   worst <- data.table::data.table(k = cls(t), s = t$call_seconds)[,
