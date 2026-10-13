@@ -1422,3 +1422,18 @@ test_that("the evidence variants are reachable by name, not only by position", {
   expect_true(all(c("separate", "or") %in% unique(stats::na.omit(cells$rowmode))))
   expect_length(counts, 2L)
 })
+
+test_that("a history file written before a schema column existed is still appended to", {
+  path <- file.path(tempdir(), paste0("hist-old-", Sys.getpid(), ".csv"))
+  on.exit(unlink(path), add = TRUE)
+  old <- .bench_fake(list(ref = "cran-0.2.5", peak_delta_mb = 100, time_median = 1))
+  old$digest_stable <- NULL
+  old$out_rows <- NULL
+  utils::write.csv(old[, setdiff(bench_schema(), c("digest_stable", "out_rows"))], path, row.names = FALSE)
+  h <- bench_history_append(
+    .bench_fake(list(ref = "cran-0.2.5", n = 5e4, peak_delta_mb = 200, time_median = 2)),
+    path
+  )
+  expect_true(all(c("digest_stable", "out_rows") %in% names(h)))
+  expect_equal(nrow(h), 2L)
+})

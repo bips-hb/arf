@@ -342,10 +342,7 @@ bench_history_append <- function(rows, path = "bench/history.csv") {
     )
   }
   added <- nrow(keep)
-  if (file.exists(path) && length(readLines(path, warn = FALSE)) > 1L) {
-    old <- utils::read.csv(path, stringsAsFactors = FALSE)
-    keep <- rbind(old, keep)
-  }
+  keep <- .bench_bind_old(keep, path)
   # One row per anchor per cell per host and metric, newest kept: this file is
   # committed and plotted, so re-running a configuration must replace its row
   # rather than accumulate duplicates the trend panel would draw as a zig-zag.
@@ -372,6 +369,21 @@ bench_history_append <- function(rows, path = "bench/history.csv") {
   utils::write.csv(keep, path, row.names = FALSE)
   message("History at ", path, ": ", nrow(keep), " row(s) total, ", added, " new or replaced.")
   invisible(keep)
+}
+
+# Both committed CSVs outlive the schema that wrote them, so a file missing a
+# column that has since been added is filled rather than refused: the schema
+# grows by addition, and rejecting the file would discard every release
+# measured before the newest column existed.
+.bench_bind_old <- function(new, path) {
+  if (!file.exists(path) || length(readLines(path, warn = FALSE)) < 2L) {
+    return(new)
+  }
+  old <- utils::read.csv(path, stringsAsFactors = FALSE)
+  for (nm in setdiff(names(new), names(old))) {
+    old[[nm]] <- NA
+  }
+  rbind(old[, names(new)], new)
 }
 
 # Newest row per key, replacing rather than accumulating. Both committed CSVs
@@ -408,15 +420,7 @@ bench_timings_append <- function(rows, path = "bench/timings.csv") {
   )
   agg$host <- rows$host[1]
   agg$measured <- format(Sys.time(), "%Y-%m-%dT%H:%M:%S")
-  if (file.exists(path) && length(readLines(path, warn = FALSE)) > 1L) {
-    old <- utils::read.csv(path, stringsAsFactors = FALSE)
-    # A file written before a key column existed is still usable: fill the
-    # missing column rather than refusing to read the scheduler's own history.
-    for (nm in setdiff(names(agg), names(old))) {
-      old[[nm]] <- NA
-    }
-    agg <- rbind(old[, names(agg)], agg)
-  }
+  agg <- .bench_bind_old(agg, path)
   agg <- .bench_newest_by(
     agg,
     key = key,
