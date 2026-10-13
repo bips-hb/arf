@@ -146,6 +146,102 @@ bench_submit_cells <- function(reg, cells, refs, resources = list()) {
   reg
 }
 
+# Newest registry unless one is named: the usual question is about the run just
+# submitted, and both collect and resubmit ask it.
+bench_registry_dir <- function(registry = NULL) {
+  if (!is.null(registry)) {
+    return(registry)
+  }
+  dirs <- sort(list.dirs("bench/registry", recursive = FALSE), decreasing = TRUE)
+  if (!length(dirs)) {
+    stop("no registry under bench/registry", call. = FALSE)
+  }
+  dirs[1]
+}
+
+# A job that expired got too little walltime, so resubmitting the same request
+# repeats the same death. Escalation starts from the request the job actually
+# carried, read back from the registry: the grid may have been edited since the
+# run started, so recomputing it from bench_cells() can describe a cell that is
+# no longer at that job id.
+.bench_escalate_walltime <- function(walltime, factor) {
+  w <- BENCH_WALLTIME_MIN_S * ceiling(factor * walltime / BENCH_WALLTIME_MIN_S)
+  as.integer(pmin(BENCH_WALLTIME_MAX_S, pmax(BENCH_WALLTIME_MIN_S, w)))
+}
+
+# Resubmit the cells a run lost. Expiry has two causes and the registry cannot
+# tell them apart: the scheduler killed the job at its walltime, or the kernel
+# killed it for memory. Walltime grows by default and memory only when asked,
+# since doubling both would double the node-hours spent to learn the same thing.
+bench_resubmit <- function(
+  reg,
+  ids = NULL,
+  factor = 2,
+  mem_factor = 1,
+  errors = FALSE,
+  dry_run = FALSE
+) {
+  if (is.null(ids)) {
+    ids <- batchtools::findExpired(reg = reg)$job.id
+    if (isTRUE(errors)) {
+      ids <- sort(union(ids, batchtools::findErrors(reg = reg)$job.id))
+    }
+  }
+  req <- data.table::data.table(job.id = as.integer(ids))
+  if (!nrow(req)) {
+    message(
+      "Nothing to resubmit: no expired",
+      if (isTRUE(errors)) " or errored" else "",
+      " jobs in this registry."
+    )
+    return(invisible(req))
+  }
+  res <- batchtools::getJobResources(ids = req$job.id, reg = reg)$resources
+  req$walltime <- .bench_escalate_walltime(
+    vapply(res, function(r) as.numeric(r$walltime %||% NA_real_), numeric(1)),
+    factor
+  )
+  req$memory <- as.integer(
+    mem_factor * vapply(res, function(r) as.numeric(r$memory %||% NA_real_), numeric(1))
+  )
+  req$ncpus <- vapply(res, function(r) as.integer(r$ncpus %||% NA_integer_), integer(1))
+  # Name the cells, not just the ids: the job carries the grid it was built
+  # from, so this says which measurement is being retried without trusting
+  # that bench_cells() still returns the same rows in the same order.
+  for (k in seq_len(nrow(req))) {
+    cell <- tryCatch(
+      {
+        pars <- batchtools::makeJob(req$job.id[k], reg = reg)$pars
+        pars$cells[pars$i, ]
+      },
+      error = function(e) NULL
+    )
+    message(sprintf(
+      "  %4d  %-14s %-10s w=%-4s n=%-7s e=%-5s %-9s %.1f h -> %.1f h, %.0f GB",
+      req$job.id[k],
+      cell$op %||% "?",
+      cell$backend %||% "?",
+      cell$workers %||% "-",
+      cell$n %||% "?",
+      cell$n_evidence %||% "-",
+      cell$rowmode %||% "-",
+      as.numeric(res[[k]]$walltime %||% NA) / 3600,
+      req$walltime[k] / 3600,
+      req$memory[k] / 1024
+    ))
+  }
+  if (isTRUE(dry_run)) {
+    message(nrow(req), " job(s) would be resubmitted; --dry-run, so nothing was.")
+    return(invisible(req))
+  }
+  # Per-job resource columns in `ids`, which submitJobs documents for walltime,
+  # memory and ncpus: a lost cell keeps its own shape without one call per
+  # distinct request.
+  batchtools::submitJobs(ids = req, reg = reg)
+  message(nrow(req), " job(s) resubmitted; collate with arf-bench collect when they finish.")
+  invisible(req)
+}
+
 bench_collect <- function(reg) {
   done <- batchtools::findDone(reg = reg)
   if (!nrow(done)) {

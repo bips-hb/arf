@@ -54,6 +54,7 @@ Then:
     bench/arf-bench -t full -c slurm plan   # what the cluster run would cost
     bench/arf-bench -t full -c slurm run    # submit and exit
     bench/arf-bench collect                 # collate the newest registry
+    bench/arf-bench resubmit --dry-run      # which cells the run lost
 
 Stage a big run with `--ops` and `--max-cells`, and cheapen a validation run
 with `--iters 1 --mem-reps 1`:
@@ -92,6 +93,17 @@ says so: it will still fill `timings.csv` but no delta can come out of it.
 `collect` re-derives the CSV and report from the stored per-ref rows, so the
 threshold and verdict rules can be revised and the report regenerated without
 recomputing anything.
+
+`collect` warns about jobs that neither finished nor errored, and `resubmit`
+sends those back with the request each one already carried and twice its
+walltime, read out of the registry rather than recomputed from the grid so an
+edit to `cells.R` cannot point a job id at a different cell. Expiry has two
+causes the registry records identically: the scheduler killed the job at its
+walltime, or the kernel killed it for memory. Only walltime grows by default,
+since doubling both would double the node-hours spent to learn the same thing;
+`--mem-factor 2` is for a cell known to have died for memory, and
+`sacct -j <batch.id> --format=State,ExitCode,MaxRSS` is what distinguishes
+them.
 
 `viz.qmd` is the overview: render it with `bench/arf-bench viz` (or
 `quarto render bench/viz.qmd`), which writes `bench/viz.html`. Sections: the
@@ -237,11 +249,11 @@ backend (mirai **or** fork, never both), and the parent samples the child's
 
 | File | Role |
 |---|---|
-| `arf-bench` | the CLI: `run`, `collect`, `viz`, `plan`, `diag`. Everything goes through it. |
+| `arf-bench` | the CLI: `run`, `collect`, `resubmit`, `viz`, `plan`, `diag`. Everything goes through it. |
 | `cells.R` | the grid as data, plus the per-cell slurm memory, cores and walltime |
 | `refs.R` | a ref spec to an installed library, deduplicated by package content |
 | `run-cell.R` | one cell against every ref, in callr children, interleaved and counterbalanced |
-| `registry.R` | the batchtools registry, local or slurm, submitted per resource shape |
+| `registry.R` | the batchtools registry, local or slurm, submitted and resubmitted per resource shape |
 | `collate.R` | deltas, verdicts, `report.md`, `history.csv`, `timings.csv` |
 | `bench-helpers.R` | the cgroup sampler, fixture generation, output digests |
 | `tests.R` | the suite: `Rscript bench/tests.R` |

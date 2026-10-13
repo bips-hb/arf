@@ -226,20 +226,46 @@ switch(
     #| required: false
     registry <- NULL
 
-    dir <- if (is.null(registry)) {
-      dirs <- sort(list.dirs("bench/registry", recursive = FALSE), decreasing = TRUE)
-      if (!length(dirs)) {
-        cat("No registry under bench/registry.\n", file = stderr())
-        quit(save = "no", status = 1L)
-      }
-      dirs[1]
-    } else {
-      registry
-    }
     # writeable = FALSE: another session may still own this registry.
-    reg <- batchtools::loadRegistry(dir, writeable = FALSE)
+    reg <- batchtools::loadRegistry(bench_registry_dir(registry), writeable = FALSE)
     print(batchtools::getStatus(reg = reg))
     bench_write_results(bench_collect(reg))
+  },
+
+  #| title: Resubmit the cells a run lost
+  #| description: |
+  #|   Submits the expired jobs of a registry again, each with the request it
+  #|   carried and more walltime. Expiry means the job started and produced no
+  #|   result, which is either a walltime kill or an OOM kill; the registry
+  #|   cannot tell them apart, so pass --mem-factor as well if the cell is one
+  #|   that died for memory.
+  resubmit = {
+    #| description: Registry directory. Defaults to the newest under bench/registry.
+    #| required: false
+    registry <- NULL
+
+    #| description: Multiply each job's previous walltime by this.
+    #| short: f
+    factor <- 2
+
+    #| description: Multiply each job's previous memory request by this. Default is to keep it.
+    mem_factor <- 1
+
+    #| description: Resubmit errored jobs too. Most errors here are deterministic, so this costs a node for nothing unless the cause is fixed.
+    errors <- FALSE
+
+    #| description: Print what would be resubmitted and exit.
+    dry_run <- FALSE
+
+    reg <- batchtools::loadRegistry(bench_registry_dir(registry), writeable = TRUE)
+    print(batchtools::getStatus(reg = reg))
+    bench_resubmit(
+      reg,
+      factor = factor,
+      mem_factor = mem_factor,
+      errors = errors,
+      dry_run = dry_run
+    )
   },
 
   #| title: Report what this machine looks like to the sampler

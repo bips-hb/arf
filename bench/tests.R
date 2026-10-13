@@ -1437,3 +1437,38 @@ test_that("a history file written before a schema column existed is still append
   expect_true(all(c("digest_stable", "out_rows") %in% names(h)))
   expect_equal(nrow(h), 2L)
 })
+
+test_that("an expired job's walltime is escalated onto the half-hour grid and capped", {
+  expect_equal(.bench_escalate_walltime(3600L, 2), 7200L)
+  # Rounded up to the submission grid, like the original estimate.
+  expect_equal(.bench_escalate_walltime(2700L, 2), 5400L)
+  # A cell already at the QoS ceiling cannot be given more.
+  expect_equal(.bench_escalate_walltime(BENCH_WALLTIME_MAX_S, 2), BENCH_WALLTIME_MAX_S)
+  expect_type(.bench_escalate_walltime(1800L, 2), "integer")
+})
+
+test_that("resubmit asks for more walltime than the job had and leaves nothing to resubmit after", {
+  skip_if_not_installed("batchtools")
+  dir <- file.path(tempdir(), paste0("resub-", Sys.getpid()))
+  on.exit(unlink(dir, recursive = TRUE), add = TRUE)
+  reg <- suppressMessages(batchtools::makeRegistry(
+    file.dir = dir,
+    make.default = FALSE,
+    conf.file = NA_character_
+  ))
+  reg$cluster.functions <- batchtools::makeClusterFunctionsInteractive()
+  suppressMessages(batchtools::batchMap(function(i) i, i = 1:2, reg = reg))
+  suppressMessages(batchtools::submitJobs(
+    ids = 1:2,
+    resources = list(walltime = 1800L, memory = 16000L, ncpus = 4L),
+    reg = reg
+  ))
+  out <- suppressMessages(bench_resubmit(reg, ids = 2L, dry_run = TRUE))
+  expect_equal(out$job.id, 2L)
+  expect_equal(out$walltime, 3600L)
+  # Memory and cores are carried over: an OOM kill is an error, not an expiry.
+  expect_equal(out$memory, 16000L)
+  expect_equal(out$ncpus, 4L)
+  # Nothing expired in this registry, so the default id set is empty.
+  expect_equal(nrow(suppressMessages(bench_resubmit(reg, dry_run = TRUE))), 0L)
+})
