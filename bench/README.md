@@ -85,6 +85,14 @@ Dependencies are deliberately **not** per ref. One shared library holds
 versions diverge between refs and confound the comparison with somebody else's
 performance change.
 
+A ref is only measured on the backends it actually has, read from its own
+`DESCRIPTION` at install time. arf ignores an `arf.backend` value it does not
+know and runs its own default instead, so measuring a release that predates a
+backend under that backend's name records something else: `cran-0.2.5` asked
+for `mirai` runs sequentially, and its flat scaling in workers would otherwise
+be reported as a memory regression against every parallel cell. The cell says
+which refs it dropped and compares what remains.
+
 Refs are deduplicated by **package content** (`DESCRIPTION`, `NAMESPACE`, `R/`,
 `src/`, `inst/`, `man/`), so a branch that only touches `bench/` is not
 measured twice against its own base. When every ref collapses to one, the run

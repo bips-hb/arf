@@ -176,8 +176,52 @@ bench_install_ref <- function(spec, root, force = FALSE) {
     label = ref$label,
     lib = lib,
     arf_version = as.character(utils::packageVersion("arf", lib.loc = lib)),
-    commit = id
+    commit = id,
+    backends = bench_ref_backends(lib)
   )
+}
+
+# Which backend each measurement needs from the ref. arf ignores an
+# `arf.backend` value it does not know and runs its own default instead, so a
+# ref that predates a backend measures something else under that backend's name
+# and the report calls the difference a verdict. The ref's own DESCRIPTION is
+# the authority on what it can do.
+BENCH_BACKEND_DEPS <- c(
+  sequential = NA_character_,
+  foreach = "foreach",
+  psock = "foreach",
+  mirai = "mirai"
+)
+
+bench_ref_backends <- function(lib) {
+  d <- read.dcf(file.path(lib, "arf", "DESCRIPTION"))
+  cols <- intersect(c("Depends", "Imports", "Suggests"), colnames(d))
+  deps <- trimws(sub("\\(.*", "", unlist(strsplit(d[1, cols], "[,\n]"))))
+  names(BENCH_BACKEND_DEPS)[
+    is.na(BENCH_BACKEND_DEPS) | BENCH_BACKEND_DEPS %in% deps
+  ]
+}
+
+# Refs that can run this backend. A ref without the probe is kept: results
+# stored before it existed carry no `backends` field, and dropping them would
+# turn a schema change into a lost measurement.
+.bench_usable_refs <- function(refs, backend) {
+  can <- vapply(
+    refs,
+    function(r) is.null(r$backends) || backend %in% r$backends,
+    logical(1)
+  )
+  if (!all(can)) {
+    message(
+      "  skipping ",
+      paste(vapply(refs[!can], function(r) r$label, character(1)), collapse = ", "),
+      " for backend ",
+      backend,
+      ": that version does not have it, so the cell would measure its default ",
+      "path under another name"
+    )
+  }
+  refs[can]
 }
 
 # R drops or partially matches an argument a ref does not have, so the call

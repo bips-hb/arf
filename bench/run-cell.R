@@ -109,6 +109,13 @@ bench_run_cell <- function(
   } else {
     1L
   }
+  # Before the fixture is built, so a cell with nothing left to measure costs
+  # nothing: a ref that cannot run this backend would otherwise be measured on
+  # its own default path and compared as though it were the same code.
+  refs <- .bench_usable_refs(refs, cell$backend)
+  if (!length(refs)) {
+    return(NULL)
+  }
   labels <- vapply(refs, function(r) r$label, character(1))
   fixture <- refs[[match(baseline, labels, nomatch = 1L)]]
   if (is.null(data_path)) {

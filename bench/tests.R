@@ -1472,3 +1472,44 @@ test_that("resubmit asks for more walltime than the job had and leaves nothing t
   # Nothing expired in this registry, so the default id set is empty.
   expect_equal(nrow(suppressMessages(bench_resubmit(reg, dry_run = TRUE))), 0L)
 })
+
+.bench_fake_lib <- function(deps) {
+  lib <- file.path(tempdir(), paste0("lib-", paste(deps, collapse = "-"), "-", Sys.getpid()))
+  dir.create(file.path(lib, "arf"), recursive = TRUE, showWarnings = FALSE)
+  writeLines(
+    c(
+      "Package: arf",
+      "Version: 9.9.9",
+      paste0(
+        "Imports: data.table, foreach, ranger",
+        if (length(deps)) paste0(", ", paste(deps, collapse = ", "))
+      )
+    ),
+    file.path(lib, "arf", "DESCRIPTION")
+  )
+  lib
+}
+
+test_that("a ref declares the backends it can actually run", {
+  old <- .bench_fake_lib(character())
+  new <- .bench_fake_lib("mirai")
+  on.exit(unlink(c(old, new), recursive = TRUE), add = TRUE)
+  # 0.2.5 predates mirai: asking it for mirai measures its default path.
+  expect_false("mirai" %in% bench_ref_backends(old))
+  expect_true(all(c("sequential", "foreach", "psock") %in% bench_ref_backends(old)))
+  expect_true("mirai" %in% bench_ref_backends(new))
+})
+
+test_that("a cell drops the refs that cannot run its backend", {
+  refs <- list(
+    list(label = "main", backends = c("sequential", "foreach", "psock", "mirai")),
+    list(label = "cran-0.2.5", backends = c("sequential", "foreach", "psock"))
+  )
+  keep <- NULL
+  expect_message(keep <- .bench_usable_refs(refs, "mirai"), "cran-0.2.5")
+  expect_equal(vapply(keep, function(r) r$label, character(1)), "main")
+  # A backend every ref has leaves the list alone and says nothing.
+  expect_silent(expect_length(.bench_usable_refs(refs, "foreach"), 2L))
+  # A ref from before the probe existed is not silently dropped.
+  expect_length(.bench_usable_refs(list(list(label = "old")), "mirai"), 1L)
+})
