@@ -100,50 +100,56 @@ bench_submit_cells <- function(reg, cells, refs, resources = list()) {
     more.args = list(cells = cells, refs = refs),
     reg = reg
   )
-  # Submit in memory classes rather than once with a single figure: see
+  req <- .bench_job_resources(cells, resources, n_refs = length(refs))
+  # Submit in resource classes rather than once with a single figure: see
   # bench_cell_memory_mb(). batchtools takes resources per submitJobs call, so
   # one call per distinct request gets each cell what it needs without making
   # every cell queue for the largest.
-  if (is.null(resources$memory) && is.null(resources$ncpus)) {
-    req <- bench_cell_resources(cells)
-    # Per cell, not one figure for the grid: timed calls span two orders of
-    # magnitude, so a single walltime either reserves hours for a two-minute
-    # cell or kills the long ones.
-    req$walltime <- if (is.null(resources$walltime)) {
-      bench_cell_walltime(cells, n_refs = length(refs), fallback = 28800)
-    } else {
-      rep(as.integer(resources$walltime), nrow(cells))
-    }
-    resources$walltime <- NULL
-    grp <- paste(req$ncpus, req$memory, req$walltime)
-    for (g in unique(grp[order(req$fraction, req$walltime)])) {
-      i <- which(grp == g)
-      ids <- data.table::data.table(job.id = i)
-      message(sprintf(
-        "  submitting %d cell(s) at 1/%g node: %d cpus, %.0f GB, %.1f h",
-        length(i),
-        1 / req$fraction[i[1]],
-        req$ncpus[i[1]],
-        req$memory[i[1]] / 1024,
-        req$walltime[i[1]] / 3600
-      ))
-      batchtools::submitJobs(
-        ids = ids,
-        resources = c(
-          resources,
-          list(
-            ncpus = req$ncpus[i[1]],
-            memory = req$memory[i[1]],
-            walltime = req$walltime[i[1]]
-          )
-        ),
-        reg = reg
-      )
-    }
-  } else {
-    batchtools::submitJobs(resources = resources, reg = reg)
+  extra <- resources[setdiff(names(resources), c("ncpus", "memory", "walltime"))]
+  grp <- paste(req$ncpus, req$memory, req$walltime)
+  for (g in unique(grp[order(req$ncpus, req$memory, req$walltime)])) {
+    i <- which(grp == g)
+    message(sprintf(
+      "  submitting %d cell(s): %d cpus, %.0f GB, %.1f h",
+      length(i),
+      req$ncpus[i[1]],
+      req$memory[i[1]] / 1024,
+      req$walltime[i[1]] / 3600
+    ))
+    batchtools::submitJobs(
+      ids = data.table::data.table(job.id = i),
+      resources = c(
+        extra,
+        list(
+          ncpus = req$ncpus[i[1]],
+          memory = req$memory[i[1]],
+          walltime = req$walltime[i[1]]
+        )
+      ),
+      reg = reg
+    )
   }
   reg
+}
+
+# Per cell, not one figure for the grid: timed calls span two orders of
+# magnitude, so a single walltime either reserves hours for a two-minute cell
+# or kills the long ones. A requested dimension replaces only itself: cores and
+# memory are independent asks, and dropping the derivation of the other one
+# leaves it at the scheduler's default.
+.bench_job_resources <- function(cells, resources = list(), n_refs) {
+  req <- bench_cell_resources(cells)
+  req$walltime <- if (is.null(resources$walltime)) {
+    bench_cell_walltime(cells, n_refs = n_refs, fallback = 28800)
+  } else {
+    rep(as.integer(resources$walltime), nrow(cells))
+  }
+  for (nm in c("ncpus", "memory")) {
+    if (!is.null(resources[[nm]])) {
+      req[[nm]] <- rep(as.integer(resources[[nm]]), nrow(cells))
+    }
+  }
+  req
 }
 
 # Newest registry unless one is named: the usual question is about the run just

@@ -72,7 +72,7 @@ switch(
     #| description: Force one total-memory figure per slurm job in MB. Default is per-cell, from measured peaks.
     mem <- NA_integer_
 
-    #| description: CPUs per slurm job. Default is 2 per worker plus one, since ncpus counts hyperthreads.
+    #| description: Force one CPU count per slurm job. Default is per-cell, the node fraction the cell's workers and memory need.
     cpus <- NA_integer_
 
     #| description: "Walltime per slurm job in seconds. Default: estimated per cell from bench/timings.csv, 8h where a cell has no timing yet."
@@ -161,42 +161,31 @@ switch(
     resources <- list()
     if (identical(cluster, "slurm")) {
       # Cores and memory are matched fractions of a node, per cell: see
-      # bench_cell_resources(). Passing --cpus or --mem overrides both with one
-      # figure for every cell.
-      # Left NA, bench_submit_cells() estimates a walltime per cell.
-      resources <- if (is.na(walltime)) list() else list(walltime = walltime)
+      # bench_cell_resources(). --cpus, --mem and --walltime each replace their
+      # own dimension for every cell; the rest stay per-cell.
+      if (!is.na(walltime)) {
+        resources$walltime <- walltime
+      }
       if (!is.na(cpus)) {
         resources$ncpus <- cpus
       }
       if (!is.na(mem)) {
         resources$memory <- mem
       }
-      if (is.na(cpus) && is.na(mem)) {
-        req <- bench_cell_resources(cells)
-        shapes <- unique(data.frame(
-          f = sprintf("1/%g", 1 / req$fraction),
-          cpus = req$ncpus, gb = round(req$memory / 1024)
-        ))
-        message("slurm: per-cell node fractions -> ", paste(
-          sprintf("%s node (%d cpus, %d GB)", shapes$f, shapes$cpus, shapes$gb),
-          collapse = "; "
-        ), sprintf(
-          " | %s",
-          if (is.na(walltime)) {
-            w <- bench_cell_walltime(cells, n_refs = length(installed), fallback = 28800) / 3600
-            sprintf("walltime %.1f-%.1f h per cell", min(w), max(w))
-          } else {
-            sprintf("%.1f h", walltime / 3600)
-          }
-        ))
-      } else {
-        message(sprintf(
-          "slurm: %s cpus, %s, %.1f h",
-          if (is.na(cpus)) "per-cell" else as.character(cpus),
-          if (is.na(mem)) "per-cell memory" else sprintf("%.0f GB/job", mem / 1024),
-          if (is.na(walltime)) 8 else walltime / 3600
-        ))
-      }
+      req <- .bench_job_resources(cells, resources, n_refs = length(installed))
+      shapes <- unique(data.frame(
+        cpus = req$ncpus,
+        gb = round(req$memory / 1024)
+      ))
+      message(
+        "slurm: per-cell requests -> ",
+        paste(sprintf("%d cpus, %d GB", shapes$cpus, shapes$gb), collapse = "; "),
+        sprintf(
+          " | walltime %.1f-%.1f h",
+          min(req$walltime) / 3600,
+          max(req$walltime) / 3600
+        )
+      )
     }
 
     dir <- file.path("bench", "registry", format(Sys.time(), "%Y%m%d-%H%M%S"))

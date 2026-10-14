@@ -1316,6 +1316,37 @@ test_that("a whole-node request stays under the node's real memory", {
   expect_lte(max(req$ncpus), BENCH_NODE_THREADS)
 })
 
+test_that("one overridden resource dimension leaves the other per-cell", {
+  cells <- bench_cells("full")
+  cells <- cells[cells$op == "forde" & cells$n == 5e4, ]
+  req <- bench_cell_resources(cells)
+
+  # --cpus alone used to drop memory from the request entirely, leaving the
+  # slurm default of 1 GB on a cell that needs hundreds.
+  only_cpus <- .bench_job_resources(cells, list(ncpus = 96L), n_refs = 2L)
+  expect_equal(only_cpus$ncpus, rep(96L, nrow(cells)))
+  expect_equal(only_cpus$memory, req$memory)
+
+  only_mem <- .bench_job_resources(cells, list(memory = 300000L), n_refs = 2L)
+  expect_equal(only_mem$memory, rep(300000L, nrow(cells)))
+  expect_equal(only_mem$ncpus, req$ncpus)
+
+  both <- .bench_job_resources(cells, list(ncpus = 96L, memory = 300000L), n_refs = 2L)
+  expect_equal(both$ncpus, rep(96L, nrow(cells)))
+  expect_equal(both$memory, rep(300000L, nrow(cells)))
+
+  neither <- .bench_job_resources(cells, list(), n_refs = 2L)
+  expect_equal(neither$ncpus, req$ncpus)
+  expect_equal(neither$memory, req$memory)
+
+  # an explicit walltime applies to every cell; otherwise it is estimated
+  expect_equal(
+    .bench_job_resources(cells, list(walltime = 600L), n_refs = 2L)$walltime,
+    rep(600L, nrow(cells))
+  )
+  expect_true(all(neither$walltime >= BENCH_WALLTIME_MIN_S))
+})
+
 test_that("results predating a schema change are collected with a warning", {
   skip_on_cran()
   skip_if_not_installed("batchtools")
