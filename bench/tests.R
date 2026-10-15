@@ -15,6 +15,57 @@ test_that("harness helpers are available", {
   expect_true(BENCH_METRIC %in% c("cgroup-anon+shmem", "PSS", "RSS"))
 })
 
+test_that("mirai daemons get the cell's data.table thread count", {
+  skip_if_not_installed("mirai")
+  # everywhere() evaluates its expression on the daemon, so a thread count
+  # referenced by name resolves to nothing there and the daemons keep
+  # data.table's default: half the host's cores, each daemon independently.
+  mirai::daemons(2)
+  on.exit(mirai::daemons(0), add = TRUE)
+  want <- 1L
+  .bench_mirai_dt_threads(want)
+  got <- unlist(mirai::mirai_map(1:2, function(i) data.table::getDTthreads())[])
+  expect_equal(unique(got), want)
+})
+
+test_that("mirai daemons load arf from the ref library", {
+  skip_if_not_installed("mirai")
+  lib <- "bench/lib/main"
+  skip_if_not(dir.exists(file.path(lib, "arf")))
+  # Worker bodies ship by value but resolve arf's internals against the
+  # daemon's own namespace, so a daemon left on the default library measures
+  # that arf's internals whichever ref is under test.
+  want <- normalizePath(lib)
+  # The daemons are given the parent's library paths, so the ref lib has to be
+  # on them first; .bench_cell_fn() prepends it before starting any daemon.
+  old <- .libPaths()
+  on.exit(.libPaths(old), add = TRUE)
+  .libPaths(c(want, old))
+  mirai::daemons(2)
+  on.exit(mirai::daemons(0), add = TRUE)
+  .bench_mirai_load_arf(want)
+  got <- unlist(mirai::mirai_map(1:2, function(i) dirname(find.package("arf")))[])
+  expect_equal(unique(normalizePath(got)), want)
+})
+
+test_that("a daemon that missed its setup is an error, not a measurement", {
+  skip_if_not_installed("mirai")
+  lib <- "bench/lib/main"
+  skip_if_not(dir.exists(file.path(lib, "arf")))
+  want <- normalizePath(lib)
+  old <- .libPaths()
+  on.exit(.libPaths(old), add = TRUE)
+  .libPaths(c(want, old))
+  mirai::daemons(2)
+  on.exit(mirai::daemons(0), add = TRUE)
+  .bench_mirai_load_arf(want)
+  # everywhere() is fire-and-forget, so the thread count is checked by a
+  # collected call: unset, it must fail here rather than in the numbers.
+  expect_error(.bench_mirai_verify(want, 1L), "data.table thread")
+  .bench_mirai_dt_threads(1L)
+  expect_true(.bench_mirai_verify(want, 1L))
+})
+
 test_that("generated benchmark data has the documented shape", {
   set.seed(1)
   x <- bench_make_data(50, 10)
@@ -1272,6 +1323,26 @@ test_that("an unlimited cgroup yields no cap and no cap verdict", {
     )
   )
   expect_equal(bench_deltas(rows, baseline = "main")$mem_verdict[2], "real")
+})
+
+test_that("cells can be narrowed to one backend", {
+  cells <- bench_cells("full")
+  got <- bench_select_cells(cells, backends = "mirai")
+  expect_setequal(unique(got$backend), "mirai")
+  expect_gt(nrow(got), 0L)
+  expect_lt(nrow(got), nrow(cells))
+  # sequential carries no worker count, so naming it must not drop those cells
+  both <- bench_select_cells(cells, backends = "mirai,sequential")
+  expect_setequal(unique(both$backend), c("mirai", "sequential"))
+  expect_gt(nrow(both), nrow(got))
+  # composes with the other filters
+  f <- bench_select_cells(cells, ops = "forde", sizes = "50000", backends = "mirai")
+  expect_setequal(unique(f$op), "forde")
+  expect_setequal(unique(f$n), 5e4)
+  expect_setequal(unique(f$backend), "mirai")
+  expect_equal(nrow(bench_select_cells(cells, max_cells = 3L)), 3L)
+  # no filters is the whole set
+  expect_equal(nrow(bench_select_cells(cells)), nrow(cells))
 })
 
 test_that("cores and memory are matched fractions of a node", {

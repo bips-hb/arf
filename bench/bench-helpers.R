@@ -164,6 +164,60 @@ BENCH_METRIC <- if (!is.null(BENCH_CGROUP)) {
   invisible(TRUE)
 }
 
+# everywhere() evaluates its expression on the daemon, where the caller's
+# locals do not exist, so the count travels as a value: left as a name, every
+# daemon keeps data.table's default of half the host's cores and they
+# oversubscribe each other.
+.bench_mirai_dt_threads <- function(dt_threads) {
+  mirai::everywhere(data.table::setDTthreads(.n), .n = dt_threads)
+}
+
+# Daemons are fresh R processes whose library paths come from the environment,
+# so an in-session .libPaths() never reaches them. Worker bodies ship by value
+# but resolve arf's internals (cforde/post_x/resample) against the daemon's own
+# namespace, so a daemon left on the default library silently measures that arf
+# whichever ref is under test. The assert travels too, to make a wrong library
+# an error rather than a number.
+.bench_mirai_load_arf <- function(lib) {
+  mirai::everywhere(
+    {
+      .libPaths(.paths)
+      suppressMessages(library(arf))
+      .assert(.lib)
+    },
+    .paths = .libPaths(),
+    .lib = lib,
+    .assert = .bench_assert_lib
+  )
+}
+
+# everywhere() is fire-and-forget: a failure inside it never reaches the
+# caller, which is how an unset thread count or a daemon on the wrong library
+# becomes a measurement instead of an error. Collected, so it is an error.
+.bench_mirai_verify <- function(lib, dt_threads) {
+  n <- max(1L, as.integer(mirai::status()$connections))
+  got <- mirai::mirai_map(
+    seq_len(n),
+    function(i) c(dirname(find.package("arf")), data.table::getDTthreads())
+  )[]
+  want <- normalizePath(lib)
+  for (g in got) {
+    if (!startsWith(normalizePath(g[1]), want)) {
+      stop("daemon loaded arf from ", g[1], ", not from ", want, call. = FALSE)
+    }
+    if (as.integer(g[2]) != as.integer(dt_threads)) {
+      stop(
+        "daemon has ",
+        g[2],
+        " data.table thread(s), not ",
+        dt_threads,
+        call. = FALSE
+      )
+    }
+  }
+  invisible(TRUE)
+}
+
 # Function executed in the CHILD process (fresh R): load the package, run one
 # operation `iters` times for one backend, return the elapsed seconds per iter.
 # dt_threads pins data.table (per worker); ranger_threads sets ranger's default
@@ -244,21 +298,9 @@ BENCH_METRIC <- if (!is.null(BENCH_CGROUP)) {
     par <- TRUE
     mirai::daemons(n_workers)
     on.exit(mirai::daemons(0), add = TRUE) # always stop, even if the op errors
-    mirai::everywhere(data.table::setDTthreads(dt_threads))
-    # load the ref's arf on daemons once (forge/expct/lik/cforde workers call
-    # arf internals); prune passes its worker as an object so needs no load.
-    if (op %in% c("forge", "expct", "lik")) {
-      mirai::everywhere(
-        {
-          .libPaths(paths)
-          suppressMessages(library(arf))
-          assert(lib)
-        },
-        paths = .libPaths(),
-        lib = lib,
-        assert = .bench_assert_lib
-      )
-    }
+    .bench_mirai_dt_threads(dt_threads)
+    .bench_mirai_load_arf(lib)
+    .bench_mirai_verify(lib, dt_threads)
   } else {
     stop("unknown backend: ", backend)
   }

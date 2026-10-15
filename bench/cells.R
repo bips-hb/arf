@@ -106,6 +106,45 @@ bench_anchors <- function(path = "bench/anchors.csv") {
 # A request above RealMemory is rejected rather than queued, so the figure
 # below sits under it with room to spare: the cluster's RealMemory is set
 # conservatively on purpose, and the harness should not need it raised.
+# Shared by run and plan so the cell set that plans is the cell set that runs.
+# Each filter is independent: a backend named here keeps that backend's cells at
+# every size, which is what re-measuring one backend after a harness fix needs.
+bench_select_cells <- function(
+  cells,
+  ops = NA_character_,
+  sizes = NA_character_,
+  rowmode = NA_character_,
+  evidence = NA_character_,
+  backends = NA_character_,
+  max_cells = NA_integer_
+) {
+  parts <- function(x) trimws(strsplit(x, ",")[[1]])
+  if (!is.na(ops)) {
+    cells <- cells[cells$op %in% parts(ops), ]
+  }
+  if (!is.na(sizes)) {
+    cells <- cells[cells$n %in% as.numeric(parts(sizes)), ]
+  }
+  if (!is.na(backends)) {
+    cells <- cells[cells$backend %in% parts(backends), ]
+  }
+  # The row-mode and evidence-count variants sit after the worker grid in the
+  # cell order, so --max-cells cannot reach them; select them by name.
+  if (!is.na(rowmode)) {
+    cells <- cells[!is.na(cells$rowmode) & cells$rowmode %in% parts(rowmode), ]
+  }
+  if (!is.na(evidence)) {
+    cells <- cells[
+      !is.na(cells$n_evidence) &
+        cells$n_evidence %in% as.integer(parts(evidence)),
+    ]
+  }
+  if (!is.na(max_cells)) {
+    cells <- utils::head(cells, max_cells)
+  }
+  cells
+}
+
 BENCH_NODE_THREADS <- 192L
 BENCH_NODE_MEM_MB <- 1100000L
 

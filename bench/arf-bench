@@ -54,6 +54,9 @@ switch(
     #| description: Restrict to these evidence row counts, comma separated (100, 1000).
     evidence <- NA_character_
 
+    #| description: Restrict to these backends, comma separated (sequential, foreach, psock, mirai).
+    backends <- NA_character_
+
     #| description: Timed calls inside each cell child. Overrides the tier default of 5.
     iters <- NA_integer_
 
@@ -113,25 +116,15 @@ switch(
     }
 
     cells <- bench_cells(tier)
-    if (!is.na(ops)) {
-      cells <- cells[cells$op %in% trimws(strsplit(ops, ",")[[1]]), ]
-    }
-    if (!is.na(sizes)) {
-      cells <- cells[cells$n %in% as.numeric(trimws(strsplit(sizes, ",")[[1]])), ]
-    }
-    # The row-mode and evidence-count variants sit after the worker grid in the
-    # cell order, so --max-cells cannot reach them; select them by name.
-    if (!is.na(rowmode)) {
-      cells <- cells[!is.na(cells$rowmode) &
-        cells$rowmode %in% trimws(strsplit(rowmode, ",")[[1]]), ]
-    }
-    if (!is.na(evidence)) {
-      cells <- cells[!is.na(cells$n_evidence) &
-        cells$n_evidence %in% as.integer(trimws(strsplit(evidence, ",")[[1]])), ]
-    }
-    if (!is.na(max_cells)) {
-      cells <- utils::head(cells, max_cells)
-    }
+    cells <- bench_select_cells(
+      cells,
+      ops = ops,
+      sizes = sizes,
+      rowmode = rowmode,
+      evidence = evidence,
+      backends = backends,
+      max_cells = max_cells
+    )
     if (!nrow(cells)) {
       cat("No cells selected.\n", file = stderr())
       quit(save = "no", status = 1L)
@@ -350,6 +343,9 @@ switch(
     #| description: Restrict to these evidence row counts, comma separated (100, 1000).
     evidence <- NA_character_
 
+    #| description: Restrict to these backends, comma separated (sequential, foreach, psock, mirai).
+    backends <- NA_character_
+
     #| description: Timed calls per measurement, as `run` would take it. Changes the walltime estimate.
     iters <- NA_integer_
 
@@ -357,25 +353,15 @@ switch(
     mem_reps <- NA_integer_
 
     cells <- bench_cells(tier)
-    if (!is.na(ops)) {
-      cells <- cells[cells$op %in% trimws(strsplit(ops, ",")[[1]]), ]
-    }
-    if (!is.na(sizes)) {
-      cells <- cells[cells$n %in% as.numeric(trimws(strsplit(sizes, ",")[[1]])), ]
-    }
-    # The row-mode and evidence-count variants sit after the worker grid in the
-    # cell order, so --max-cells cannot reach them; select them by name.
-    if (!is.na(rowmode)) {
-      cells <- cells[!is.na(cells$rowmode) &
-        cells$rowmode %in% trimws(strsplit(rowmode, ",")[[1]]), ]
-    }
-    if (!is.na(evidence)) {
-      cells <- cells[!is.na(cells$n_evidence) &
-        cells$n_evidence %in% as.integer(trimws(strsplit(evidence, ",")[[1]])), ]
-    }
-    if (!is.na(max_cells)) {
-      cells <- utils::head(cells, max_cells)
-    }
+    cells <- bench_select_cells(
+      cells,
+      ops = ops,
+      sizes = sizes,
+      rowmode = rowmode,
+      evidence = evidence,
+      backends = backends,
+      max_cells = max_cells
+    )
     if (!is.na(iters)) {
       cells$iters <- iters
     }
