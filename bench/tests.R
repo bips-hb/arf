@@ -243,6 +243,42 @@ test_that("a cell measures an installed ref and returns all three timings", {
 
 source("bench/run-cell.R")
 
+test_that("a mirai cell measures through the real child process", {
+  skip_if_not_installed("mirai")
+  skip_if_not(dir.exists(file.path("bench/lib/main", "arf")))
+  # The child only sees helpers shipped in .bench_cell_args(); calling
+  # .bench_cell_fn() in-process would pass with a helper missing from it.
+  lib <- normalizePath("bench/lib/main")
+  cell <- data.frame(
+    op = "forde",
+    n = 500L,
+    p = 10L,
+    trees = 10L,
+    n_evidence = NA_integer_,
+    rowmode = NA_character_,
+    backend = "mirai",
+    workers = 2L,
+    iters = 1L,
+    mem_reps = 1L,
+    n_synth = NA_integer_,
+    n_folds = NA_integer_,
+    stringsAsFactors = FALSE
+  )
+  dp <- .bench_cell_data(cell, lib)
+  r <- bench_measure_cell("mirai", dp, 2L, 1L, lib, op = "forde")
+  expect_false(is.na(r$seconds[1]))
+})
+
+test_that("a child that dies says why", {
+  r <- NULL
+  expect_message(
+    r <- bench_measure_cell("mirai", tempfile(), 2L, 1L, tempdir(), op = "forde"),
+    "child failed"
+  )
+  expect_true(is.na(r$seconds))
+})
+
+
 test_that("a cell produces one schema-conforming row per ref", {
   skip_on_cran()
   root <- file.path(tempdir(), paste0("benchrun-", Sys.getpid()))

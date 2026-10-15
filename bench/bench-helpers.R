@@ -405,6 +405,9 @@ bench_measure_cell <- function(
     r$value$seconds <- secs
   }
   if (!isTRUE(r$ok)) {
+    # Without the reason a dead child is indistinguishable from a slow one in
+    # the job log, and every job still reports success.
+    message("  child failed: ", paste(r$value, collapse = " "))
     # Whatever the sampler accumulated before the child died is not a
     # measurement of anything: reported as a number it renders as a large
     # memory "improvement" with verdict "real".
@@ -514,6 +517,9 @@ bench_measure_cell <- function(
     helpers = list(
       .bench_cell_fn = .bench_cell_fn,
       .bench_assert_lib = .bench_assert_lib,
+      .bench_mirai_dt_threads = .bench_mirai_dt_threads,
+      .bench_mirai_load_arf = .bench_mirai_load_arf,
+      .bench_mirai_verify = .bench_mirai_verify,
       bench_digest = bench_digest,
       .bench_digest_exact = .bench_digest_exact,
       .bench_digest_summary = .bench_digest_summary,
