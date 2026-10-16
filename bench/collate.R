@@ -138,6 +138,9 @@ bench_deltas <- function(rows, baseline = "main") {
   rows$mem_verdict[thin_pair & rows$mem_verdict %in% c("real", "inconclusive")] <-
     "cell too small to resolve memory"
   rows$mem_verdict[capped_pair] <- "hit the memory cap, not a measurement"
+  # The cluster sets memory.high at the cap, so a run that reached it was
+  # throttled by reclaim for part of its runtime: its timing is not the op's.
+  rows$time_verdict[capped_pair] <- "hit the memory cap, not a measurement"
   # Last, so it survives the guards above. "no baseline" blames the wrong side
   # when the baseline measured fine and the ref is the one that died: the
   # evidence=1000 expct cell needs ~1.8 TB on cran-0.2.5, more than a node has,

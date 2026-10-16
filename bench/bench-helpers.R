@@ -345,29 +345,36 @@ BENCH_METRIC <- if (!is.null(BENCH_CGROUP)) {
   # Digest the first iteration only: one hash per cell is enough, and a fixed
   # seed makes the stochastic ops comparable across refs.
   set.seed(1)
-  first <- NULL
+  digest <- NA_character_
+  out_rows <- NA_integer_
   secs <- vapply(
     seq_len(iters),
     function(i) {
       t <- system.time(res <- run())[["elapsed"]]
       if (i == 1L) {
-        first <<- res
+        digest <<- tryCatch(bench_digest(res, kind), error = function(e) NA_character_)
+        # A forked worker that dies takes its whole chunk with it: foreach warns,
+        # the rbind returns fewer rows than the evidence had, and arf does not
+        # error. Without this the short result shows up only as a changed digest.
+        out_rows <<- tryCatch(
+          if (is.null(res)) NA_integer_ else as.integer(NROW(res)),
+          error = function(e) NA_integer_
+        )
       }
+      # Fingerprinted and dropped before the next call: a result held across
+      # the remaining calls sits in every later peak by its own size, and so
+      # does the previous call's garbage until a collection happens to run.
+      rm(res)
+      invisible(gc(FALSE))
       t
     },
     numeric(1)
   )
   list(
     seconds = secs,
-    digest = tryCatch(bench_digest(first, kind), error = function(e) NA_character_),
+    digest = digest,
     digest_kind = kind,
-    # A forked worker that dies takes its whole chunk with it: foreach warns,
-    # the rbind returns fewer rows than the evidence had, and arf does not
-    # error. Without this the short result shows up only as a changed digest.
-    out_rows = tryCatch(
-      if (is.null(first)) NA_integer_ else as.integer(NROW(first)),
-      error = function(e) NA_integer_
-    ),
+    out_rows = out_rows,
     arf_version = as.character(utils::packageVersion("arf"))
   )
 }

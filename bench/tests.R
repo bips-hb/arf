@@ -843,6 +843,9 @@ test_that("one ref capping does not invalidate the others' comparison", {
   d <- bench_deltas(rows, baseline = "main")
   expect_equal(d$mem_verdict[d$ref == "cran-0.2.5"], "hit the memory cap, not a measurement")
   expect_equal(d$mem_verdict[d$ref == "HEAD"], "real")
+  # Reclaim throttling at the cap distorts the runtime as well.
+  expect_equal(d$time_verdict[d$ref == "cran-0.2.5"], "hit the memory cap, not a measurement")
+  expect_false(d$time_verdict[d$ref == "HEAD"] == "hit the memory cap, not a measurement")
 })
 
 test_that("the resolution guard applies to the whole cell, not one row", {
