@@ -66,6 +66,42 @@ test_that("a daemon that missed its setup is an error, not a measurement", {
   expect_true(.bench_mirai_verify(want, 1L))
 })
 
+test_that("worker setup ships no copy of the caller's frame", {
+  skip_if_not_installed("mirai")
+  lib <- "bench/lib/main"
+  skip_if_not(dir.exists(file.path(lib, "arf")))
+  skip_if_not(file.exists("/proc/self/status"))
+  want <- normalizePath(lib)
+  old <- .libPaths()
+  on.exit(.libPaths(old), add = TRUE)
+  .libPaths(c(want, old))
+  hwm_mb <- function(pid) {
+    line <- grep("^VmHWM", readLines(sprintf("/proc/%d/status", pid)), value = TRUE)
+    as.numeric(gsub("\\D", "", line)) / 1024
+  }
+  # .bench_cell_fn() holds the fixture in the frame these helpers are called
+  # from; a closure or an unforced promise shipped to a worker carries it along.
+  with_ballast <- function(setup, lib) {
+    ballast <- raw(3e8)
+    setup(lib)
+  }
+  mirai::daemons(1)
+  on.exit(mirai::daemons(0), add = TRUE)
+  .bench_mirai_dt_threads(1L)
+  .bench_mirai_load_arf(want)
+  pid <- mirai::mirai(Sys.getpid())[]
+  before <- hwm_mb(pid)
+  with_ballast(function(l) .bench_mirai_verify(l, 1L), want)
+  expect_lt(hwm_mb(pid) - before, 100)
+
+  cl <- parallel::makeCluster(1)
+  on.exit(parallel::stopCluster(cl), add = TRUE)
+  pid <- parallel::clusterCall(cl, Sys.getpid)[[1]]
+  before <- hwm_mb(pid)
+  with_ballast(function(l) .bench_psock_setup(cl, l, 1L), want)
+  expect_lt(hwm_mb(pid) - before, 300)
+})
+
 test_that("generated benchmark data has the documented shape", {
   set.seed(1)
   x <- bench_make_data(50, 10)

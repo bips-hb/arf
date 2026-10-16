@@ -191,15 +191,39 @@ BENCH_METRIC <- if (!is.null(BENCH_CGROUP)) {
   )
 }
 
+# Workers are fresh Rscript processes whose .libPaths() comes from env vars
+# only, so send the master's whole set: otherwise the shared dependency layer
+# can differ between master and worker even when `lib` is fine.
+.bench_psock_setup <- function(cl, lib, dt_threads) {
+  setup <- function(paths, l, t, assert) {
+    .libPaths(paths)
+    suppressMessages(library(arf))
+    assert(l)
+    data.table::setDTthreads(t)
+  }
+  # Detached from the caller's frame, which holds the fixture; see
+  # .bench_mirai_verify().
+  environment(setup) <- globalenv()
+  parallel::clusterCall(
+    cl,
+    setup,
+    .libPaths(),
+    lib,
+    dt_threads,
+    .bench_assert_lib
+  )
+}
+
 # everywhere() is fire-and-forget: a failure inside it never reaches the
 # caller, which is how an unset thread count or a daemon on the wrong library
 # becomes a measurement instead of an error. Collected, so it is an error.
 .bench_mirai_verify <- function(lib, dt_threads) {
   n <- max(1L, as.integer(mirai::status()$connections))
-  got <- mirai::mirai_map(
-    seq_len(n),
-    function(i) c(dirname(find.package("arf")), data.table::getDTthreads())
-  )[]
+  probe <- function(i) c(dirname(find.package("arf")), data.table::getDTthreads())
+  # A closure ships its frame, whose unforced promises ship the caller's frame:
+  # the whole fixture, once per daemon.
+  environment(probe) <- globalenv()
+  got <- mirai::mirai_map(seq_len(n), probe)[]
   want <- normalizePath(lib)
   for (g in got) {
     if (!startsWith(normalizePath(g[1]), want)) {
@@ -276,22 +300,7 @@ BENCH_METRIC <- if (!is.null(BENCH_CGROUP)) {
     par <- TRUE
     cl <- parallel::makeCluster(n_workers)
     on.exit(parallel::stopCluster(cl), add = TRUE)
-    # Workers are fresh Rscript processes whose .libPaths() comes from env vars
-    # only, so send the master's whole set: otherwise the shared dependency
-    # layer can differ between master and worker even when `lib` is fine.
-    parallel::clusterCall(
-      cl,
-      function(paths, l, t, assert) {
-        .libPaths(paths)
-        suppressMessages(library(arf))
-        assert(l)
-        data.table::setDTthreads(t)
-      },
-      .libPaths(),
-      lib,
-      dt_threads,
-      .bench_assert_lib
-    )
+    .bench_psock_setup(cl, lib, dt_threads)
     doParallel::registerDoParallel(cl)
   } else if (backend == "mirai") {
     options(arf.backend = "mirai")
@@ -520,6 +529,7 @@ bench_measure_cell <- function(
       .bench_mirai_dt_threads = .bench_mirai_dt_threads,
       .bench_mirai_load_arf = .bench_mirai_load_arf,
       .bench_mirai_verify = .bench_mirai_verify,
+      .bench_psock_setup = .bench_psock_setup,
       bench_digest = bench_digest,
       .bench_digest_exact = .bench_digest_exact,
       .bench_digest_summary = .bench_digest_summary,
