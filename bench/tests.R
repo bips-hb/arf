@@ -1,0 +1,1693 @@
+#!/usr/bin/env Rscript
+# Standalone tests for the benchmark suite. Run from the repo root:
+#
+#   Rscript bench/tests.R
+#
+# Not part of the package's testthat suite: bench/ is in .Rbuildignore and
+# never ships, so these run on demand rather than in R CMD check.
+
+library(testthat)
+source("bench/bench-helpers.R")
+
+test_that("harness helpers are available", {
+  expect_true(is.function(bench_measure_cell))
+  expect_true(is.function(bench_make_data))
+  expect_true(BENCH_METRIC %in% c("cgroup-anon+shmem", "PSS", "RSS"))
+})
+
+test_that("mirai daemons get the cell's data.table thread count", {
+  skip_if_not_installed("mirai")
+  # everywhere() evaluates its expression on the daemon, so a thread count
+  # referenced by name resolves to nothing there and the daemons keep
+  # data.table's default: half the host's cores, each daemon independently.
+  mirai::daemons(2)
+  on.exit(mirai::daemons(0), add = TRUE)
+  want <- 1L
+  .bench_mirai_dt_threads(want)
+  got <- unlist(mirai::mirai_map(1:2, function(i) data.table::getDTthreads())[])
+  expect_equal(unique(got), want)
+})
+
+test_that("mirai daemons load arf from the ref library", {
+  skip_if_not_installed("mirai")
+  lib <- "bench/lib/main"
+  skip_if_not(dir.exists(file.path(lib, "arf")))
+  # Worker bodies ship by value but resolve arf's internals against the
+  # daemon's own namespace, so a daemon left on the default library measures
+  # that arf's internals whichever ref is under test.
+  want <- normalizePath(lib)
+  # The daemons are given the parent's library paths, so the ref lib has to be
+  # on them first; .bench_cell_fn() prepends it before starting any daemon.
+  old <- .libPaths()
+  on.exit(.libPaths(old), add = TRUE)
+  .libPaths(c(want, old))
+  mirai::daemons(2)
+  on.exit(mirai::daemons(0), add = TRUE)
+  .bench_mirai_load_arf(want)
+  got <- unlist(mirai::mirai_map(1:2, function(i) dirname(find.package("arf")))[])
+  expect_equal(unique(normalizePath(got)), want)
+})
+
+test_that("a daemon that missed its setup is an error, not a measurement", {
+  skip_if_not_installed("mirai")
+  lib <- "bench/lib/main"
+  skip_if_not(dir.exists(file.path(lib, "arf")))
+  want <- normalizePath(lib)
+  old <- .libPaths()
+  on.exit(.libPaths(old), add = TRUE)
+  .libPaths(c(want, old))
+  mirai::daemons(2)
+  on.exit(mirai::daemons(0), add = TRUE)
+  .bench_mirai_load_arf(want)
+  # everywhere() is fire-and-forget, so the thread count is checked by a
+  # collected call: unset, it must fail here rather than in the numbers.
+  expect_error(.bench_mirai_verify(want, 1L), "data.table thread")
+  .bench_mirai_dt_threads(1L)
+  expect_true(.bench_mirai_verify(want, 1L))
+})
+
+test_that("worker setup ships no copy of the caller's frame", {
+  skip_if_not_installed("mirai")
+  lib <- "bench/lib/main"
+  skip_if_not(dir.exists(file.path(lib, "arf")))
+  skip_if_not(file.exists("/proc/self/status"))
+  want <- normalizePath(lib)
+  old <- .libPaths()
+  on.exit(.libPaths(old), add = TRUE)
+  .libPaths(c(want, old))
+  hwm_mb <- function(pid) {
+    line <- grep("^VmHWM", readLines(sprintf("/proc/%d/status", pid)), value = TRUE)
+    as.numeric(gsub("\\D", "", line)) / 1024
+  }
+  # .bench_cell_fn() holds the fixture in the frame these helpers are called
+  # from; a closure or an unforced promise shipped to a worker carries it along.
+  with_ballast <- function(setup, lib) {
+    ballast <- raw(3e8)
+    setup(lib)
+  }
+  mirai::daemons(1)
+  on.exit(mirai::daemons(0), add = TRUE)
+  .bench_mirai_dt_threads(1L)
+  .bench_mirai_load_arf(want)
+  pid <- mirai::mirai(Sys.getpid())[]
+  before <- hwm_mb(pid)
+  with_ballast(function(l) .bench_mirai_verify(l, 1L), want)
+  expect_lt(hwm_mb(pid) - before, 100)
+
+  cl <- parallel::makeCluster(1)
+  on.exit(parallel::stopCluster(cl), add = TRUE)
+  pid <- parallel::clusterCall(cl, Sys.getpid)[[1]]
+  before <- hwm_mb(pid)
+  with_ballast(function(l) .bench_psock_setup(cl, l, 1L), want)
+  expect_lt(hwm_mb(pid) - before, 300)
+})
+
+test_that("generated benchmark data has the documented shape", {
+  set.seed(1)
+  x <- bench_make_data(50, 10)
+  expect_equal(nrow(x), 50)
+  expect_true("grp" %in% names(x))
+  expect_true(any(vapply(x, is.factor, logical(1))))
+})
+
+source("bench/refs.R")
+
+test_that("ref specs parse into kind and value", {
+  expect_equal(bench_parse_ref("git:main"), list(kind = "git", value = "main", label = "main"))
+  expect_equal(bench_parse_ref("cran:0.2.5"), list(kind = "cran", value = "0.2.5", label = "cran-0.2.5"))
+  expect_equal(bench_parse_ref("HEAD")$kind, "git")
+  expect_equal(bench_parse_ref("HEAD")$value, "HEAD")
+})
+
+test_that("unparseable ref specs are refused", {
+  expect_error(bench_parse_ref("svn:trunk"), "unknown ref kind")
+  expect_error(bench_parse_ref("cran:"), "needs a version")
+  expect_error(bench_parse_ref(""), "empty")
+})
+
+# Hermetic on purpose: the live tree holds staged, uncommitted benchmark files
+# while this suite runs, so the fixture is a throwaway repo.
+.bench_test_repo <- function() {
+  repo <- file.path(tempdir(), paste0("benchrepo-", Sys.getpid(), "-", sample.int(1e6, 1)))
+  dir.create(repo, recursive = TRUE)
+  system2("git", c("-C", repo, "init", "-q"))
+  writeLines("x", file.path(repo, "tracked.txt"))
+  system2("git", c("-C", repo, "add", "tracked.txt"))
+  system2(
+    "git",
+    c("-C", repo, "-c", "user.email=t@example.org", "-c", "user.name=t", "commit", "-qm", "init"),
+    stdout = FALSE
+  )
+  repo
+}
+
+test_that("untracked files do not count as a dirty tree", {
+  repo <- .bench_test_repo()
+  on.exit(unlink(repo, recursive = TRUE), add = TRUE)
+  writeLines("y", file.path(repo, "untracked.txt"))
+  expect_equal(bench_tree_dirty(repo), character())
+  expect_silent(bench_assert_clean_tree(repo))
+})
+
+test_that("a modified tracked file is refused by name", {
+  repo <- .bench_test_repo()
+  on.exit(unlink(repo, recursive = TRUE), add = TRUE)
+  writeLines("changed", file.path(repo, "tracked.txt"))
+  expect_equal(bench_tree_dirty(repo), "tracked.txt")
+  expect_error(bench_assert_clean_tree(repo), "modified tracked files")
+})
+
+test_that("a git ref installs and reports its version", {
+  skip_on_cran()
+  root <- file.path(tempdir(), paste0("benchlib-", Sys.getpid()))
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  ref <- bench_install_ref("git:HEAD", root)
+  expect_true(dir.exists(file.path(ref$lib, "arf")))
+  expect_match(ref$arf_version, "^[0-9]")
+  expect_match(ref$commit, "^[0-9a-f]{7}")
+})
+
+test_that("an argument the ref lacks aborts with the ref named", {
+  skip_on_cran()
+  root <- file.path(tempdir(), paste0("benchlib-args-", Sys.getpid()))
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  ref <- bench_install_ref("git:HEAD", root)
+  expect_silent(bench_assert_args(ref$lib, list(forde = c("parallel"))))
+  expect_error(
+    bench_assert_args(ref$lib, list(forde = c("no_such_argument"))),
+    "no_such_argument"
+  )
+})
+
+test_that("a cran version that does not exist fails before any measurement", {
+  skip_on_cran()
+  skip_if_offline()
+  root <- file.path(tempdir(), paste0("benchlib-404-", Sys.getpid()))
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  expect_error(bench_install_ref("cran:0.0.0.1", root), "could not download")
+})
+
+test_that("every benchmark dependency is present", {
+  expect_true(bench_assert_deps())
+})
+
+source("bench/cells.R")
+
+test_that("the quick tier is sequential, small, and covers the five ops", {
+  cells <- bench_cells("quick")
+  expect_setequal(cells$op, c("adversarial_rf", "forde", "lik", "forge", "expct"))
+  expect_true(all(cells$backend == "sequential"))
+  expect_true(all(cells$n <= 1e4))
+  expect_true(all(cells$iters == 5))
+})
+
+test_that("no cell uses p < 4, where the 0.2.5 mtry default would differ", {
+  expect_true(all(bench_cells("quick")$p >= 4))
+  expect_true(all(bench_cells("full")$p >= 4))
+})
+
+test_that("the full tier adds backends and a worker grid", {
+  cells <- bench_cells("full")
+  expect_true(all(c("foreach", "mirai", "psock") %in% cells$backend))
+  expect_true(max(cells$workers, na.rm = TRUE) >= 16)
+  expect_true(any(cells$n >= 5e4))
+})
+
+test_that("sequential cells carry no worker count", {
+  cells <- bench_cells("full")
+  expect_true(all(is.na(cells$workers[cells$backend == "sequential"])))
+})
+
+test_that("anchors are read from the curated file", {
+  expect_true("cran:0.2.5" %in% bench_anchors("bench/anchors.csv"))
+})
+
+test_that("a fitted model is not fingerprinted", {
+  expect_true(is.na(bench_digest(list(forest = 1), "none")))
+  expect_equal(unname(BENCH_DIGEST_KIND[["adversarial_rf"]]), "none")
+})
+
+test_that("digests are defined for empty and NULL results", {
+  expect_type(bench_digest(NULL, "exact"), "character")
+  expect_type(bench_digest(data.frame(), "summary"), "character")
+  expect_type(bench_digest(numeric(0), "exact"), "character")
+})
+
+test_that("digests ignore noise below the rounding tolerance but catch real change", {
+  a <- c(1.0000000001, 2)
+  b <- c(1, 2)
+  expect_equal(bench_digest(a, "exact"), bench_digest(b, "exact"))
+  expect_false(identical(bench_digest(c(1.1, 2), "exact"), bench_digest(b, "exact")))
+})
+
+test_that("summary digests survive row permutation but not a distribution shift", {
+  set.seed(1)
+  d <- data.frame(x = rnorm(200), y = rnorm(200))
+  expect_equal(bench_digest(d, "summary"), bench_digest(d[sample(200), ], "summary"))
+  expect_false(identical(bench_digest(d, "summary"), bench_digest(d * 2, "summary")))
+})
+
+test_that("a cell measures an installed ref and returns all three timings", {
+  skip_on_cran()
+  root <- file.path(tempdir(), paste0("benchcell-", Sys.getpid()))
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  ref <- bench_install_ref("git:HEAD", root)
+  data_path <- file.path(tempdir(), paste0("benchdata-", Sys.getpid(), ".rds"))
+  on.exit(unlink(data_path), add = TRUE)
+  # Built in a child against the ref's library: this session resolves arf 0.2.4,
+  # which must never be what builds a fixture.
+  callr::r(
+    function(lib, make_data, path) {
+      .libPaths(c(lib, .libPaths()))
+      library(arf)
+      set.seed(1)
+      X <- make_data(300, 10)
+      a <- adversarial_rf(X, num_trees = 5, verbose = FALSE, parallel = FALSE)
+      saveRDS(list(arf = a, X = X, psi = forde(a, X, parallel = FALSE), evidence = NULL), path)
+    },
+    args = list(lib = ref$lib, make_data = bench_make_data, path = data_path)
+  )
+
+  m <- bench_measure_cell("sequential", data_path, NA_integer_, 1L, ref$lib, iters = 2L, op = "forde")
+  expect_length(m$seconds, 2L)
+  expect_true(m$peak_mb >= 0)
+  expect_equal(m$arf_version, ref$arf_version)
+  expect_equal(m$digest_kind, "exact")
+  # The row count travels back to the parent, or the truncation guard never fires.
+  expect_false(is.na(m$out_rows))
+  m2 <- bench_measure_cell("sequential", data_path, NA_integer_, 1L, ref$lib, iters = 1L, op = "forde")
+  expect_equal(m$digest, m2$digest)
+})
+
+source("bench/run-cell.R")
+
+test_that("a mirai cell measures through the real child process", {
+  skip_if_not_installed("mirai")
+  skip_if_not(dir.exists(file.path("bench/lib/main", "arf")))
+  # Through the real child, which sources the helpers itself.
+  lib <- normalizePath("bench/lib/main")
+  cell <- data.frame(
+    op = "forde",
+    n = 500L,
+    p = 10L,
+    trees = 10L,
+    n_evidence = NA_integer_,
+    rowmode = NA_character_,
+    backend = "mirai",
+    workers = 2L,
+    iters = 1L,
+    mem_reps = 1L,
+    n_synth = NA_integer_,
+    n_folds = NA_integer_,
+    stringsAsFactors = FALSE
+  )
+  dp <- .bench_cell_data(cell, lib)
+  r <- bench_measure_cell("mirai", dp, 2L, 1L, lib, op = "forde")
+  expect_false(is.na(r$seconds[1]))
+})
+
+test_that("a child that dies says why", {
+  r <- NULL
+  expect_message(
+    r <- bench_measure_cell("mirai", tempfile(), 2L, 1L, tempdir(), op = "forde"),
+    "child failed"
+  )
+  expect_true(is.na(r$seconds))
+})
+
+
+test_that("a cell produces one schema-conforming row per ref", {
+  skip_on_cran()
+  root <- file.path(tempdir(), paste0("benchrun-", Sys.getpid()))
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  refs <- list(bench_install_ref("git:HEAD", root))
+  refs[[2]] <- refs[[1]]
+  refs[[2]]$label <- "head-copy"
+
+  cell <- bench_cells("quick")[1, ]
+  cell$n <- 300
+  cell$trees <- 5L
+  cell$iters <- 1L
+  rows <- bench_run_cell(cell, refs)
+
+  expect_equal(nrow(rows), 2L)
+  expect_equal(names(rows), bench_schema())
+  expect_equal(rows$digest[1], rows$digest[2])
+  expect_true(all(!is.na(rows$metric)))
+})
+
+test_that("one ref failing still records the others", {
+  skip_on_cran()
+  root <- file.path(tempdir(), paste0("benchfail-", Sys.getpid()))
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  good <- bench_install_ref("git:HEAD", root)
+  bad <- list(
+    label = "broken",
+    lib = file.path(root, "nonexistent"),
+    arf_version = "0.0.0",
+    commit = "0000000"
+  )
+
+  cell <- bench_cells("quick")[1, ]
+  cell$n <- 300
+  cell$trees <- 5L
+  cell$iters <- 1L
+  rows <- bench_run_cell(cell, list(good, bad))
+
+  expect_equal(nrow(rows), 2L)
+  expect_false(is.na(rows$time_median[rows$ref == good$label]))
+  expect_true(is.na(rows$time_median[rows$ref == "broken"]))
+  # Whatever the sampler accumulated before the child died is not a measurement:
+  # reported as a number it renders as a large memory "improvement".
+  expect_true(is.na(rows$peak_mb[rows$ref == "broken"]))
+  expect_true(is.na(rows$peak_delta_mb[rows$ref == "broken"]))
+})
+
+source("bench/registry.R")
+
+test_that("a local registry runs a one-cell grid end to end", {
+  skip_on_cran()
+  skip_if_not_installed("batchtools")
+  dir <- file.path(tempdir(), paste0("benchreg-", Sys.getpid()))
+  on.exit(unlink(dir, recursive = TRUE), add = TRUE)
+
+  cells <- bench_cells("quick")
+  cells <- cells[cells$op == "forde", ][1, ]
+  cells$n <- 300
+  cells$trees <- 5L
+  cells$iters <- 1L
+
+  root <- file.path(tempdir(), paste0("submitlib-", Sys.getpid()))
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  reg <- bench_make_registry(dir, "local")
+  reg <- bench_submit_cells(reg, cells, list(bench_install_ref("git:HEAD", root)))
+  batchtools::waitForJobs(reg = reg)
+  rows <- bench_collect(reg)
+
+  expect_equal(nrow(rows), 1L)
+  expect_equal(names(rows), bench_schema())
+  expect_false(is.na(rows$time_median))
+})
+
+source("bench/collate.R")
+
+.bench_fake <- function(...) {
+  base <- data.frame(
+    ref = NA_character_,
+    arf_version = "0.2.5.9000",
+    commit = "abc1234",
+    op = "lik",
+    backend = "sequential",
+    workers = NA_integer_,
+    n = 1e4,
+    p = 10L,
+    trees = 50L,
+    iters = 5L,
+    dt_threads = 1L,
+    ranger_threads = 1L,
+    metric = "cgroup-anon+shmem",
+    peak_mb = NA_real_,
+    floor_mb = NA_real_,
+    peak_delta_mb = NA_real_,
+    mem_reps = 3L,
+    mem_limit_mb = NA_real_,
+    time_median = NA_real_,
+    time_min = NA_real_,
+    time_max = NA_real_,
+    digest = NA_character_,
+    digest_kind = "exact",
+    digest_stable = TRUE,
+    out_rows = NA_integer_,
+    tier = "quick",
+    n_evidence = NA_integer_,
+    n_synth = NA_integer_,
+    n_folds = 8L,
+    rowmode = NA_character_,
+    host = "h",
+    kernel = "k",
+    r_version = "4.5",
+    job_id = NA_character_,
+    timestamp = "2026-10-05T00:00:00",
+    stringsAsFactors = FALSE
+  )
+  rows <- lapply(list(...), function(o) {
+    r <- base
+    for (nm in names(o)) {
+      r[[nm]] <- o[[nm]]
+    }
+    r
+  })
+  do.call(rbind, rows)
+}
+
+test_that("a memory win above the threshold reads as real and a small time move does not", {
+  rows <- .bench_fake(
+    list(ref = "main", peak_mb = 412, peak_delta_mb = 200, time_median = 1.84, digest = "a3f1"),
+    list(ref = "HEAD", peak_mb = 371, peak_delta_mb = 180, time_median = 1.79, digest = "a3f1")
+  )
+  d <- bench_deltas(rows, baseline = "main")
+  head_row <- d[d$ref == "HEAD", ]
+  expect_equal(round(head_row$delta_mem_pct, 1), -10.0)
+  expect_equal(head_row$mem_verdict, "real")
+  expect_equal(head_row$time_verdict, "inconclusive")
+  expect_false(head_row$digest_differs)
+})
+
+test_that("the report shows absolute marginals and the floor, not only percentages", {
+  rows <- .bench_fake(
+    list(
+      ref = "main",
+      peak_mb = 1450,
+      floor_mb = 216,
+      peak_delta_mb = 1234,
+      mem_reps = 3L,
+      time_median = 12.34,
+      digest = "a",
+      op = "expct"
+    ),
+    list(
+      ref = "cran-0.2.5",
+      peak_mb = 7840,
+      floor_mb = 216,
+      peak_delta_mb = 7623,
+      mem_reps = 3L,
+      time_median = 12.6,
+      digest = "a",
+      op = "expct"
+    )
+  )
+  txt <- paste(bench_report(rows, baseline = "main"), collapse = "\n")
+  # a +517% delta is unreadable without knowing whether it is MB or GB
+  expect_match(txt, "7623.0 vs 1234.0")
+  expect_match(txt, "216.0")
+  expect_match(txt, "12.600 vs 12.340")
+})
+
+test_that("a digest mismatch is flagged in the report", {
+  rows <- .bench_fake(
+    list(ref = "main", peak_mb = 412, peak_delta_mb = 200, time_median = 1.84, digest = "a3f1"),
+    list(ref = "HEAD", peak_mb = 371, peak_delta_mb = 180, time_median = 1.79, digest = "9c2e")
+  )
+  txt <- paste(bench_report(rows, baseline = "main"), collapse = "\n")
+  expect_match(txt, "OUTPUT DIFFERS")
+  expect_match(txt, "not apples-to-apples")
+})
+
+test_that("a ref identical to the baseline yields no finding and no division by zero", {
+  rows <- .bench_fake(
+    list(ref = "main", peak_mb = 400, peak_delta_mb = 200, time_median = 2, digest = "a"),
+    list(ref = "HEAD", peak_mb = 400, peak_delta_mb = 200, time_median = 2, digest = "a")
+  )
+  d <- bench_deltas(rows, baseline = "main")
+  expect_equal(d$delta_mem_pct[d$ref == "HEAD"], 0)
+  expect_equal(d$mem_verdict[d$ref == "HEAD"], "unchanged")
+  expect_false(any(is.nan(d$delta_mem_pct)))
+})
+
+test_that("a failed baseline measurement does not render as Inf or NaN", {
+  rows <- .bench_fake(
+    list(ref = "main", peak_mb = 0, peak_delta_mb = 0, time_median = NA_real_, digest = NA_character_),
+    list(ref = "HEAD", peak_mb = 371, peak_delta_mb = 180, time_median = 1.79, digest = "a3f1")
+  )
+  d <- bench_deltas(rows, baseline = "main")
+  expect_true(is.na(d$delta_mem_pct[d$ref == "HEAD"]))
+  expect_equal(d$mem_verdict[d$ref == "HEAD"], "no baseline")
+  txt <- paste(bench_report(rows, baseline = "main"), collapse = "\n")
+  expect_false(grepl("Inf|NaN", txt))
+})
+
+test_that("history keeps anchor rows only", {
+  path <- file.path(tempdir(), paste0("hist-", Sys.getpid(), ".csv"))
+  on.exit(unlink(path), add = TRUE)
+  rows <- .bench_fake(
+    list(ref = "HEAD", peak_mb = 371, peak_delta_mb = 180, time_median = 1.79, digest = "a"),
+    list(ref = "cran-0.2.5", peak_mb = 412, peak_delta_mb = 200, time_median = 1.84, digest = "b")
+  )
+  h1 <- bench_history_append(rows, path)
+  expect_equal(nrow(h1), 1L)
+  expect_equal(h1$ref, "cran-0.2.5")
+  # Re-appending the same configuration replaces it rather than duplicating:
+  # this file is committed and plotted.
+  h2 <- bench_history_append(rows, path)
+  expect_equal(nrow(h2), 1L)
+  expect_equal(names(read.csv(path)), bench_schema())
+})
+
+test_that("installing the same ref twice reuses the library instead of rebuilding", {
+  skip_on_cran()
+  root <- file.path(tempdir(), paste0("benchcache-", Sys.getpid()))
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  first <- bench_install_ref("git:HEAD", root)
+  stamp <- file.path(first$lib, ".bench-stamp")
+  expect_true(file.exists(stamp))
+  mtime <- file.mtime(stamp)
+  second <- bench_install_ref("git:HEAD", root)
+  expect_equal(second$commit, first$commit)
+  expect_equal(second$arf_version, first$arf_version)
+  expect_equal(file.mtime(stamp), mtime)
+})
+
+test_that("a zero on either side of a delta is not a finding", {
+  expect_true(is.na(.bench_pct(0, 400)))
+  expect_true(is.na(.bench_pct(400, 0)))
+  expect_true(is.na(.bench_pct(NA_real_, 400)))
+  expect_equal(.bench_pct(360, 400), -10)
+})
+
+test_that("the memory floor is measured and the marginal excludes it", {
+  skip_on_cran()
+  root <- file.path(tempdir(), paste0("benchfloor-", Sys.getpid()))
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  ref <- bench_install_ref("git:HEAD", root)
+  cell <- bench_cells("quick")[1, ]
+  cell$op <- "forde"
+  cell$n <- 2000
+  cell$trees <- 20L
+  cell$iters <- 1L
+  rows <- bench_run_cell(cell, list(ref))
+
+  # The floor is an R interpreter plus arf plus the fixture: hundreds of MB here,
+  # and it dwarfs a small op, so percentages computed on peak_mb are diluted.
+  expect_true(rows$floor_mb > 50)
+  expect_true(rows$peak_mb >= rows$floor_mb)
+  # peak_delta_mb is the median of PAIRED per-round differences, so it is
+  # deliberately not the difference of the two reported medians. The contract
+  # is that it is a positive quantity strictly smaller than the raw peak.
+  expect_gt(rows$peak_delta_mb, 0)
+  expect_lt(rows$peak_delta_mb, rows$peak_mb)
+  expect_true(rows$peak_delta_mb < rows$peak_mb)
+})
+
+test_that("deltas are computed on the marginal, not the floor-inflated total", {
+  rows <- .bench_fake(
+    list(ref = "main", peak_mb = 412, peak_delta_mb = 200, time_median = 1.84, digest = "a"),
+    list(ref = "HEAD", peak_mb = 392, peak_delta_mb = 180, time_median = 1.84, digest = "a")
+  )
+  d <- bench_deltas(rows, baseline = "main")
+  # -20 MB of 200 MB of actual work is -10%, not the -4.9% the totals suggest.
+  expect_equal(round(d$delta_mem_pct[d$ref == "HEAD"], 1), -10.0)
+  expect_equal(d$mem_verdict[d$ref == "HEAD"], "real")
+})
+
+test_that("an unnamed list digests instead of erroring", {
+  expect_type(bench_digest(list(1, 2), "exact"), "character")
+  expect_type(bench_digest(list(a = 1, 2), "exact"), "character")
+})
+
+test_that("provenance is asserted against the library actually loaded", {
+  expect_error(.bench_assert_lib("/nonexistent/lib"), "not from the ref library")
+  expect_true(.bench_assert_lib(dirname(find.package("arf"))))
+})
+
+test_that("ref specs resolving to the same commit collapse to one", {
+  skip_on_cran()
+  # Branch-independent: on main, "HEAD" and "main" are the same commit and
+  # collapse; on a feature branch they differ and both are kept, which is the
+  # comparison the suite exists for. Pin the duplicate explicitly instead.
+  sha <- system2("git", c("rev-parse", "--short", "HEAD"), stdout = TRUE)[1]
+  resolved <- bench_resolve_refs(c("HEAD", paste0("git:", sha)))
+  expect_length(resolved, 1L)
+  expect_equal(resolved, "HEAD")
+  expect_length(bench_resolve_refs(c("HEAD", "cran:0.2.5")), 2L)
+})
+
+test_that("the committed history file does not dirty the tree for the next run", {
+  repo <- .bench_test_repo()
+  on.exit(unlink(repo, recursive = TRUE), add = TRUE)
+  dir.create(file.path(repo, "bench"))
+  writeLines("a", file.path(repo, "bench/history.csv"))
+  system2("git", c("-C", repo, "add", "bench/history.csv"))
+  system2(
+    "git",
+    c("-C", repo, "-c", "user.email=t@example.org", "-c", "user.name=t", "commit", "-qm", "history"),
+    stdout = FALSE
+  )
+  writeLines("a,b", file.path(repo, "bench/history.csv"))
+  # Benchmark OUTPUT, not benchmark input: it cannot make a result irreproducible.
+  expect_silent(bench_assert_clean_tree(repo))
+  writeLines("changed", file.path(repo, "tracked.txt"))
+  expect_error(bench_assert_clean_tree(repo), "tracked.txt")
+})
+
+test_that("the full tier covers both evidence row modes and a large variant", {
+  cells <- bench_cells("full")
+  rowmodes <- cells$rowmode[!is.na(cells$rowmode)]
+  expect_true(all(c("separate", "or") %in% rowmodes))
+  # Two evidence counts, so the axis has a slope; the exact high value is a
+  # feasibility decision made in .bench_cells_full(), not a fixture here.
+  expect_length(unique(stats::na.omit(cells$n_evidence)), 2L)
+  expect_true(any(cells$n_synth == 100, na.rm = TRUE))
+})
+
+test_that("errored jobs are surfaced rather than silently dropped", {
+  skip_on_cran()
+  skip_if_not_installed("batchtools")
+  dir <- file.path(tempdir(), paste0("bencherr-", Sys.getpid()))
+  on.exit(unlink(dir, recursive = TRUE), add = TRUE)
+  reg <- bench_make_registry(dir, "local")
+  batchtools::batchMap(
+    function(i) {
+      if (i == 2L) {
+        stop("boom")
+      }
+      row <- setNames(as.data.frame(as.list(rep(NA, length(bench_schema())))), bench_schema())
+      row$ref <- "main"
+      row
+    },
+    i = 1:2,
+    reg = reg
+  )
+  suppressWarnings(batchtools::submitJobs(reg = reg))
+  batchtools::waitForJobs(reg = reg, stop.on.error = FALSE)
+  expect_warning(rows <- bench_collect(reg), "1 job")
+  expect_equal(nrow(rows), 1L)
+})
+
+test_that("the report names the worker count and refuses to mix metrics", {
+  rows <- .bench_fake(
+    list(
+      ref = "main",
+      peak_mb = 412,
+      peak_delta_mb = 200,
+      time_median = 1.84,
+      digest = "a",
+      backend = "mirai",
+      workers = 8L
+    ),
+    list(
+      ref = "HEAD",
+      peak_mb = 371,
+      peak_delta_mb = 180,
+      time_median = 1.79,
+      digest = "a",
+      backend = "mirai",
+      workers = 8L
+    )
+  )
+  txt <- paste(bench_report(rows, baseline = "main"), collapse = "\n")
+  expect_match(txt, "\\| 8 \\|")
+
+  mixed <- rows
+  mixed$metric[2] <- "PSS"
+  expect_warning(bench_report(mixed, baseline = "main"), "metric")
+})
+
+test_that("a single memory sample is never reported as a finding", {
+  rows <- .bench_fake(
+    list(ref = "main", peak_mb = 412, peak_delta_mb = 200, mem_reps = 1L, time_median = 1.84, digest = "a"),
+    list(ref = "HEAD", peak_mb = 371, peak_delta_mb = 180, mem_reps = 1L, time_median = 1.84, digest = "a")
+  )
+  d <- bench_deltas(rows, baseline = "main")
+  expect_equal(round(d$delta_mem_pct[d$ref == "HEAD"], 1), -10.0)
+  expect_equal(d$mem_verdict[d$ref == "HEAD"], "single sample, not a finding")
+
+  rows$mem_reps <- 3L
+  d3 <- bench_deltas(rows, baseline = "main")
+  expect_equal(d3$mem_verdict[d3$ref == "HEAD"], "real")
+})
+
+test_that("a registry path whose parent does not exist is created", {
+  skip_on_cran()
+  skip_if_not_installed("batchtools")
+  # batchtools asserts the dirname exists rather than creating it, and the CLI
+  # nests the registry under bench/registry/<stamp>.
+  root <- file.path(tempdir(), paste0("regparent-", Sys.getpid()))
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  nested <- file.path(root, "registry", "20260101-000000")
+  expect_false(dir.exists(dirname(nested)))
+  reg <- bench_make_registry(nested, "local")
+  expect_true(dir.exists(nested))
+})
+
+test_that("each tier carries its own memory replication budget", {
+  expect_equal(unique(bench_cells("quick")$mem_reps), 3L)
+  expect_equal(unique(bench_cells("full")$mem_reps), 5L)
+})
+
+test_that("a marginal too small relative to its floor carries no memory verdict", {
+  thin <- .bench_fake(
+    list(
+      ref = "main",
+      peak_mb = 255,
+      floor_mb = 200,
+      peak_delta_mb = 55,
+      mem_reps = 3L,
+      time_median = 1.84,
+      digest = "a"
+    ),
+    list(
+      ref = "HEAD",
+      peak_mb = 250,
+      floor_mb = 200,
+      peak_delta_mb = 48,
+      mem_reps = 3L,
+      time_median = 1.84,
+      digest = "a"
+    )
+  )
+  d <- bench_deltas(thin, baseline = "main")
+  expect_equal(d$mem_verdict[d$ref == "HEAD"], "cell too small to resolve memory")
+
+  # ratio 0.73 measured a 4.2% same-commit delta, so it carries no verdict either
+  borderline <- .bench_fake(
+    list(
+      ref = "main",
+      peak_mb = 370,
+      floor_mb = 214,
+      peak_delta_mb = 156,
+      mem_reps = 3L,
+      time_median = 1.84,
+      digest = "a"
+    ),
+    list(
+      ref = "HEAD",
+      peak_mb = 364,
+      floor_mb = 214,
+      peak_delta_mb = 150,
+      mem_reps = 3L,
+      time_median = 1.84,
+      digest = "a"
+    )
+  )
+  db <- bench_deltas(borderline, baseline = "main")
+  expect_equal(db$mem_verdict[db$ref == "HEAD"], "cell too small to resolve memory")
+
+  fat <- .bench_fake(
+    list(
+      ref = "main",
+      peak_mb = 825,
+      floor_mb = 275,
+      peak_delta_mb = 550,
+      mem_reps = 3L,
+      time_median = 1.84,
+      digest = "a"
+    ),
+    list(
+      ref = "HEAD",
+      peak_mb = 770,
+      floor_mb = 275,
+      peak_delta_mb = 495,
+      mem_reps = 3L,
+      time_median = 1.84,
+      digest = "a"
+    )
+  )
+  d2 <- bench_deltas(fat, baseline = "main")
+  expect_equal(d2$mem_verdict[d2$ref == "HEAD"], "real")
+})
+
+test_that("one ref capping does not invalidate the others' comparison", {
+  # Scaled from the real n=5e4 cell: at n_evidence=1000 the anchor would need
+  # ~1.8 TB and cap, while main needs ~270 GB and does not. The HEAD-vs-main
+  # delta in that cell is still a measurement.
+  rows <- .bench_fake(
+    list(
+      ref = "main",
+      peak_mb = 270000,
+      floor_mb = 1685,
+      peak_delta_mb = 268315,
+      mem_reps = 5L,
+      iters = 2L,
+      mem_limit_mb = 550000,
+      time_median = 300,
+      digest = "a",
+      op = "expct",
+      n = 5e4
+    ),
+    list(
+      ref = "HEAD",
+      peak_mb = 255000,
+      floor_mb = 1685,
+      peak_delta_mb = 253315,
+      mem_reps = 5L,
+      iters = 2L,
+      mem_limit_mb = 550000,
+      time_median = 300,
+      digest = "a",
+      op = "expct",
+      n = 5e4
+    ),
+    list(
+      ref = "cran-0.2.5",
+      peak_mb = 549000,
+      floor_mb = 1685,
+      peak_delta_mb = 547315,
+      mem_reps = 5L,
+      iters = 2L,
+      mem_limit_mb = 550000,
+      time_median = 260,
+      digest = "a",
+      op = "expct",
+      n = 5e4
+    )
+  )
+  d <- bench_deltas(rows, baseline = "main")
+  expect_equal(d$mem_verdict[d$ref == "cran-0.2.5"], "hit the memory cap, not a measurement")
+  expect_equal(d$mem_verdict[d$ref == "HEAD"], "real")
+  # Reclaim throttling at the cap distorts the runtime as well.
+  expect_equal(d$time_verdict[d$ref == "cran-0.2.5"], "hit the memory cap, not a measurement")
+  expect_false(d$time_verdict[d$ref == "HEAD"] == "hit the memory cap, not a measurement")
+})
+
+test_that("the resolution guard applies to the whole cell, not one row", {
+  # One ref thin, the other not: the comparison is still unresolvable, and the
+  # cluster's first run reported +10.3% "real" for exactly this shape.
+  rows <- .bench_fake(
+    list(
+      ref = "main",
+      peak_mb = 300,
+      floor_mb = 200,
+      peak_delta_mb = 100,
+      mem_reps = 3L,
+      time_median = 2,
+      digest = NA_character_,
+      digest_kind = "none"
+    ),
+    list(
+      ref = "cran-0.2.5",
+      peak_mb = 530,
+      floor_mb = 200,
+      peak_delta_mb = 330,
+      mem_reps = 3L,
+      time_median = 2,
+      digest = NA_character_,
+      digest_kind = "none"
+    )
+  )
+  d <- bench_deltas(rows, baseline = "main")
+  expect_equal(
+    d$mem_verdict[d$ref == "cran-0.2.5"],
+    "cell too small to resolve memory"
+  )
+})
+
+test_that("history replaces a re-run configuration instead of duplicating it", {
+  path <- file.path(tempdir(), paste0("hist2-", Sys.getpid(), ".csv"))
+  on.exit(unlink(path), add = TRUE)
+  mk <- function(ts, mb) {
+    .bench_fake(list(
+      ref = "cran-0.2.5",
+      peak_mb = mb + 200,
+      floor_mb = 200,
+      peak_delta_mb = mb,
+      mem_reps = 3L,
+      time_median = 1.5,
+      digest = "a",
+      timestamp = ts
+    ))
+  }
+  bench_history_append(mk("2026-10-01T00:00:00", 100), path)
+  h <- bench_history_append(mk("2026-10-02T00:00:00", 120), path)
+  expect_equal(nrow(h), 1L)
+  expect_equal(h$peak_delta_mb, 120)
+
+  # a different cell is a different row, not a replacement
+  other <- mk("2026-10-02T00:00:00", 300)
+  other$n <- 5e4
+  h2 <- bench_history_append(other, path)
+  expect_equal(nrow(h2), 2L)
+})
+
+test_that("history refuses rows that measured nothing", {
+  path <- file.path(tempdir(), paste0("hist3-", Sys.getpid(), ".csv"))
+  on.exit(unlink(path), add = TRUE)
+  dead <- .bench_fake(list(
+    ref = "cran-0.2.5",
+    peak_mb = NA_real_,
+    floor_mb = NA_real_,
+    peak_delta_mb = NA_real_,
+    time_median = NA_real_,
+    digest = NA_character_
+  ))
+  expect_equal(nrow(bench_history_append(dead, path)), 0L)
+  # An OOM-killed anchor leaves nothing to append. Silence there is
+  # indistinguishable from a collate that never ran.
+  expect_message(bench_history_append(dead, path), "Nothing appended")
+})
+
+test_that("history says how many rows it wrote", {
+  path <- file.path(tempdir(), paste0("hist4-", Sys.getpid(), ".csv"))
+  on.exit(unlink(path), add = TRUE)
+  rows <- rbind(
+    .bench_fake(list(ref = "main", peak_delta_mb = 100, time_median = 1)),
+    .bench_fake(list(ref = "cran-0.2.5", peak_delta_mb = 120, time_median = 2))
+  )
+  expect_message(bench_history_append(rows, path), "1 row\\(s\\) total, 1 new")
+})
+
+test_that("walltime comes from the measured call time of the cell itself", {
+  path <- file.path(tempdir(), paste0("tim-", Sys.getpid(), ".csv"))
+  on.exit(unlink(path), add = TRUE)
+  cells <- bench_cells("full")
+  cells <- cells[cells$op == "expct" & cells$n == 5e4, ][1:2, ]
+  utils::write.csv(
+    data.frame(
+      op = "expct",
+      backend = cells$backend,
+      workers = cells$workers,
+      n = cells$n,
+      p = cells$p,
+      trees = cells$trees,
+      n_evidence = cells$n_evidence,
+      rowmode = cells$rowmode,
+      call_seconds = c(100, 1000),
+      host = "h",
+      measured = "2026-10-09T00:00:00"
+    ),
+    path,
+    row.names = FALSE
+  )
+  expect_equal(bench_call_seconds(cells, path), c(100, 1000))
+  w <- bench_cell_walltime(cells, n_refs = 2, mem_reps = 5, iters = 2, path = path)
+  # 1.3 safety x 5 rounds x 2 refs x (2 calls x t + 120 s overhead), rounded up
+  # to the half hour that keeps the submission count down.
+  raw <- 1.3 * 5 * 2 * (2 * c(100, 1000) + 120)
+  expect_equal(w, as.integer(BENCH_WALLTIME_MIN_S * ceiling(raw / BENCH_WALLTIME_MIN_S)))
+  expect_true(all(w >= raw))
+  expect_true(all(w %% BENCH_WALLTIME_MIN_S == 0))
+  # More replication, more walltime; and never past the QoS ceiling.
+  expect_true(all(
+    bench_cell_walltime(cells, 2, mem_reps = 10, iters = 2, path = path) > w
+  ))
+  expect_lte(
+    max(bench_cell_walltime(cells, 2, mem_reps = 500, iters = 50, path = path)),
+    BENCH_WALLTIME_MAX_S
+  )
+})
+
+test_that("a cell with no timing of its own falls back to its class, then the caller", {
+  path <- file.path(tempdir(), paste0("tim2-", Sys.getpid(), ".csv"))
+  on.exit(unlink(path), add = TRUE)
+  cells <- bench_cells("full")
+  cells <- cells[cells$op == "expct" & cells$n == 5e4, ]
+  one <- cells[1, ]
+  utils::write.csv(
+    data.frame(
+      op = one$op,
+      backend = one$backend,
+      workers = one$workers,
+      n = one$n,
+      p = one$p,
+      trees = one$trees,
+      n_evidence = one$n_evidence,
+      rowmode = one$rowmode,
+      call_seconds = 777,
+      host = "h",
+      measured = "2026-10-09T00:00:00"
+    ),
+    path,
+    row.names = FALSE
+  )
+  sibling <- cells[
+    cells$rowmode == one$rowmode &
+      cells$n_evidence == one$n_evidence &
+      cells$backend != one$backend,
+  ][1, ]
+  # Same class, different backend: inherits the class figure rather than
+  # guessing from the worker count, which mirai inverts.
+  expect_equal(bench_call_seconds(sibling, path), 777)
+  # No timings file at all: the caller's fallback stands.
+  expect_equal(
+    bench_cell_walltime(one, 2, fallback = 3600, path = file.path(tempdir(), "absent.csv")),
+    3600L
+  )
+})
+
+test_that("refs that install the same package content are measured once", {
+  # A bench-only branch is the same arf as its base, and running both doubles
+  # a cluster run to prove 0.0%.
+  expect_equal(bench_resolve_refs(c("HEAD", "main")), "main")
+  # The baseline survives the collapse: dropping "main" would leave
+  # bench_deltas() with no baseline to compare against.
+  expect_true("main" %in% bench_resolve_refs(c("HEAD", "main", "cran:0.2.5")))
+  expect_length(bench_resolve_refs(c("HEAD", "main", "cran:0.2.5")), 2L)
+})
+
+test_that("a damaged timings file costs the fallback, not the run", {
+  path <- file.path(tempdir(), paste0("tim5-", Sys.getpid(), ".csv"))
+  on.exit(unlink(path), add = TRUE)
+  # A shifted row, as a botched merge produces: call_seconds reads as character
+  # and the walltime arithmetic would otherwise fail deep inside the estimate.
+  writeLines(
+    c(
+      "op,backend,workers,n,p,trees,n_evidence,rowmode,call_seconds,host,measured",
+      "expct,foreach,2,10000,10,200,100,separate,42,h,2026-10-01T00:00:00",
+      "expct,foreach,2,10000,10,200,100,separate,or,h,2026-10-01T00:00:00"
+    ),
+    path
+  )
+  cells <- bench_cells("full")
+  expect_warning(s <- bench_call_seconds(cells, path), "not usable")
+  expect_true(all(is.na(s)))
+  expect_equal(
+    unique(suppressWarnings(
+      bench_cell_walltime(cells, 2, fallback = 3600, path = path)
+    )),
+    3600L
+  )
+})
+
+test_that("timings survive a key column being added later", {
+  path <- file.path(tempdir(), paste0("tim4-", Sys.getpid(), ".csv"))
+  on.exit(unlink(path), add = TRUE)
+  # A file written before n_synth joined the key: readable, not fatal.
+  utils::write.csv(
+    data.frame(
+      op = "forge",
+      backend = "foreach",
+      workers = 2L,
+      n = 1e4,
+      p = 10L,
+      trees = 200L,
+      n_evidence = 100L,
+      rowmode = "separate",
+      call_seconds = 42,
+      host = "h",
+      measured = "2026-10-01T00:00:00"
+    ),
+    path,
+    row.names = FALSE
+  )
+  t <- bench_timings_append(
+    .bench_fake(list(ref = "main", op = "forge", time_median = 7)),
+    path
+  )
+  expect_true("n_synth" %in% names(t))
+  expect_equal(nrow(t), 2L)
+})
+
+test_that("timings keep the slowest ref per cell and the newest run", {
+  path <- file.path(tempdir(), paste0("tim3-", Sys.getpid(), ".csv"))
+  on.exit(unlink(path), add = TRUE)
+  rows <- rbind(
+    .bench_fake(list(ref = "main", time_median = 10)),
+    .bench_fake(list(ref = "cran-0.2.5", time_median = 90))
+  )
+  t <- bench_timings_append(rows, path)
+  expect_equal(nrow(t), 1L)
+  expect_equal(t$call_seconds, 90)
+  # Re-running the same cell replaces its row instead of accumulating.
+  t2 <- bench_timings_append(.bench_fake(list(ref = "main", time_median = 5)), path)
+  expect_equal(nrow(t2), 1L)
+  expect_equal(t2$call_seconds, 5)
+})
+
+test_that("a truncated result is reported as truncation, not as a value change", {
+  # A forked worker that dies takes its whole chunk with it: foreach warns,
+  # rbind returns fewer rows than the evidence had, and arf does not error. The
+  # digest then moves for a reason that has nothing to do with the code.
+  rows <- rbind(
+    .bench_fake(list(
+      ref = "main",
+      op = "expct",
+      n_evidence = 1000L,
+      out_rows = 1000L,
+      digest = "aaa",
+      peak_delta_mb = 100,
+      time_median = 1
+    )),
+    .bench_fake(list(
+      ref = "cran-0.2.5",
+      op = "expct",
+      n_evidence = 1000L,
+      out_rows = 937L,
+      digest = "bbb",
+      peak_delta_mb = 100,
+      time_median = 1
+    ))
+  )
+  d <- bench_deltas(rows)
+  anchor <- d[d$ref == "cran-0.2.5", ]
+  expect_true(anchor$out_rows_differ)
+  # Not reported as an output difference: the result is incomplete, not changed.
+  expect_false(anchor$digest_differs)
+  # Equal row counts leave the digest comparison alone.
+  rows$out_rows <- 1000L
+  expect_true(bench_deltas(rows)$digest_differs[rows$ref == "cran-0.2.5"])
+})
+
+test_that("an output difference needs both refs to be self-consistent first", {
+  # forge under 2+ fork or mirai workers ignores the seed, so its own digest
+  # moves between rounds. Comparing two such digests across refs says nothing.
+  rows <- rbind(
+    .bench_fake(list(
+      ref = "main",
+      op = "forge",
+      digest = "aaa",
+      digest_kind = "summary",
+      digest_stable = FALSE,
+      peak_delta_mb = 100,
+      time_median = 1
+    )),
+    .bench_fake(list(
+      ref = "cran-0.2.5",
+      op = "forge",
+      digest = "bbb",
+      digest_kind = "summary",
+      digest_stable = FALSE,
+      peak_delta_mb = 100,
+      time_median = 1
+    ))
+  )
+  expect_false(any(bench_deltas(rows)$digest_differs))
+  # Stable on both sides and still different: that is a real output difference.
+  rows$digest_stable <- TRUE
+  expect_true(any(bench_deltas(rows)$digest_differs))
+})
+
+test_that("cells differing only in evidence count are not the same cell", {
+  # expct and forge carry evidence-count and synth-count variants at otherwise
+  # identical settings. A key that omits them collapses the pair, and match()
+  # then compares every variant against whichever baseline row comes first.
+  rows <- rbind(
+    .bench_fake(list(ref = "main", op = "expct", n_evidence = 100L, peak_delta_mb = 6000, time_median = 10)),
+    .bench_fake(list(ref = "main", op = "expct", n_evidence = 1000L, peak_delta_mb = 60000, time_median = 100)),
+    .bench_fake(list(ref = "cran-0.2.5", op = "expct", n_evidence = 100L, peak_delta_mb = 6060, time_median = 10.1)),
+    .bench_fake(list(ref = "cran-0.2.5", op = "expct", n_evidence = 1000L, peak_delta_mb = 60600, time_median = 101))
+  )
+  expect_length(unique(.bench_cell_key(rows)), 2L)
+  d <- bench_deltas(rows)
+  anchor <- d[d$ref == "cran-0.2.5", ]
+  # Each variant against its own baseline: 1% either way, not 910%.
+  expect_equal(round(anchor$delta_mem_pct, 1), c(1, 1))
+  expect_equal(round(anchor$delta_time_pct, 1), c(1, 1))
+})
+
+test_that("history keeps evidence variants as separate rows", {
+  path <- file.path(tempdir(), paste0("hist5-", Sys.getpid(), ".csv"))
+  on.exit(unlink(path), add = TRUE)
+  rows <- rbind(
+    .bench_fake(list(
+      ref = "cran-0.2.5",
+      op = "forge",
+      n_evidence = 100L,
+      n_synth = 1L,
+      peak_delta_mb = 10,
+      time_median = 1
+    )),
+    .bench_fake(list(
+      ref = "cran-0.2.5",
+      op = "forge",
+      n_evidence = 1000L,
+      n_synth = 100L,
+      peak_delta_mb = 900,
+      time_median = 90
+    ))
+  )
+  expect_equal(nrow(bench_history_append(rows, path)), 2L)
+})
+
+test_that("the evidence axis stays inside what the anchor can actually run", {
+  cells <- bench_cells("full")
+  ev <- cells[!is.na(cells$n_evidence), ]
+  # Two points, and the high one is reachable by cran-0.2.5: at 1000 evidence
+  # rows its expct peak exceeded a whole node and was clamped, so the cell
+  # measured the cap instead of the workload.
+  expect_setequal(unique(ev$n_evidence), c(100L, 200L))
+  req <- bench_cell_resources(cells)
+  # No cell needs a whole node any more.
+  expect_lte(max(req$fraction), 1 / 2)
+  # The hungriest ref needs about 506 GB at n = 5e4, 200 rows, "or".
+  big <- cells$n == 5e4 & !is.na(cells$n_evidence) & cells$n_evidence == 200L
+  expect_gte(min(req$memory[big]), 506000)
+})
+
+test_that("heavy cells are sized by their evidence count", {
+  g <- expand.grid(
+    op = "expct",
+    n = 5e4,
+    n_evidence = c(100L, 200L),
+    rowmode = c("separate", "or"),
+    workers = 8L,
+    stringsAsFactors = FALSE
+  )
+  r <- bench_cell_resources(g)
+  # cran-0.2.5 peaks at 231 GB (separate) and 253 GB ("or") at 100 evidence
+  # rows, and close to double that at 200, so the two counts cannot share one
+  # figure: one of them would either waste a node fraction or hit its own cap.
+  expect_lt(max(r$memory[g$n_evidence == 100L]), min(r$memory[g$n_evidence == 200L]))
+  expect_gt(min(r$memory[g$n_evidence == 100L]), 253000)
+  expect_gt(min(r$memory[g$n_evidence == 200L]), 506000)
+})
+
+test_that("a cell no ref could run says so instead of blaming the baseline", {
+  rows <- rbind(
+    .bench_fake(list(ref = "main")),
+    .bench_fake(list(ref = "cran-0.2.5"))
+  )
+  d <- bench_deltas(rows)
+  expect_true(all(d$mem_verdict == "no ref completed this cell"))
+  expect_true(all(d$time_verdict == "no ref completed this cell"))
+})
+
+test_that("collect warns about jobs that neither finished nor errored", {
+  skip_if_not_installed("batchtools")
+  dir <- file.path(tempdir(), paste0("expired-", Sys.getpid()))
+  on.exit(unlink(dir, recursive = TRUE), add = TRUE)
+  reg <- suppressMessages(batchtools::makeRegistry(
+    file.dir = dir,
+    make.default = FALSE,
+    conf.file = NA_character_
+  ))
+  reg$cluster.functions <- batchtools::makeClusterFunctionsInteractive()
+  suppressMessages(batchtools::batchMap(function(i) .bench_fake(list(ref = "main")), i = 1:2, reg = reg))
+  suppressMessages(batchtools::submitJobs(ids = 1, reg = reg))
+  # Job 2 was never submitted, which collect must treat the same as expired.
+  expect_warning(bench_collect(reg), "neither finished nor errored")
+})
+
+test_that("a ref that died gets a verdict naming the ref, not the baseline", {
+  rows <- rbind(
+    .bench_fake(list(ref = "main", peak_mb = 200, floor_mb = 10, peak_delta_mb = 190, time_median = 5)),
+    .bench_fake(list(ref = "cran-0.2.5"))
+  )
+  d <- bench_deltas(rows)
+  dead <- d[d$ref == "cran-0.2.5", ]
+  expect_equal(dead$mem_verdict, "ref did not complete")
+  expect_equal(dead$time_verdict, "ref did not complete")
+})
+
+test_that("a run too large to tabulate is summarised with only real findings", {
+  many <- do.call(
+    rbind,
+    lapply(seq_len(50), function(i) {
+      .bench_fake(
+        list(
+          ref = "main",
+          peak_mb = 1000,
+          floor_mb = 200,
+          peak_delta_mb = 800,
+          mem_reps = 3L,
+          time_median = 10,
+          digest = "a",
+          n = i * 1000
+        ),
+        list(
+          ref = "HEAD",
+          peak_mb = 1000,
+          floor_mb = 200,
+          peak_delta_mb = if (i == 1L) 400 else 800,
+          mem_reps = 3L,
+          time_median = 10,
+          digest = "a",
+          n = i * 1000
+        )
+      )
+    })
+  )
+  txt <- paste(bench_report(many, baseline = "main"), collapse = "\n")
+  expect_match(txt, "50 comparisons across 50 cells")
+  expect_match(txt, "1 comparison\\(s\\) with a verdict")
+  # the one real finding is shown, the 49 unchanged cells are not
+  expect_equal(lengths(regmatches(txt, gregexpr("\\| `HEAD` \\|", txt))), 1L)
+})
+
+test_that("a percentage on a millisecond measurement is not a time finding", {
+  # From a real quick-tier run: adversarial_rf at n=1e3 reported +12.7% "real"
+  # on a 62 ms call, while every cell above a second read inconclusive.
+  fast <- .bench_fake(
+    list(
+      ref = "main",
+      peak_mb = 215,
+      floor_mb = 200,
+      peak_delta_mb = 14.3,
+      mem_reps = 3L,
+      time_median = 0.055,
+      digest = "a"
+    ),
+    list(
+      ref = "HEAD",
+      peak_mb = 215,
+      floor_mb = 200,
+      peak_delta_mb = 14.5,
+      mem_reps = 3L,
+      time_median = 0.062,
+      digest = "a"
+    )
+  )
+  d <- bench_deltas(fast, baseline = "main")
+  expect_equal(d$time_verdict[d$ref == "HEAD"], "too fast to time reliably")
+
+  slow <- fast
+  slow$time_median <- c(24.9, 27.5)
+  d2 <- bench_deltas(slow, baseline = "main")
+  expect_equal(d2$time_verdict[d2$ref == "HEAD"], "real")
+})
+
+test_that("a peak at the cgroup cap is not reported as a measurement", {
+  # From a real cluster run: six cells sat at 99.75% of a 256 GB cap, identical
+  # to the megabyte across a fivefold difference in n.
+  rows <- .bench_fake(
+    list(
+      ref = "main",
+      peak_mb = 13500,
+      floor_mb = 482,
+      peak_delta_mb = 13018,
+      mem_reps = 5L,
+      mem_limit_mb = 256000,
+      time_median = 50,
+      digest = "a"
+    ),
+    list(
+      ref = "cran-0.2.5",
+      peak_mb = 255354,
+      floor_mb = 482,
+      peak_delta_mb = 254872,
+      mem_reps = 5L,
+      mem_limit_mb = 256000,
+      time_median = 220,
+      digest = "a"
+    )
+  )
+  d <- bench_deltas(rows, baseline = "main")
+  expect_equal(
+    d$mem_verdict[d$ref == "cran-0.2.5"],
+    "hit the memory cap, not a measurement"
+  )
+  # The baseline's own row compares it with itself and never reaches the report,
+  # so what matters is that the capped REF is flagged, which it is above.
+  expect_equal(d$mem_verdict[d$ref == "main"], "unchanged")
+
+  roomy <- rows
+  roomy$mem_limit_mb <- 900000
+  d2 <- bench_deltas(roomy, baseline = "main")
+  expect_equal(d2$mem_verdict[d2$ref == "cran-0.2.5"], "real")
+})
+
+test_that("an unlimited cgroup yields no cap and no cap verdict", {
+  expect_true(is.na(.bench_cgroup_limit_mb(NULL)))
+  rows <- .bench_fake(
+    list(
+      ref = "main",
+      peak_mb = 1000,
+      floor_mb = 200,
+      peak_delta_mb = 800,
+      mem_reps = 3L,
+      mem_limit_mb = NA_real_,
+      time_median = 10,
+      digest = "a"
+    ),
+    list(
+      ref = "HEAD",
+      peak_mb = 900,
+      floor_mb = 200,
+      peak_delta_mb = 700,
+      mem_reps = 3L,
+      mem_limit_mb = NA_real_,
+      time_median = 10,
+      digest = "a"
+    )
+  )
+  expect_equal(bench_deltas(rows, baseline = "main")$mem_verdict[2], "real")
+})
+
+test_that("cells can be narrowed to one backend", {
+  cells <- bench_cells("full")
+  got <- bench_select_cells(cells, backends = "mirai")
+  expect_setequal(unique(got$backend), "mirai")
+  expect_gt(nrow(got), 0L)
+  expect_lt(nrow(got), nrow(cells))
+  # sequential carries no worker count, so naming it must not drop those cells
+  both <- bench_select_cells(cells, backends = "mirai,sequential")
+  expect_setequal(unique(both$backend), c("mirai", "sequential"))
+  expect_gt(nrow(both), nrow(got))
+  # composes with the other filters
+  f <- bench_select_cells(cells, ops = "forde", sizes = "50000", backends = "mirai")
+  expect_setequal(unique(f$op), "forde")
+  expect_setequal(unique(f$n), 5e4)
+  expect_setequal(unique(f$backend), "mirai")
+  expect_equal(nrow(bench_select_cells(cells, max_cells = 3L)), 3L)
+  # no filters is the whole set
+  expect_equal(nrow(bench_select_cells(cells)), nrow(cells))
+})
+
+test_that("cores and memory are matched fractions of a node", {
+  cells <- bench_cells("full")
+  req <- bench_cell_resources(cells)
+  # every request is a whole fraction of the node in BOTH dimensions, so
+  # neither cores nor memory are stranded behind the other
+  expect_true(all(req$ncpus / BENCH_NODE_THREADS - req$memory / BENCH_NODE_MEM_MB < 1e-9))
+  expect_true(all(req$ncpus >= bench_cell_threads(cells)))
+  expect_true(all(req$memory >= bench_cell_memory_mb(cells)))
+  expect_true(all(req$fraction %in% BENCH_NODE_FRACTIONS))
+  # a 16-worker cell needs 36 threads, which no 1/16 node (12) can serve
+  w16 <- cells$backend != "sequential" & cells$workers == 16L
+  expect_true(all(req$ncpus[w16] >= 36L))
+})
+
+test_that("memory is requested per cell, from measured peaks", {
+  cells <- bench_cells("full")
+  mem <- bench_cell_memory_mb(cells)
+  # full tier: 48 GB (n=1e4 cheap), 192 GB (n=1e4 heavy and n=5e4 cheap), and
+  # the two heavy n=5e4 classes the evidence count splits (275 / 500 GB; see
+  # .bench_heavy_mb).
+  expect_length(unique(mem), 4L)
+  expect_length(unique(bench_cell_memory_mb(bench_cells("quick"))), 3L)
+  expect_setequal(
+    unique(mem[cells$n == 5e4 & cells$op == "expct"]),
+    c(275000L, 500000L)
+  )
+  # n=1e4 cheap ops peaked at 17.9 GB; n=5e4 heavy ops were capped at 250 GB
+  expect_equal(unique(mem[cells$n == 1e4 & cells$op == "lik"]), 48000L)
+
+  expect_true(all(mem[cells$op %in% c("expct", "forge")] >= mem[match(TRUE, !cells$op %in% c("expct", "forge"))]))
+})
+
+test_that("a whole-node request stays under the node's real memory", {
+  # slurm enforces RealMemory=1120665 MB on these nodes, below the kernel's
+  # MemTotal of 1,160,597 MB, and a request above RealMemory is rejected
+  # rather than queued.
+  expect_lt(BENCH_NODE_MEM_MB, 1120665L)
+  req <- bench_cell_resources(bench_cells("full"))
+  expect_lte(max(req$memory), BENCH_NODE_MEM_MB)
+  expect_lte(max(req$ncpus), BENCH_NODE_THREADS)
+})
+
+test_that("one overridden resource dimension leaves the other per-cell", {
+  cells <- bench_cells("full")
+  cells <- cells[cells$op == "forde" & cells$n == 5e4, ]
+  req <- bench_cell_resources(cells)
+
+  # --cpus alone used to drop memory from the request entirely, leaving the
+  # slurm default of 1 GB on a cell that needs hundreds.
+  only_cpus <- .bench_job_resources(cells, list(ncpus = 96L), n_refs = 2L)
+  expect_equal(only_cpus$ncpus, rep(96L, nrow(cells)))
+  expect_equal(only_cpus$memory, req$memory)
+
+  only_mem <- .bench_job_resources(cells, list(memory = 300000L), n_refs = 2L)
+  expect_equal(only_mem$memory, rep(300000L, nrow(cells)))
+  expect_equal(only_mem$ncpus, req$ncpus)
+
+  both <- .bench_job_resources(cells, list(ncpus = 96L, memory = 300000L), n_refs = 2L)
+  expect_equal(both$ncpus, rep(96L, nrow(cells)))
+  expect_equal(both$memory, rep(300000L, nrow(cells)))
+
+  neither <- .bench_job_resources(cells, list(), n_refs = 2L)
+  expect_equal(neither$ncpus, req$ncpus)
+  expect_equal(neither$memory, req$memory)
+
+  # an explicit walltime applies to every cell; otherwise it is estimated
+  expect_equal(
+    .bench_job_resources(cells, list(walltime = 600L), n_refs = 2L)$walltime,
+    rep(600L, nrow(cells))
+  )
+  expect_true(all(neither$walltime >= BENCH_WALLTIME_MIN_S))
+})
+
+test_that("results predating a schema change are collected with a warning", {
+  skip_on_cran()
+  skip_if_not_installed("batchtools")
+  dir <- file.path(tempdir(), paste0("benchold-", Sys.getpid()))
+  on.exit(unlink(dir, recursive = TRUE), add = TRUE)
+  reg <- bench_make_registry(dir, "local")
+  # A job storing the schema as it was BEFORE mem_limit_mb existed.
+  batchtools::batchMap(
+    function(i) {
+      cols <- setdiff(bench_schema(), "mem_limit_mb")
+      row <- setNames(as.data.frame(as.list(rep(NA, length(cols)))), cols)
+      row$ref <- "main"
+      row$peak_mb <- 1000
+      row
+    },
+    i = 1L,
+    reg = reg
+  )
+  suppressWarnings(batchtools::submitJobs(reg = reg))
+  batchtools::waitForJobs(reg = reg, stop.on.error = FALSE)
+  expect_warning(rows <- bench_collect(reg), "predate the current schema")
+  expect_equal(names(rows), bench_schema())
+  expect_true(is.na(rows$mem_limit_mb))
+})
+
+test_that("a report with no recorded limit says the cap guard is inactive", {
+  rows <- .bench_fake(
+    list(
+      ref = "main",
+      peak_mb = 1000,
+      floor_mb = 200,
+      peak_delta_mb = 800,
+      mem_reps = 3L,
+      mem_limit_mb = NA_real_,
+      time_median = 10,
+      digest = "a"
+    ),
+    list(
+      ref = "HEAD",
+      peak_mb = 900,
+      floor_mb = 200,
+      peak_delta_mb = 700,
+      mem_reps = 3L,
+      mem_limit_mb = NA_real_,
+      time_median = 10,
+      digest = "a"
+    )
+  )
+  txt <- paste(bench_report(rows, baseline = "main"), collapse = "\n")
+  expect_match(txt, "cap guard could\nnot be applied|cap guard could not be applied")
+})
+
+test_that("a single timing is not a time finding either", {
+  # From a real validation run: --iters 1 --mem-reps 1 gave one timing per ref
+  # and printed -13.3% "real".
+  one <- .bench_fake(
+    list(
+      ref = "main",
+      peak_mb = 28616,
+      floor_mb = 1685,
+      peak_delta_mb = 26931,
+      iters = 1L,
+      mem_reps = 1L,
+      mem_limit_mb = 550000,
+      time_median = 233.815,
+      digest = "a",
+      op = "expct",
+      n = 5e4
+    ),
+    list(
+      ref = "cran-0.2.5",
+      peak_mb = 184305,
+      floor_mb = 1685,
+      peak_delta_mb = 182620,
+      iters = 1L,
+      mem_reps = 1L,
+      mem_limit_mb = 550000,
+      time_median = 202.752,
+      digest = "a",
+      op = "expct",
+      n = 5e4
+    )
+  )
+  d <- bench_deltas(one, baseline = "main")
+  expect_equal(d$time_verdict[d$ref == "cran-0.2.5"], "single sample, not a finding")
+  expect_equal(d$mem_verdict[d$ref == "cran-0.2.5"], "single sample, not a finding")
+
+  # the full tier's 2 x 5 = 10 timings per ref do carry a verdict
+  many <- one
+  many$iters <- 2L
+  many$mem_reps <- 5L
+  d2 <- bench_deltas(many, baseline = "main")
+  expect_equal(d2$time_verdict[d2$ref == "cran-0.2.5"], "real")
+  expect_equal(d2$mem_verdict[d2$ref == "cran-0.2.5"], "real")
+})
+
+test_that("the evidence variants are reachable by name, not only by position", {
+  cells <- bench_cells("full")
+  e <- cells[cells$op == "expct" & cells$n == 5e4, ]
+  counts <- sort(unique(stats::na.omit(cells$n_evidence)))
+  # The high variant sits after the worker grid, so --max-cells alone cannot
+  # reach it and --evidence has to select it by name.
+  expect_gt(which(e$n_evidence == max(counts))[1], 4L)
+  expect_true(all(c("separate", "or") %in% unique(stats::na.omit(cells$rowmode))))
+  expect_length(counts, 2L)
+})
+
+test_that("a history file written before a schema column existed is still appended to", {
+  path <- file.path(tempdir(), paste0("hist-old-", Sys.getpid(), ".csv"))
+  on.exit(unlink(path), add = TRUE)
+  old <- .bench_fake(list(ref = "cran-0.2.5", peak_delta_mb = 100, time_median = 1))
+  old$digest_stable <- NULL
+  old$out_rows <- NULL
+  utils::write.csv(old[, setdiff(bench_schema(), c("digest_stable", "out_rows"))], path, row.names = FALSE)
+  h <- bench_history_append(
+    .bench_fake(list(ref = "cran-0.2.5", n = 5e4, peak_delta_mb = 200, time_median = 2)),
+    path
+  )
+  expect_true(all(c("digest_stable", "out_rows") %in% names(h)))
+  expect_equal(nrow(h), 2L)
+})
+
+test_that("an expired job's walltime is escalated onto the half-hour grid and capped", {
+  expect_equal(.bench_escalate_walltime(3600L, 2), 7200L)
+  # Rounded up to the submission grid, like the original estimate.
+  expect_equal(.bench_escalate_walltime(2700L, 2), 5400L)
+  # A cell already at the QoS ceiling cannot be given more.
+  expect_equal(.bench_escalate_walltime(BENCH_WALLTIME_MAX_S, 2), BENCH_WALLTIME_MAX_S)
+  expect_type(.bench_escalate_walltime(1800L, 2), "integer")
+})
+
+test_that("resubmit asks for more walltime than the job had and leaves nothing to resubmit after", {
+  skip_if_not_installed("batchtools")
+  dir <- file.path(tempdir(), paste0("resub-", Sys.getpid()))
+  on.exit(unlink(dir, recursive = TRUE), add = TRUE)
+  reg <- suppressMessages(batchtools::makeRegistry(
+    file.dir = dir,
+    make.default = FALSE,
+    conf.file = NA_character_
+  ))
+  reg$cluster.functions <- batchtools::makeClusterFunctionsInteractive()
+  suppressMessages(batchtools::batchMap(function(i) i, i = 1:2, reg = reg))
+  suppressMessages(batchtools::submitJobs(
+    ids = 1:2,
+    resources = list(walltime = 1800L, memory = 16000L, ncpus = 4L),
+    reg = reg
+  ))
+  out <- suppressMessages(bench_resubmit(reg, ids = 2L, dry_run = TRUE))
+  expect_equal(out$job.id, 2L)
+  expect_equal(out$walltime, 3600L)
+  # Memory and cores are carried over: an OOM kill is an error, not an expiry.
+  expect_equal(out$memory, 16000L)
+  expect_equal(out$ncpus, 4L)
+  # Nothing expired in this registry, so the default id set is empty.
+  expect_equal(nrow(suppressMessages(bench_resubmit(reg, dry_run = TRUE))), 0L)
+})
+
+.bench_fake_lib <- function(deps) {
+  lib <- file.path(tempdir(), paste0("lib-", paste(deps, collapse = "-"), "-", Sys.getpid()))
+  dir.create(file.path(lib, "arf"), recursive = TRUE, showWarnings = FALSE)
+  writeLines(
+    c(
+      "Package: arf",
+      "Version: 9.9.9",
+      paste0(
+        "Imports: data.table, foreach, ranger",
+        if (length(deps)) paste0(", ", paste(deps, collapse = ", "))
+      )
+    ),
+    file.path(lib, "arf", "DESCRIPTION")
+  )
+  lib
+}
+
+test_that("a ref declares the backends it can actually run", {
+  old <- .bench_fake_lib(character())
+  new <- .bench_fake_lib("mirai")
+  on.exit(unlink(c(old, new), recursive = TRUE), add = TRUE)
+  # 0.2.5 predates mirai: asking it for mirai measures its default path.
+  expect_false("mirai" %in% bench_ref_backends(old))
+  expect_true(all(c("sequential", "foreach", "psock") %in% bench_ref_backends(old)))
+  expect_true("mirai" %in% bench_ref_backends(new))
+})
+
+test_that("a cell drops the refs that cannot run its backend", {
+  refs <- list(
+    list(label = "main", backends = c("sequential", "foreach", "psock", "mirai")),
+    list(label = "cran-0.2.5", backends = c("sequential", "foreach", "psock"))
+  )
+  keep <- NULL
+  expect_message(keep <- .bench_usable_refs(refs, "mirai"), "cran-0.2.5")
+  expect_equal(vapply(keep, function(r) r$label, character(1)), "main")
+  # A backend every ref has leaves the list alone and says nothing.
+  expect_silent(expect_length(.bench_usable_refs(refs, "foreach"), 2L))
+  # A ref from before the probe existed is not silently dropped.
+  expect_length(.bench_usable_refs(list(list(label = "old")), "mirai"), 1L)
+})

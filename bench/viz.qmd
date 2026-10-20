@@ -1,0 +1,295 @@
+---
+title: "arf benchmarks"
+subtitle: "Version comparison, backend comparison, and the release trend"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    theme: cosmo
+    embed-resources: true
+    fig-width: 11
+    fig-height: 7
+execute:
+  echo: false
+  warning: false
+---
+
+```{r}
+#| label: setup
+suppressMessages({
+  library(data.table)
+  library(ggplot2)
+})
+source("run-cell.R")
+source("collate.R")
+
+# Small tables render as plain HTML; big ones get a sortable, filterable widget
+# rather than a wall of rows.
+bench_tbl <- function(x, big = 25L, page = 15L) {
+  x <- as.data.frame(x)
+  if (!nrow(x)) {
+    return(htmltools::HTML("<p><em>No rows.</em></p>"))
+  }
+  if (nrow(x) >= big && requireNamespace("reactable", quietly = TRUE)) {
+    reactable::reactable(
+      x,
+      filterable = TRUE, sortable = TRUE, searchable = TRUE,
+      defaultPageSize = page, compact = TRUE, striped = TRUE, highlight = TRUE,
+      defaultColDef = reactable::colDef(minWidth = 70)
+    )
+  } else {
+    htmltools::HTML(knitr::kable(x, format = "html", table.attr = 'class="table table-sm"'))
+  }
+}
+
+bench_theme <- function(base_size = 15) {
+  theme_minimal(base_size = base_size) +
+    theme(
+      legend.position = "bottom",
+      legend.title = element_blank(),
+      plot.title.position = "plot",
+      # Facet labels on the left rather than the right, where they read as
+      # detached from the panel they describe.
+      strip.placement = "outside",
+      strip.text.y.left = element_text(angle = 0),
+      panel.spacing = unit(1, "lines")
+    )
+}
+
+# Newest version-comparison CSV, or one named via QUARTO_BENCH_CSV.
+bench_csv <- Sys.getenv("QUARTO_BENCH_CSV")
+if (!nzchar(bench_csv)) {
+  cands <- list.files("results", pattern = "^bench-.*\\.csv$", full.names = TRUE)
+  bench_csv <- if (length(cands)) cands[order(basename(cands), decreasing = TRUE)][1] else ""
+}
+run <- if (nzchar(bench_csv) && file.exists(bench_csv)) as.data.table(fread(bench_csv)) else NULL
+baseline <- Sys.getenv("QUARTO_BENCH_BASELINE", "main")
+have_run <- !is.null(run) && baseline %in% run$ref
+```
+
+::: {.callout-note collapse="true"}
+## What the memory numbers mean
+
+Every cell is measured twice per round: once running the operation, and once
+running nothing but the setup (an R interpreter, `arf`, and the fixture data).
+That second measurement is the **floor**, about 200 MB here. The **marginal**
+is peak minus floor: what the operation itself allocated, as opposed to the
+fixed cost of having R and the package loaded.
+
+Deltas are computed on the marginal, because the floor is identical across refs
+and would dilute any real difference several-fold. A marginal smaller than its
+own floor is below what this instrument can resolve, and gets no verdict.
+:::
+
+## Latest version comparison
+
+```{r}
+#| label: latest-run
+if (is.null(run)) {
+  cat("No `results/bench-*.csv` yet. Run `bench/arf-bench run`.\n")
+} else if (!have_run) {
+  cat("Baseline `", baseline, "` is not in ", basename(bench_csv),
+    "; set `--base` or QUARTO_BENCH_BASELINE.\n", sep = "")
+} else {
+  cat(sprintf(
+    "`%s` | %d rows | refs: %s | metric: %s | host(s): %s\n\n",
+    basename(bench_csv), nrow(run), paste(unique(run$ref), collapse = ", "),
+    paste(unique(run$metric), collapse = ", "),
+    paste(unique(run$host), collapse = ", ")
+  ))
+}
+```
+
+```{r}
+#| label: latest-table
+if (have_run) {
+  d <- as.data.table(bench_deltas(run, baseline = baseline))[ref != baseline]
+  bench_tbl(d[order(op, n, trees, backend, workers, ref), .(
+    op, backend, w = workers, n, trees, ref,
+    marginal_MB = round(peak_delta_mb, 1),
+    floor_MB = round(floor_mb, 1),
+    mem_pct = round(delta_mem_pct, 1),
+    mem = mem_verdict,
+    time_s = round(time_median, 3),
+    time_pct = round(delta_time_pct, 1),
+    time = time_verdict
+  )])
+}
+```
+
+## Backend comparison
+
+Which backend, at which worker count. This is a live question, not a historical
+one: `foreach` forks and copies, `mirai` shares read-only through `mori`, and
+which wins depends on data size and worker count. Worker counts are discrete
+measurements, so the connecting lines are dotted: they group a series, they do
+not interpolate.
+
+```{r}
+#| label: backend-compare
+#| output: asis
+#| fig-height: 9
+if (!have_run) {
+  cat("No run loaded.\n")
+} else if (uniqueN(run$backend) < 2L) {
+  cat("This run used a single backend (`", unique(run$backend),
+    "`), so there is nothing to compare. The full tier varies backend and workers.\n", sep = "")
+} else {
+  par_run <- run[backend != "sequential" & !is.na(workers)]
+  seq_run <- run[backend == "sequential"]
+  long <- rbind(
+    par_run[!is.na(peak_delta_mb), .(op, n, trees, backend, workers, ref,
+      metric = "marginal memory (MB)", value = peak_delta_mb)],
+    par_run[!is.na(time_median), .(op, n, trees, backend, workers, ref,
+      metric = "time (s)", value = time_median)]
+  )
+  seq_long <- rbind(
+    seq_run[!is.na(peak_delta_mb), .(op, n, trees, ref,
+      metric = "marginal memory (MB)", value = peak_delta_mb)],
+    seq_run[!is.na(time_median), .(op, n, trees, ref,
+      metric = "time (s)", value = time_median)]
+  )
+  for (o in sort(unique(long$op))) {
+    cat("\n\n### ", o, "()\n\n", sep = "")
+    dd <- long[op == o]
+    ss <- seq_long[op == o]
+    p <- ggplot(dd, aes(workers, value, colour = backend, shape = ref)) +
+      facet_wrap(~ metric + n + trees, scales = "free", labeller = label_both) +
+      geom_line(aes(group = interaction(backend, ref)), linetype = "dotted", linewidth = 0.5) +
+      geom_point(size = 2.6) +
+      scale_x_continuous(breaks = sort(unique(dd$workers))) +
+      scale_colour_brewer(palette = "Dark2") +
+      labs(x = "workers", y = NULL, title = paste0(o, "(): backends by worker count"),
+        caption = "Dotted lines group a series; they do not interpolate. Dashed grey: the sequential run.") +
+      bench_theme()
+    if (nrow(ss)) {
+      p <- p + geom_hline(data = ss, aes(yintercept = value),
+        linetype = "dashed", colour = "grey40")
+    }
+    print(p)
+    cat("\n\n")
+  }
+}
+```
+
+## Per-cell measurements
+
+```{r}
+#| label: latest-plots
+#| fig-height: 8
+if (have_run) {
+  long <- rbind(
+    run[!is.na(peak_delta_mb), .(op, backend, workers, n, trees, ref,
+      metric = "marginal memory (MB)", value = peak_delta_mb)],
+    run[!is.na(time_median), .(op, backend, workers, n, trees, ref,
+      metric = "time (s)", value = time_median)]
+  )
+  long[, cell := paste0(backend, fifelse(is.na(workers), "", paste0(" w", workers)))]
+  print(
+    ggplot(long, aes(interaction(n, trees), value, colour = ref, group = ref)) +
+      geom_point(size = 2.4) +
+      geom_line(linetype = "dotted", linewidth = 0.5) +
+      facet_wrap(~ metric + op, scales = "free", labeller = label_both) +
+      scale_colour_brewer(palette = "Dark2") +
+      labs(x = "n . trees", y = NULL, title = "Per-cell measurements by ref") +
+      bench_theme() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  )
+}
+```
+
+## Can these cells resolve memory?
+
+A memory delta only means something when the operation's own allocation is
+large next to the fixed floor. Measured same-commit spread against that ratio:
+0.29 gave 14-23%, 0.73 gave 4.2%, and 2.0 gave at most 3.6%. Cells below the
+dashed line get no memory verdict.
+
+```{r}
+#| label: resolution
+#| fig-height: 8
+if (is.null(run)) {
+  cat("No run loaded.\n")
+} else {
+  rr <- run[!is.na(peak_delta_mb) & !is.na(floor_mb) & floor_mb > 0]
+  if (!nrow(rr)) {
+    cat("No cells with both a marginal and a floor.\n")
+  } else {
+    rr[, ratio := peak_delta_mb / floor_mb]
+    rr[, cell := paste0(op, " ", backend, fifelse(is.na(workers), "", paste0(" w", workers)),
+      " n=", n, " t=", trees)]
+    print(
+      ggplot(rr, aes(reorder(cell, ratio), ratio, colour = ref)) +
+        geom_hline(yintercept = BENCH_MEM_RESOLUTION, linetype = "dashed") +
+        geom_point(size = 2.4) +
+        coord_flip() +
+        scale_y_log10() +
+        scale_colour_brewer(palette = "Dark2") +
+        labs(x = NULL, y = "marginal / floor (log)", title = "Memory resolution per cell") +
+        bench_theme()
+    )
+  }
+}
+```
+
+```{r}
+#| label: resolution-table
+if (!is.null(run)) {
+  rr <- run[!is.na(peak_delta_mb) & !is.na(floor_mb) & floor_mb > 0]
+  if (nrow(rr)) {
+    rr[, ratio := peak_delta_mb / floor_mb]
+    bench_tbl(rr[, .(
+      ratio = round(median(ratio), 2),
+      resolvable = median(ratio) >= BENCH_MEM_RESOLUTION
+    ), by = .(op, n)][order(op, n)])
+  }
+}
+```
+
+## Release trend
+
+Anchors are re-measured on one node, so this is not stitched across machines.
+Each box covers every cell measured for that version and size; points are the
+cells themselves.
+
+```{r}
+#| label: history-trend
+#| fig-height: 8
+hist <- if (file.exists("history.csv")) as.data.table(fread("history.csv")) else data.table()
+if (!nrow(hist)) {
+  cat("No anchor history yet; run the suite and commit `bench/history.csv`.\n")
+} else {
+  long <- rbind(
+    hist[!is.na(peak_delta_mb), .(arf_version, op, n, host,
+      metric = "marginal memory (MB)", value = peak_delta_mb)],
+    hist[!is.na(time_median), .(arf_version, op, n, host,
+      metric = "time (s)", value = time_median)]
+  )
+  long[, size := factor(n)]
+  print(
+    ggplot(long, aes(arf_version, value, colour = size, fill = size)) +
+      geom_boxplot(alpha = 0.35, outlier.shape = NA, position = position_dodge(width = 0.8)) +
+      geom_point(position = position_jitterdodge(dodge.width = 0.8, jitter.width = 0.15),
+        size = 1.8, alpha = 0.9) +
+      facet_wrap(~ metric + op, scales = "free", labeller = label_both) +
+      scale_y_log10() +
+      scale_colour_brewer(palette = "Dark2") +
+      scale_fill_brewer(palette = "Dark2") +
+      labs(x = NULL, y = NULL, title = "arf performance across anchors",
+        caption = "Box over the cells measured for that version and size; points are the cells.") +
+      bench_theme() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  )
+}
+```
+
+```{r}
+#| label: history-table
+if (nrow(hist)) {
+  bench_tbl(hist[, .(
+    cells = .N, hosts = uniqueN(host),
+    metric = paste(unique(metric), collapse = ", ")
+  ), by = .(arf_version, op)][order(arf_version, op)])
+}
+```

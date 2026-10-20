@@ -29,6 +29,14 @@ deps:
 test:
 	Rscript -e "devtools::test(reporter = 'summary')"
 
+.PHONY: bench
+bench:
+	@command -v Rapp >/dev/null 2>&1 || { \
+	  echo 'Rapp not on PATH. Install once with:'; \
+	  echo '  Rscript -e '"'"'install.packages("Rapp"); Rapp::install_pkg_cli_apps("Rapp")'"'"''; \
+	  exit 1; }
+	bench/arf-bench run
+
 .PHONY: coverage
 coverage:
 	Rscript -e "covr::report(covr::package_coverage(\".\"), file = \"coverage.html\")"

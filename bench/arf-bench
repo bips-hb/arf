@@ -1,0 +1,408 @@
+#!/usr/bin/env Rapp
+#| name: arf-bench
+#| title: arf benchmark suite
+#| description: |
+#|   Compare arf git refs and CRAN releases for runtime and peak memory.
+#|   Run from the repository root. See bench/README.md for how to run
+#|   configurations, aggregate results, and read a verdict.
+#|
+#|   Defaults below are the real ones: this script's top-level assignments ARE
+#|   the configuration, so --help cannot drift from the code.
+
+#| description: "Which grid: quick (sequential, small, runs anywhere) or full (backends, large, cluster)."
+#| short: t
+tier <- "quick"
+
+#| description: "Where to run: local (sequential, in-process) or slurm."
+#| short: c
+cluster <- "local"
+
+if (!file.exists("bench/bench-helpers.R")) {
+  cat("Run from the repository root (bench/ must be visible).\n", file = stderr())
+  quit(save = "no", status = 1L)
+}
+source("bench/bench-helpers.R")
+source("bench/refs.R")
+source("bench/cells.R")
+source("bench/run-cell.R")
+source("bench/registry.R")
+source("bench/collate.R")
+
+switch(
+  command <- "",
+
+  #| title: Submit a benchmark run
+  #| description: |
+  #|   Installs each ref into bench/lib, submits one job per cell, and on the
+  #|   local tier waits and reports. On slurm it submits and exits; collate
+  #|   afterwards with `arf-bench collect`.
+  run = {
+    #| description: "Restrict to these ops, comma separated. One or more of adversarial_rf, forde, lik, forge, expct."
+    #| short: o
+    ops <- NA_character_
+
+    #| description: Take only the first N cells, for validating a path cheaply.
+    #| short: n
+    max_cells <- NA_integer_
+
+    #| description: Restrict to these dataset sizes, comma separated (for example 50000).
+    sizes <- NA_character_
+
+    #| description: Restrict to these evidence row modes, comma separated (separate, or).
+    rowmode <- NA_character_
+
+    #| description: Restrict to these evidence row counts, comma separated (100, 1000).
+    evidence <- NA_character_
+
+    #| description: Restrict to these backends, comma separated (sequential, foreach, psock, mirai).
+    backends <- NA_character_
+
+    #| description: Timed calls inside each cell child. Overrides the tier default of 5.
+    iters <- NA_integer_
+
+    #| description: Memory replicate rounds per ref. Overrides the tier default (quick 3, full 5).
+    mem_reps <- NA_integer_
+
+    #| description: Refs to compare, comma separated. Default is HEAD and main, plus the anchors on the full tier.
+    refs <- NA_character_
+
+    #| description: Include the CRAN anchors even on the quick tier (they cost a third of the run).
+    anchors <- FALSE
+
+    #| description: Block until every job finishes. Default is to wait locally and not on slurm.
+    wait <- NA
+
+    #| description: Force one total-memory figure per slurm job in MB. Default is per-cell, from measured peaks.
+    mem <- NA_integer_
+
+    #| description: Force one CPU count per slurm job. Default is per-cell, the node fraction the cell's workers and memory need.
+    cpus <- NA_integer_
+
+    #| description: "Walltime per slurm job in seconds. Default: estimated per cell from bench/timings.csv, 8h where a cell has no timing yet."
+    walltime <- NA_integer_
+
+    #| description: Slurm partition. Omitted by default, so the site config decides.
+    partition <- NA_character_
+
+    #| description: Where ref libraries are installed. Must be readable from the compute nodes.
+    lib_root <- "bench/lib"
+
+    bench_assert_deps()
+    bench_assert_cgroup()
+    bench_assert_clean_tree()
+
+    # Quick-tier cells are below the memory resolution, so anchors there would
+    # cost a third of the run for nothing.
+    ref_specs <- if (!is.na(refs)) {
+      trimws(strsplit(refs, ",")[[1]])
+    } else if (isTRUE(anchors) || identical(tier, "full")) {
+      unique(c("HEAD", "main", bench_anchors()))
+    } else {
+      c("HEAD", "main")
+    }
+    ref_specs <- bench_resolve_refs(ref_specs[nzchar(ref_specs)])
+    if (length(ref_specs) < 2L) {
+      message(
+        "Only one ref to measure (", ref_specs,
+        "): no comparison is possible, and the report will have no delta rows. ",
+        "This is what a branch that touches no package file looks like. ",
+        "Pass --refs to name refs explicitly."
+      )
+    }
+
+    cells <- bench_cells(tier)
+    cells <- bench_select_cells(
+      cells,
+      ops = ops,
+      sizes = sizes,
+      rowmode = rowmode,
+      evidence = evidence,
+      backends = backends,
+      max_cells = max_cells
+    )
+    if (!nrow(cells)) {
+      cat("No cells selected.\n", file = stderr())
+      quit(save = "no", status = 1L)
+    }
+    if (!is.na(iters)) {
+      cells$iters <- iters
+    }
+    if (!is.na(mem_reps)) {
+      cells$mem_reps <- mem_reps
+    }
+
+    message(sprintf(
+      "arf bench | tier %s | %d cells | refs %s | metric %s",
+      tier, nrow(cells), paste(ref_specs, collapse = ", "), BENCH_METRIC
+    ))
+
+    lib_root <- normalizePath(lib_root, mustWork = FALSE)
+    dir.create(lib_root, recursive = TRUE, showWarnings = FALSE)
+    message("installing refs into ", lib_root, " ...")
+    installed <- lapply(ref_specs, bench_install_ref, root = lib_root)
+    for (r in installed) {
+      message(sprintf("  %-12s arf %-12s %s", r$label, r$arf_version, r$commit))
+    }
+
+    resources <- list()
+    if (identical(cluster, "slurm")) {
+      if (!is.na(walltime)) {
+        resources$walltime <- walltime
+      }
+      if (!is.na(cpus)) {
+        resources$ncpus <- cpus
+      }
+      if (!is.na(mem)) {
+        resources$memory <- mem
+      }
+      req <- .bench_job_resources(cells, resources, n_refs = length(installed))
+      shapes <- unique(data.frame(
+        cpus = req$ncpus,
+        gb = round(req$memory / 1024)
+      ))
+      message(
+        "slurm: per-cell requests -> ",
+        paste(sprintf("%d cpus, %d GB", shapes$cpus, shapes$gb), collapse = "; "),
+        sprintf(
+          " | walltime %.1f-%.1f h",
+          min(req$walltime) / 3600,
+          max(req$walltime) / 3600
+        )
+      )
+    }
+
+    dir <- file.path("bench", "registry", format(Sys.time(), "%Y%m%d-%H%M%S"))
+    reg <- bench_make_registry(dir, cluster)
+    reg <- bench_submit_cells(reg, cells, installed, resources = resources)
+
+    should_wait <- if (is.na(wait)) !identical(cluster, "slurm") else isTRUE(wait)
+    if (!should_wait) {
+      message(
+        "submitted; not waiting. Follow with:\n",
+        "  tail -f ", file.path(dir, "logs"), "/*.log\n",
+        "  arf-bench collect ", dir
+      )
+      quit(save = "no", status = 0L)
+    }
+    batchtools::waitForJobs(reg = reg)
+    rows <- bench_collect(reg)
+    bench_write_results(rows)
+  },
+
+  #| title: Collate a submitted run into a CSV and report
+  #| description: |
+  #|   Re-derives everything from the stored per-ref rows, so verdict rules can
+  #|   be revised and the report regenerated without recomputing anything.
+  collect = {
+    #| description: Registry directory. Defaults to the newest under bench/registry.
+    #| required: false
+    registry <- NULL
+
+    reg <- batchtools::loadRegistry(bench_registry_dir(registry), writeable = FALSE)
+    print(batchtools::getStatus(reg = reg))
+    bench_write_results(bench_collect(reg))
+  },
+
+  #| title: Resubmit the cells a run lost
+  #| description: |
+  #|   Submits the expired jobs of a registry again, each with the request it
+  #|   carried and more walltime. Expiry means the job started and produced no
+  #|   result, which is either a walltime kill or an OOM kill; the registry
+  #|   cannot tell them apart, so pass --mem-factor as well if the cell is one
+  #|   that died for memory.
+  resubmit = {
+    #| description: Registry directory. Defaults to the newest under bench/registry.
+    #| required: false
+    registry <- NULL
+
+    #| description: Multiply each job's previous walltime by this.
+    #| short: f
+    factor <- 2
+
+    #| description: Multiply each job's previous memory request by this. Default is to keep it.
+    mem_factor <- 1
+
+    #| description: Resubmit errored jobs too. Most errors here are deterministic, so this costs a node for nothing unless the cause is fixed.
+    errors <- FALSE
+
+    #| description: Print what would be resubmitted and exit.
+    dry_run <- FALSE
+
+    reg <- batchtools::loadRegistry(bench_registry_dir(registry), writeable = TRUE)
+    print(batchtools::getStatus(reg = reg))
+    bench_resubmit(
+      reg,
+      factor = factor,
+      mem_factor = mem_factor,
+      errors = errors,
+      dry_run = dry_run
+    )
+  },
+
+  #| title: Report what this machine looks like to the sampler
+  #| description: |
+  #|   Prints the cgroup the sampler reads, every memory limit up the
+  #|   hierarchy, the machine's real memory, and where the fixture will be
+  #|   written. Run it where a benchmark would run, e.g. under sbatch, to check
+  #|   that a measured peak can be believed.
+  diag = {
+    cg <- grep("^0::", readLines("/proc/self/cgroup"), value = TRUE)
+    cat("host:              ", Sys.info()[["nodename"]], "\n")
+    cat("slurm job:         ", Sys.getenv("SLURM_JOB_ID", "<none>"), "\n")
+    cat("cores (nproc):     ", parallel::detectCores(), "\n")
+    cat("MemTotal:          ",
+      sub("^MemTotal:\\s*", "", grep("^MemTotal", readLines("/proc/meminfo"), value = TRUE)),
+      "\n")
+    cat("metric:            ", if (is.null(BENCH_CGROUP)) "none (no cgroup v2 memory accounting)" else BENCH_METRIC, "\n")
+    cat("cgroup line:       ", if (length(cg)) cg else "<none>", "\n")
+    if (!is.null(BENCH_CGROUP)) {
+      cat("cgroup dir:        ", BENCH_CGROUP, "\n")
+      # Every limit up the tree: slurm sets the job's on a parent.
+      d <- BENCH_CGROUP
+      repeat {
+        vals <- vapply(c("memory.max", "memory.high", "memory.current"), function(nm) {
+          v <- .bench_read(file.path(d, nm))
+          if (length(v)) v[1] else "-"
+        }, character(1))
+        cat(sprintf(
+          "  %-56s max=%-14s high=%-14s current=%s\n",
+          d, vals[[1]], vals[[2]], vals[[3]]
+        ))
+        if (nchar(d) <= nchar("/sys/fs/cgroup")) break
+        d <- dirname(d)
+      }
+      cat("limit seen by harness:",
+        if (is.na(BENCH_MEM_LIMIT_MB)) "none (unlimited)" else sprintf("%.0f MB", BENCH_MEM_LIMIT_MB),
+        "\n")
+    }
+    tmp <- tempdir()
+    cat("tempdir:           ", tmp, "\n")
+    fs <- suppressWarnings(system2("stat", c("-f", "-c", "%T", shQuote(tmp)), stdout = TRUE))
+    cat("tempdir fs type:   ", if (length(fs)) fs[1] else "unknown",
+      "(tmpfs would make the fixture count as cgroup shmem)\n")
+  },
+
+  #| title: Render the results overview
+  #| description: |
+  #|   Renders bench/viz.qmd to bench/viz.html: the newest run as a delta
+  #|   table and plots, which cells can resolve memory, and the release trend.
+  viz = {
+    #| description: Render a specific results CSV instead of the newest.
+    csv <- NA_character_
+
+    #| description: Baseline ref for the comparison table.
+    base <- "main"
+
+    if (!nzchar(Sys.which("quarto"))) {
+      cat("quarto is not on PATH; see https://quarto.org/docs/get-started/\n", file = stderr())
+      quit(save = "no", status = 1L)
+    }
+    if (!is.na(csv)) {
+      Sys.setenv(QUARTO_BENCH_CSV = normalizePath(csv, mustWork = TRUE))
+    }
+    Sys.setenv(QUARTO_BENCH_BASELINE = base)
+    status <- system2("quarto", c("render", "bench/viz.qmd"))
+    if (status != 0L) {
+      quit(save = "no", status = status)
+    }
+    message("Overview at bench/viz.html")
+  },
+
+  #| title: Print the plan without submitting anything
+  #| description: |
+  #|   Shows the selected cells, the slurm resources that would be requested,
+  #|   and how many op executions the run implies. Nothing is installed or run.
+  plan = {
+    #| description: Restrict to these ops (comma separated).
+    #| short: o
+    ops <- NA_character_
+
+    #| description: Take only the first N cells.
+    #| short: n
+    max_cells <- NA_integer_
+
+    #| description: Restrict to these dataset sizes, comma separated (for example 50000).
+    sizes <- NA_character_
+
+    #| description: Restrict to these evidence row modes, comma separated (separate, or).
+    rowmode <- NA_character_
+
+    #| description: Restrict to these evidence row counts, comma separated (100, 1000).
+    evidence <- NA_character_
+
+    #| description: Restrict to these backends, comma separated (sequential, foreach, psock, mirai).
+    backends <- NA_character_
+
+    #| description: Timed calls per measurement, as `run` would take it. Changes the walltime estimate.
+    iters <- NA_integer_
+
+    #| description: Memory replicate rounds per ref, as `run` would take it. Changes the walltime estimate.
+    mem_reps <- NA_integer_
+
+    cells <- bench_cells(tier)
+    cells <- bench_select_cells(
+      cells,
+      ops = ops,
+      sizes = sizes,
+      rowmode = rowmode,
+      evidence = evidence,
+      backends = backends,
+      max_cells = max_cells
+    )
+    if (!is.na(iters)) {
+      cells$iters <- iters
+    }
+    if (!is.na(mem_reps)) {
+      cells$mem_reps <- mem_reps
+    }
+    n_refs <- length(bench_resolve_refs(
+      if (identical(tier, "full")) unique(c("HEAD", "main", bench_anchors())) else c("HEAD", "main")
+    ))
+    peak_workers <- suppressWarnings(max(cells$workers, na.rm = TRUE))
+    if (!is.finite(peak_workers)) {
+      peak_workers <- 1L
+    }
+
+    cat(sprintf("tier %s | %d cells | %d refs | metric %s\n\n",
+      tier, nrow(cells), n_refs, BENCH_METRIC))
+    print(table(cells$op, cells$n))
+    cat(sprintf(
+      "\nper (cell, ref): iters %d x mem_reps %d = %d op executions\n",
+      cells$iters[1], cells$mem_reps[1], cells$iters[1] * cells$mem_reps[1]
+    ))
+    cat(sprintf(
+      "cell children total: %d cells x %d refs x %d rounds = %d (plus as many floor children)\n",
+      nrow(cells), n_refs, cells$mem_reps[1], nrow(cells) * n_refs * cells$mem_reps[1]
+    ))
+    if (identical(cluster, "slurm")) {
+      req <- bench_cell_resources(cells)
+      req$walltime <- bench_cell_walltime(cells, n_refs = n_refs, fallback = 28800)
+      req$measured <- !is.na(bench_call_seconds(cells))
+      shape <- c("fraction", "ncpus", "memory", "walltime")
+      agg <- data.table::as.data.table(req)[, list(cells = .N), by = shape]
+      data.table::setorderv(agg, c("fraction", "walltime"))
+      for (k in seq_len(nrow(agg))) {
+        cat(sprintf(
+          "slurm: %3d cell(s) at %-5s node = %3d cpus (%2d cores), %4.0f GB, %5.1f h\n",
+          agg$cells[k], sprintf("1/%g", 1 / agg$fraction[k]),
+          agg$ncpus[k], agg$ncpus[k] %/% 2L, agg$memory[k] / 1024,
+          agg$walltime[k] / 3600
+        ))
+      }
+      cat(sprintf(
+        "total: %.0f node-hours; %d of %d cells have a measured timing\n",
+        sum(req$fraction * req$walltime) / 3600, sum(req$measured), nrow(req)
+      ))
+      atmax <- req$walltime >= BENCH_WALLTIME_MAX_S
+      if (any(atmax)) {
+        cat(sprintf(
+          "WARNING: %d cell(s) estimate at or above the %g h QoS ceiling and cannot complete as configured:\n",
+          sum(atmax), BENCH_WALLTIME_MAX_S / 3600
+        ))
+        bad <- unique(cells[atmax, c("op", "backend", "workers", "n", "n_evidence", "rowmode")])
+        print(bad, row.names = FALSE)
+        cat("  lower --mem-reps or --iters for these, or drop them from the grid.\n")
+      }
+    }
+  }
+)
