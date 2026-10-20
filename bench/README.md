@@ -179,7 +179,7 @@ versus a PSOCK cluster. That separates fork's parent-heap duplication from the
 per-worker input copies `mori` removes.
 
 Memory deltas are taken on `peak_delta_mb`, the peak minus a measured per-cell
-floor (an R interpreter plus `arf` plus the fixture, about 200 MB here).
+floor (an R interpreter plus `arf` plus the fixture, about 480 MB at n=1e4 and 1.7 GB at n=5e4 on the cluster).
 Peak and floor are measured in the same round and subtracted there, one round
 per replicate interleaved and counterbalanced across refs, and the median of
 those paired differences is reported. That matters more than the replicate

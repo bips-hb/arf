@@ -163,6 +163,18 @@ bench_deltas <- function(rows, baseline = "main") {
 
 .bench_fmt_pct <- function(x) ifelse(is.na(x), "   n/a", sprintf("%+6.1f%%", x))
 
+# forge/expct/lik cells differ only in these, so without them the table shows
+# rows that look like duplicates.
+.bench_fmt_variant <- function(r) {
+  parts <- c(
+    if (!is.na(r$n_evidence)) paste0("e", r$n_evidence),
+    if (!is.na(r$rowmode)) r$rowmode,
+    if (!is.na(r$n_synth)) paste0("s", r$n_synth),
+    if (!is.na(r$n_folds)) paste0("k", r$n_folds)
+  )
+  if (length(parts)) paste(parts, collapse = " ") else "-"
+}
+
 bench_report <- function(rows, baseline = "main") {
   d <- bench_deltas(rows, baseline)
   base <- d[d$ref == baseline, ]
@@ -218,10 +230,10 @@ bench_report <- function(rows, baseline = "main") {
     ),
     "",
     paste(
-      "| op | backend | w | n | trees | ref | marginal MB | floor MB |",
+      "| op | backend | w | n | trees | variant | ref | marginal MB | floor MB |",
       "mem | time s | time |"
     ),
-    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
   )
   shown <- if (full_table) {
     seq_len(nrow(d))
@@ -253,10 +265,10 @@ bench_report <- function(rows, baseline = "main") {
       ),
       "",
       paste(
-        "| op | backend | w | n | trees | ref | marginal MB | floor MB |",
+        "| op | backend | w | n | trees | variant | ref | marginal MB | floor MB |",
         "mem | time s | time |"
       ),
-      "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
+      "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
     )
   }
   for (i in shown) {
@@ -265,12 +277,13 @@ bench_report <- function(rows, baseline = "main") {
     out <- c(
       out,
       sprintf(
-        "| %s | %s | %s | %g | %g | `%s` | %s vs %s | %s | %s %s | %s vs %s | %s %s |",
+        "| %s | %s | %s | %g | %g | %s | `%s` | %s vs %s | %s | %s %s | %s vs %s | %s %s |",
         r$op,
         r$backend,
         if (is.na(r$workers)) "-" else r$workers,
         r$n,
         r$trees,
+        .bench_fmt_variant(r),
         r$ref,
         num(r$peak_delta_mb),
         num(b$peak_delta_mb),
@@ -288,7 +301,7 @@ bench_report <- function(rows, baseline = "main") {
         out,
         sprintf(
           paste0(
-            "| | | | | | | | | **INCOMPLETE RESULT**: %s rows against %s's %s. ",
+            "| | | | | | | | | | **INCOMPLETE RESULT**: %s rows against %s's %s. ",
             "A parallel worker that dies drops its whole chunk and arf returns ",
             "the short result without erroring, so neither side's timing or ",
             "peak is for the full workload | | |"
@@ -303,7 +316,7 @@ bench_report <- function(rows, baseline = "main") {
         out,
         sprintf(
           paste0(
-            "| | | | | | | | | **OUTPUT DIFFERS** (%s digest) against %s: ",
+            "| | | | | | | | | | **OUTPUT DIFFERS** (%s digest) against %s: ",
             "this delta is not apples-to-apples, confirm the change is intended | | |"
           ),
           r$digest_kind,
