@@ -1,7 +1,6 @@
-# One cell measured against every ref, in one process, on one node.
-# The ref loop lives HERE rather than in the batchtools grid on purpose: if
-# `ref` were a job dimension, refs would scatter across nodes and reintroduce
-# the drift that same-node A/B exists to remove.
+# One cell measured against every ref, in one process, on one node. The ref
+# loop lives here, not in the batchtools grid: refs on different nodes would
+# reintroduce the drift that same-node A/B exists to remove.
 
 bench_schema <- function() {
   c(
@@ -43,9 +42,8 @@ bench_schema <- function() {
   )
 }
 
-# Built once per cell so every ref reads the same file: a comparison must never
-# differ by its input data. Built in a CHILD against an explicit library, since
-# the orchestrator's own `library(arf)` may resolve to any installed version.
+# One fixture per cell, so every ref reads the same file. Built in a child
+# against an explicit library, since the session's arf may be any version.
 .bench_cell_data <- function(cell, lib) {
   path <- tempfile(fileext = ".rds")
   callr::r(
@@ -94,24 +92,11 @@ bench_run_cell <- function(
   baseline = "main",
   dt_threads = 1L,
   ranger_threads = 1L,
-  job_id = NA_character_,
-  mem_reps = NULL
+  job_id = NA_character_
 ) {
   stopifnot(nrow(cell) == 1L)
-  # Tier default, overridable per call, with the env var winning for one-offs.
-  env_reps <- Sys.getenv("ARF_BENCH_MEM_REPS", "")
-  mem_reps <- if (nzchar(env_reps)) {
-    as.integer(env_reps)
-  } else if (!is.null(mem_reps)) {
-    mem_reps
-  } else if (!is.null(cell$mem_reps) && !is.na(cell$mem_reps)) {
-    cell$mem_reps
-  } else {
-    1L
-  }
-  # Before the fixture is built, so a cell with nothing left to measure costs
-  # nothing: a ref that cannot run this backend would otherwise be measured on
-  # its own default path and compared as though it were the same code.
+  mem_reps <- if (is.null(cell$mem_reps) || is.na(cell$mem_reps)) 1L else cell$mem_reps
+  # Before the fixture is built, so a cell with nothing to measure costs nothing.
   refs <- .bench_usable_refs(refs, cell$backend)
   if (!length(refs)) {
     return(NULL)
@@ -124,16 +109,9 @@ bench_run_cell <- function(
   }
   uname <- tryCatch(system2("uname", "-r", stdout = TRUE), error = function(e) NA_character_)
 
-  # Interleaved, not blocked: measuring all of ref A's replicates before all of
-  # ref B's lets any drift over the cell's lifetime land entirely on B. Measured
-  # same-commit, blocked replication left a recurring one-sided outlier of
-  # -24% to -42% at n=1e3 that more replicates did not shrink. One round per
-  # replicate, every ref inside it, cancels drift that is linear in time.
+  # Rounds interleave refs and alternate their order, so drift over the cell's
+  # lifetime cancels instead of landing on one ref.
   rounds <- lapply(seq_len(mem_reps), function(round) {
-    # Counterbalanced: interleaving rounds alone leaves the within-round order
-    # intact, so ref A is always measured before ref B and any drift inside a
-    # round still lands one-sided. Alternate the order and the bias cancels
-    # across rounds instead of accumulating.
     order <- if (round %% 2L == 0L) rev(seq_along(refs)) else seq_along(refs)
     measured <- lapply(order, function(j) {
       ref <- refs[[j]]
@@ -147,8 +125,7 @@ bench_run_cell <- function(
           ranger_threads = ranger_threads,
           iters = cell$iters,
           op = cell$op,
-          op_args = .bench_op_args(cell),
-          mem_reps = 1L
+          op_args = .bench_op_args(cell)
         ),
         error = function(e) {
           message("  ref ", ref$label, " failed: ", conditionMessage(e))
@@ -157,17 +134,14 @@ bench_run_cell <- function(
             peak_mb = NA_real_,
             digest = NA_character_,
             digest_kind = NA_character_,
+            out_rows = NA_integer_,
             arf_version = ref$arf_version
           )
         }
       )
-      # The floor is a difference partner of the peak, so it is replicated in
-      # the same rounds: at small n the two are nearly equal and un-replicated
-      # floor noise lands undiluted in peak_mb - floor_mb.
+      # The floor is the peak's difference partner, so it is measured in the same round.
       m$floor_mb <- if (is.na(m$peak_mb)) NA_real_ else bench_measure_floor(ref$lib, data_path)
-      # One line per measurement: a full-tier cell runs for tens of minutes and
-      # the slurm log is otherwise silent until it finishes, which is
-      # indistinguishable from hung.
+      # One line per measurement, or a slurm log stays silent for an hour.
       message(sprintf(
         "  %s n=%g trees=%g %s w=%s | round %d/%d %-12s %6.2fs peak %6.1f floor %6.1f MB",
         cell$op,
@@ -190,40 +164,24 @@ bench_run_cell <- function(
   rows <- lapply(seq_along(refs), function(j) {
     ref <- refs[[j]]
     per_round <- lapply(rounds, function(r) r[[j]])
-    # The marginal is a PAIRED difference: peak and floor are measured in the
-    # same round, under the same conditions, and subtracted there. Taking a
-    # minimum on each end separately instead (min(peak) - min(floor)) inflates
-    # the spread rather than reducing it, which is what measurement showed.
-    # The median over rounds is then robust to the heavy tail that GC timing
-    # gives peak memory.
     mid <- function(v) if (all(is.na(v))) NA_real_ else stats::median(v, na.rm = TRUE)
     field <- function(nm) vapply(per_round, function(x) x[[nm]], numeric(1))
     first <- per_round[[1]]
-    # Whether this ref agreed with ITSELF across rounds. A configuration whose
-    # own output moves between identical rounds cannot support a cross-ref
-    # output comparison: forge under 2+ fork or mirai workers ignores the seed.
+    # A ref whose output moves between identical rounds (parallel forge
+    # ignores the seed) cannot support a cross-ref output comparison.
     digests <- stats::na.omit(vapply(
       per_round,
       function(x) x$digest %||% NA_character_,
       character(1)
     ))
-    m <- list(
-      seconds = unlist(lapply(per_round, function(x) x$seconds)),
-      peak_mb = mid(field("peak_mb")),
-      digest = first$digest,
-      digest_kind = first$digest_kind,
-      out_rows = first$out_rows %||% NA_integer_,
-      digest_stable = length(digests) > 0L && length(unique(digests)) == 1L,
-      arf_version = first$arf_version
-    )
+    seconds <- unlist(lapply(per_round, function(x) x$seconds))
     floor_mb <- mid(field("floor_mb"))
-    # A round whose baseline was still contaminated can yield floor > peak.
-    # Such a round measured nothing, so drop it rather than let it become the
-    # median at a small replicate count.
+    # The marginal is a paired difference per round, then the median: a round
+    # whose baseline was still contaminated yields floor > peak and is dropped.
     paired <- field("peak_mb") - field("floor_mb")
     paired <- paired[!is.na(paired) & paired > 0]
     marginal_mb <- if (length(paired)) stats::median(paired) else NA_real_
-    secs <- m$seconds[!is.na(m$seconds)]
+    secs <- seconds[!is.na(seconds)]
     data.frame(
       ref = ref$label,
       arf_version = ref$arf_version,
@@ -238,7 +196,7 @@ bench_run_cell <- function(
       dt_threads = dt_threads,
       ranger_threads = ranger_threads,
       metric = BENCH_METRIC,
-      peak_mb = round(m$peak_mb, 1),
+      peak_mb = round(mid(field("peak_mb")), 1),
       floor_mb = round(floor_mb, 1),
       mem_reps = mem_reps,
       mem_limit_mb = round(BENCH_MEM_LIMIT_MB, 1),
@@ -246,10 +204,10 @@ bench_run_cell <- function(
       time_median = if (length(secs)) round(stats::median(secs), 3) else NA_real_,
       time_min = if (length(secs)) round(min(secs), 3) else NA_real_,
       time_max = if (length(secs)) round(max(secs), 3) else NA_real_,
-      digest = m$digest,
-      digest_kind = m$digest_kind,
-      digest_stable = m$digest_stable,
-      out_rows = m$out_rows,
+      digest = first$digest,
+      digest_kind = first$digest_kind,
+      digest_stable = length(digests) > 0L && length(unique(digests)) == 1L,
+      out_rows = first$out_rows %||% NA_integer_,
       tier = cell$tier,
       n_evidence = cell$n_evidence,
       n_synth = cell$n_synth,

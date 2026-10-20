@@ -88,13 +88,11 @@ switch(
     lib_root <- "bench/lib"
 
     bench_assert_deps()
+    bench_assert_cgroup()
     bench_assert_clean_tree()
 
-    # The anchors answer "how has this changed across releases", which the quick
-    # tier cannot answer anyway: its cells are below the memory resolution
-    # limit. Measuring them on every mid-work check would add a third to the
-    # cost for nothing, so quick compares HEAD against main and the full tier
-    # carries the anchors.
+    # Quick-tier cells are below the memory resolution, so anchors there would
+    # cost a third of the run for nothing.
     ref_specs <- if (!is.na(refs)) {
       trimws(strsplit(refs, ",")[[1]])
     } else if (isTRUE(anchors) || identical(tier, "full")) {
@@ -104,9 +102,6 @@ switch(
     }
     ref_specs <- bench_resolve_refs(ref_specs[nzchar(ref_specs)])
     if (length(ref_specs) < 2L) {
-      # Every ref collapsed into one, which on the quick tier means a branch
-      # that changed no package file. The run still fills bench/timings.csv,
-      # but no delta can come out of it, so say that before spending the time.
       message(
         "Only one ref to measure (", ref_specs,
         "): no comparison is possible, and the report will have no delta rows. ",
@@ -134,8 +129,6 @@ switch(
     }
     if (!is.na(mem_reps)) {
       cells$mem_reps <- mem_reps
-      # bench_run_cell() reads this for callers that pass no explicit value.
-      Sys.setenv(ARF_BENCH_MEM_REPS = as.character(mem_reps))
     }
 
     message(sprintf(
@@ -153,9 +146,6 @@ switch(
 
     resources <- list()
     if (identical(cluster, "slurm")) {
-      # Cores and memory are matched fractions of a node, per cell: see
-      # bench_cell_resources(). --cpus, --mem and --walltime each replace their
-      # own dimension for every cell; the rest stay per-cell.
       if (!is.na(walltime)) {
         resources$walltime <- walltime
       }
@@ -208,7 +198,6 @@ switch(
     #| required: false
     registry <- NULL
 
-    # writeable = FALSE: another session may still own this registry.
     reg <- batchtools::loadRegistry(bench_registry_dir(registry), writeable = FALSE)
     print(batchtools::getStatus(reg = reg))
     bench_write_results(bench_collect(reg))
@@ -264,13 +253,11 @@ switch(
     cat("MemTotal:          ",
       sub("^MemTotal:\\s*", "", grep("^MemTotal", readLines("/proc/meminfo"), value = TRUE)),
       "\n")
-    cat("metric:            ", BENCH_METRIC, "\n")
+    cat("metric:            ", if (is.null(BENCH_CGROUP)) "none (no cgroup v2 memory accounting)" else BENCH_METRIC, "\n")
     cat("cgroup line:       ", if (length(cg)) cg else "<none>", "\n")
     if (!is.null(BENCH_CGROUP)) {
       cat("cgroup dir:        ", BENCH_CGROUP, "\n")
-      # Every limit up the tree: slurm sets the job's on a parent, and the
-      # sampler's delta is only trustworthy if the cgroup it reads is the
-      # job's own rather than one shared with other jobs.
+      # Every limit up the tree: slurm sets the job's on a parent.
       d <- BENCH_CGROUP
       repeat {
         vals <- vapply(c("memory.max", "memory.high", "memory.current"), function(nm) {
@@ -406,8 +393,6 @@ switch(
         "total: %.0f node-hours; %d of %d cells have a measured timing\n",
         sum(req$fraction * req$walltime) / 3600, sum(req$measured), nrow(req)
       ))
-      # A cell whose estimate is already at the ceiling will be killed at the
-      # ceiling. Naming them here is the whole point of planning first.
       atmax <- req$walltime >= BENCH_WALLTIME_MAX_S
       if (any(atmax)) {
         cat(sprintf(

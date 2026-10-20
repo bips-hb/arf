@@ -1,15 +1,8 @@
 # batchtools orchestrates; the cgroup sampler in bench-helpers.R measures.
-# Slurm's own accounting (MaxRSS) is unusable for this comparison, which is why
-# the metric never comes from the scheduler.
 
-bench_make_registry <- function(
-  dir,
-  cluster = c("local", "slurm"),
-  slurm_template = Sys.getenv("ARF_BENCH_SLURM_TMPL", "")
-) {
+bench_make_registry <- function(dir, cluster = c("local", "slurm")) {
   cluster <- match.arg(cluster)
-  # batchtools asserts the parent exists rather than creating it, and the
-  # registry path is nested under bench/registry/<stamp>.
+  # batchtools asserts the parent exists rather than creating it.
   dir.create(dirname(dir), recursive = TRUE, showWarnings = FALSE)
   srcs <- c(
     "bench/bench-helpers.R",
@@ -17,69 +10,42 @@ bench_make_registry <- function(
     "bench/cells.R",
     "bench/run-cell.R"
   )
-  # On the cluster, READ the system config: /etc/xdg/batchtools/config.R already
-  # supplies cluster.functions with the site template plus default.resources
-  # (qos, clusters, partition) and max.concurrent.jobs. Suppressing it with
-  # conf.file = NA, which is right for the local tier's determinism, would throw
-  # all of that away and demand a template we do not need to name.
-  reg <- if (cluster == "slurm") {
-    batchtools::makeRegistry(
+  if (cluster == "slurm") {
+    # The site config (/etc/xdg/batchtools/config.R) supplies the template,
+    # partition, qos and max.concurrent.jobs.
+    reg <- batchtools::makeRegistry(
       file.dir = dir,
       source = srcs,
       packages = character(),
       make.default = FALSE
     )
-  } else {
-    batchtools::makeRegistry(
-      file.dir = dir,
-      source = srcs,
-      packages = character(),
-      make.default = FALSE,
-      conf.file = NA_character_
-    )
-  }
-  if (cluster == "slurm") {
-    # Only override what the site config set if a template is named explicitly.
-    if (nzchar(slurm_template)) {
-      reg$cluster.functions <- batchtools::makeClusterFunctionsSlurm(
-        template = slurm_template,
-        array.jobs = TRUE
-      )
-    }
     if (
       is.null(reg$cluster.functions) ||
         identical(reg$cluster.functions$name, "Interactive")
     ) {
-      stop(
-        "no slurm cluster functions found: batchtools read no site config and ",
-        "no ARF_BENCH_SLURM_TMPL was given",
-        call. = FALSE
-      )
+      stop("no slurm cluster functions: batchtools read no site config", call. = FALSE)
     }
     return(reg)
   }
-  # Sequential and in-process on purpose: concurrent cells would contend for
-  # CPU and memory and spoil both metrics. Cell isolation comes from the callr
-  # child, not from the scheduler.
+  reg <- batchtools::makeRegistry(
+    file.dir = dir,
+    source = srcs,
+    packages = character(),
+    make.default = FALSE,
+    conf.file = NA_character_
+  )
+  # Sequential and in-process: concurrent cells would contend for CPU and
+  # memory. Isolation comes from the callr child, not the scheduler.
   reg$cluster.functions <- batchtools::makeClusterFunctionsInteractive()
   reg
 }
 
-# One job per (op, cell), with every ref measured inside it so each comparison
-# stays on one node.
+# One job per cell, every ref measured inside it, so a comparison stays on one
+# node. Refs arrive installed on the shared filesystem (arf is pure R).
 .bench_job <- function(i, cells, refs) {
-  # Refs arrive already installed, from the orchestrator, into a library on the
-  # shared filesystem. Installing inside the job instead would mean every job
-  # running `git worktree add` against the one shared .git -- up to 352
-  # concurrent mutations of .git/worktrees -- and 1056 redundant installs.
-  # Safe here because arf is pure R: no src/, no NeedsCompilation, so the
-  # installed tree is architecture-independent. A package with compiled code,
-  # or heterogeneous nodes, would have to go back to installing per job.
   cell <- cells[i, ]
-  # Must list every argument the run closures in .bench_cell_fn() actually
-  # pass. adversarial_rf() has `...`, so an argument missing from an old ref is
-  # absorbed and forwarded to ranger rather than erroring -- the one op where
-  # this guard is load-bearing.
+  # Every argument the run closures in .bench_cell_fn() pass. adversarial_rf()
+  # has `...`, so a missing argument there is absorbed rather than an error.
   calls <- list(
     forde = "parallel",
     lik = c("arf", "batch", "parallel"),
@@ -101,10 +67,7 @@ bench_submit_cells <- function(reg, cells, refs, resources = list()) {
     reg = reg
   )
   req <- .bench_job_resources(cells, resources, n_refs = length(refs))
-  # Submit in resource classes rather than once with a single figure: see
-  # bench_cell_memory_mb(). batchtools takes resources per submitJobs call, so
-  # one call per distinct request gets each cell what it needs without making
-  # every cell queue for the largest.
+  # batchtools takes resources per submitJobs call: one call per distinct shape.
   extra <- resources[setdiff(names(resources), c("ncpus", "memory", "walltime"))]
   grp <- paste(req$ncpus, req$memory, req$walltime)
   for (g in unique(grp[order(req$ncpus, req$memory, req$walltime)])) {
@@ -132,11 +95,7 @@ bench_submit_cells <- function(reg, cells, refs, resources = list()) {
   reg
 }
 
-# Per cell, not one figure for the grid: timed calls span two orders of
-# magnitude, so a single walltime either reserves hours for a two-minute cell
-# or kills the long ones. A requested dimension replaces only itself: cores and
-# memory are independent asks, and dropping the derivation of the other one
-# leaves it at the scheduler's default.
+# Per cell; a forced dimension replaces only itself.
 .bench_job_resources <- function(cells, resources = list(), n_refs) {
   req <- bench_cell_resources(cells)
   req$walltime <- if (is.null(resources$walltime)) {
@@ -152,8 +111,6 @@ bench_submit_cells <- function(reg, cells, refs, resources = list()) {
   req
 }
 
-# Newest registry unless one is named: the usual question is about the run just
-# submitted, and both collect and resubmit ask it.
 bench_registry_dir <- function(registry = NULL) {
   if (!is.null(registry)) {
     return(registry)
@@ -165,20 +122,14 @@ bench_registry_dir <- function(registry = NULL) {
   dirs[1]
 }
 
-# A job that expired got too little walltime, so resubmitting the same request
-# repeats the same death. Escalation starts from the request the job actually
-# carried, read back from the registry: the grid may have been edited since the
-# run started, so recomputing it from bench_cells() can describe a cell that is
-# no longer at that job id.
 .bench_escalate_walltime <- function(walltime, factor) {
   w <- BENCH_WALLTIME_MIN_S * ceiling(factor * walltime / BENCH_WALLTIME_MIN_S)
   as.integer(pmin(BENCH_WALLTIME_MAX_S, pmax(BENCH_WALLTIME_MIN_S, w)))
 }
 
-# Resubmit the cells a run lost. Expiry has two causes and the registry cannot
-# tell them apart: the scheduler killed the job at its walltime, or the kernel
-# killed it for memory. Walltime grows by default and memory only when asked,
-# since doubling both would double the node-hours spent to learn the same thing.
+# Expiry is a walltime kill or an OOM kill and the registry cannot tell them
+# apart; walltime grows by default, memory only when asked. Requests are read
+# back from the registry, since the grid may have been edited since.
 bench_resubmit <- function(
   reg,
   ids = NULL,
@@ -211,9 +162,6 @@ bench_resubmit <- function(
     mem_factor * vapply(res, function(r) as.numeric(r$memory %||% NA_real_), numeric(1))
   )
   req$ncpus <- vapply(res, function(r) as.integer(r$ncpus %||% NA_integer_), integer(1))
-  # Name the cells, not just the ids: the job carries the grid it was built
-  # from, so this says which measurement is being retried without trusting
-  # that bench_cells() still returns the same rows in the same order.
   for (k in seq_len(nrow(req))) {
     cell <- tryCatch(
       {
@@ -240,9 +188,7 @@ bench_resubmit <- function(
     message(nrow(req), " job(s) would be resubmitted; --dry-run, so nothing was.")
     return(invisible(req))
   }
-  # Per-job resource columns in `ids`, which submitJobs documents for walltime,
-  # memory and ncpus: a lost cell keeps its own shape without one call per
-  # distinct request.
+  # Per-job resource columns in `ids`: each lost cell keeps its own shape.
   batchtools::submitJobs(ids = req, reg = reg)
   message(nrow(req), " job(s) resubmitted; collate with arf-bench collect when they finish.")
   invisible(req)
@@ -253,9 +199,7 @@ bench_collect <- function(reg) {
   if (!nrow(done)) {
     stop("no jobs finished; see batchtools::getErrorMessages()", call. = FALSE)
   }
-  # A cell lost to a transient fetch failure, an OOM kill or an argument check
-  # would otherwise vanish from the CSV, the report and history with no trace,
-  # which is the half-populated report DESIGN forbids.
+  # Lost cells must not vanish silently: a partial grid would read as complete.
   err <- batchtools::findErrors(reg = reg)
   if (nrow(err)) {
     warning(
@@ -266,8 +210,6 @@ bench_collect <- function(reg) {
       call. = FALSE
     )
   }
-  # Expired jobs are neither done nor errored, so without this a walltime-killed
-  # cell vanishes and a partial grid reads as a complete one.
   missing <- setdiff(
     batchtools::findJobs(reg = reg)$job.id,
     c(done$job.id, err$job.id)
@@ -283,11 +225,8 @@ bench_collect <- function(reg) {
     )
   }
   rows <- batchtools::reduceResultsList(ids = done, reg = reg)
-  # Tolerate results that predate a schema change. A job stores whatever the
-  # code produced when it RAN, so a grid running for days across an edit to
-  # bench_schema() holds both shapes, and a strict column select would make the
-  # whole run uncollectable at precisely the moment its results matter. Fill
-  # and say so instead.
+  # A job stores whatever the code produced when it ran, so a grid spanning a
+  # schema edit holds both shapes; fill rather than refuse.
   out <- as.data.frame(data.table::rbindlist(rows, fill = TRUE, use.names = TRUE))
   missing <- setdiff(bench_schema(), names(out))
   if (length(missing)) {

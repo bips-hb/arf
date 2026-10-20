@@ -1,5 +1,5 @@
-# Ref resolution for the version-comparing benchmark: a ref spec becomes an
-# installed library. See bench/README.md for the spec syntax.
+# Ref resolution: a ref spec becomes an installed library. See bench/README.md
+# for the spec syntax.
 
 # "git:<ref>", "cran:<version>", or a bare git ref such as "HEAD" or "main".
 bench_parse_ref <- function(spec) {
@@ -24,8 +24,7 @@ bench_parse_ref <- function(spec) {
   )
 }
 
-# Modified TRACKED paths only. Untracked files are expected here: results/,
-# logs/ and local experiment scripts all live under bench/.
+# Modified tracked paths only; untracked files are expected under bench/.
 bench_tree_dirty <- function(dir = ".") {
   out <- system2("git", c("-C", dir, "status", "--porcelain", "--untracked-files=no"), stdout = TRUE)
   if (!length(out)) {
@@ -34,14 +33,9 @@ bench_tree_dirty <- function(dir = ".") {
   trimws(substring(out, 4))
 }
 
-# A number from a tree nobody can reconstruct cannot be cited, so refuse it
-# rather than label it: a number from a tree nobody can reconstruct cannot be
-# cited, so refusing beats labelling.
-bench_assert_clean_tree <- function(dir = ".", ignore = "bench/history.csv") {
-  # history.csv is benchmark OUTPUT that the suite appends to and the author
-  # commits afterwards. Its modification cannot make a measurement
-  # irreproducible, and gating on it would make `make bench` one-shot per
-  # commit once the file is tracked.
+# A number from a tree nobody can reconstruct cannot be cited. The two CSVs
+# are the suite's own output, written by every collect.
+bench_assert_clean_tree <- function(dir = ".", ignore = c("bench/history.csv", "bench/timings.csv")) {
   dirty <- setdiff(bench_tree_dirty(dir), ignore)
   if (length(dirty)) {
     stop(
@@ -54,11 +48,8 @@ bench_assert_clean_tree <- function(dir = ".", ignore = "bench/history.csv") {
   invisible(TRUE)
 }
 
-# The shared dependency layer is simply the session's own libpaths: every dep
-# already resolves there, and installing them per ref would let their versions
-# diverge between refs and confound the comparison with somebody else's
-# performance change. A per-ref library therefore holds only arf, and children
-# prepend it with `.libPaths(c(ref_lib, .libPaths()))`.
+# One shared dependency layer, the session's own libpaths: per-ref dependency
+# libraries would let versions diverge and confound the comparison.
 bench_assert_deps <- function() {
   deps <- c(
     "data.table",
@@ -80,8 +71,7 @@ bench_assert_deps <- function() {
   invisible(TRUE)
 }
 
-# Identical flags for every ref. Never add --no-byte-compile: it would change
-# the thing being timed.
+# Identical for every ref. Never add --no-byte-compile: it changes what is timed.
 .bench_install_flags <- c("--no-docs", "--no-help", "--no-multiarch")
 
 .bench_install_tarball <- function(tarball, lib) {
@@ -111,9 +101,9 @@ bench_assert_deps <- function() {
   commit
 }
 
+# The tarball CRAN shipped is the faithful anchor; current and archived
+# releases live at different URLs.
 .bench_install_cran <- function(version, lib) {
-  # The tarball CRAN ships is the faithful anchor, and a current release lives
-  # at a different URL than an archived one, so try both.
   urls <- sprintf(
     c(
       "https://cran.r-project.org/src/contrib/arf_%s.tar.gz",
@@ -149,11 +139,7 @@ bench_assert_deps <- function() {
   id[1]
 }
 
-# Idempotent: one job per cell would otherwise reinstall every ref for every
-# cell, which is most of the wall clock of a local run (20 quick cells x 3 refs
-# = 60 installs). A stamp file records which commit the library holds, so a
-# second request for the same ref is free. Slurm jobs land on their own
-# tempdirs, so there is nothing to race against.
+# Idempotent via a stamp file, so one install serves every cell.
 bench_install_ref <- function(spec, root, force = FALSE) {
   ref <- bench_parse_ref(spec)
   lib <- file.path(root, ref$label)
@@ -181,11 +167,8 @@ bench_install_ref <- function(spec, root, force = FALSE) {
   )
 }
 
-# Which backend each measurement needs from the ref. arf ignores an
-# `arf.backend` value it does not know and runs its own default instead, so a
-# ref that predates a backend measures something else under that backend's name
-# and the report calls the difference a verdict. The ref's own DESCRIPTION is
-# the authority on what it can do.
+# arf ignores an `arf.backend` it does not know and runs its default, so a ref
+# is measured only on the backends its own DESCRIPTION supports.
 BENCH_BACKEND_DEPS <- c(
   sequential = NA_character_,
   foreach = "foreach",
@@ -202,9 +185,7 @@ bench_ref_backends <- function(lib) {
   ]
 }
 
-# Refs that can run this backend. A ref without the probe is kept: results
-# stored before it existed carry no `backends` field, and dropping them would
-# turn a schema change into a lost measurement.
+# A ref without the probe (results predating it) is kept.
 .bench_usable_refs <- function(refs, backend) {
   can <- vapply(
     refs,
@@ -224,12 +205,10 @@ bench_ref_backends <- function(lib) {
   refs[can]
 }
 
-# R drops or partially matches an argument a ref does not have, so the call
-# would succeed against that version's defaults and produce a plausible number
-# for a different computation. Check up front instead.
+# R drops or partially matches an argument a ref lacks, so the call would run
+# against that version's defaults. Checked in a clean child, because this
+# session may have another arf attached.
 bench_assert_args <- function(lib, calls) {
-  # In a clean child, because this session may already have arf attached from a
-  # different library and loadNamespace() would hand back that cached copy.
   have <- callr::r(
     function(lib, fns) {
       .libPaths(c(lib, .libPaths()))
@@ -247,12 +226,8 @@ bench_assert_args <- function(lib, calls) {
   invisible(TRUE)
 }
 
-# Two specs can name the same commit, which is the default state of every run
-# on main ("HEAD" and "main"). Comparing a ref with itself pays two installs
-# and two measurement sets per cell to print a verdict on sampling noise.
-# Identity for deduplication: the PACKAGE content, not the commit. A branch
-# that only touches bench/ or the Makefile is the same arf as its base, and
-# benchmarking both doubles a cluster run to prove 0.0%.
+# Identity for deduplication is package content, not the commit: a branch that
+# only touches bench/ is the same arf as its base.
 .bench_pkg_id <- function(ref) {
   if (ref$kind == "cran") {
     return(paste0("cran-", ref$value))
@@ -265,17 +240,13 @@ bench_assert_args <- function(lib, calls) {
     stderr = FALSE
   ))
   if (!length(tree)) {
-    # No package paths resolved: fall back to the commit rather than treating
-    # every such ref as identical.
     return(.bench_ref_id(ref))
   }
   paste(tree, collapse = "\n")
 }
 
-# `baseline` survives a collapse. Deduplication keeps the first spec, and the
-# default order is HEAD before main, so on the main branch itself the two
-# resolve alike and "main" was the one dropped -- leaving bench_deltas() to
-# stop on "baseline ref 'main' is not in the results".
+# Deduplicate by content; the baseline spec survives a collapse, since
+# bench_deltas() needs it by name.
 bench_resolve_refs <- function(specs, baseline = "main") {
   ids <- vapply(specs, function(s) .bench_pkg_id(bench_parse_ref(s)), character(1))
   prefer <- order(specs != baseline)

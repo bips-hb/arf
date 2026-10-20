@@ -273,6 +273,8 @@ test_that("a cell measures an installed ref and returns all three timings", {
   expect_true(m$peak_mb >= 0)
   expect_equal(m$arf_version, ref$arf_version)
   expect_equal(m$digest_kind, "exact")
+  # The row count travels back to the parent, or the truncation guard never fires.
+  expect_false(is.na(m$out_rows))
   m2 <- bench_measure_cell("sequential", data_path, NA_integer_, 1L, ref$lib, iters = 1L, op = "forde")
   expect_equal(m$digest, m2$digest)
 })
@@ -282,8 +284,7 @@ source("bench/run-cell.R")
 test_that("a mirai cell measures through the real child process", {
   skip_if_not_installed("mirai")
   skip_if_not(dir.exists(file.path("bench/lib/main", "arf")))
-  # The child only sees helpers shipped in .bench_cell_args(); calling
-  # .bench_cell_fn() in-process would pass with a helper missing from it.
+  # Through the real child, which sources the helpers itself.
   lib <- normalizePath("bench/lib/main")
   cell <- data.frame(
     op = "forde",

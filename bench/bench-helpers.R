@@ -1,13 +1,11 @@
-# Shared helpers for the bench/ scripts (sourced, not part of the package build).
-#
-# Each backend measurement runs in its OWN fresh subprocess (callr spawns a new
-# R process rather than forking). This is deliberate: mirai/nanonext start
-# background threads and forking afterwards is unsafe (SIGILL), and forked
-# workers can remove the shared session tempdir on exit. Isolating each cell in
-# a spawned process avoids both: a child does exactly one backend (mirai OR
-# fork, never both), and the parent samples its memory via /proc without forking.
+# Shared helpers for the bench/ scripts (sourced, never shipped).
+# Every measurement runs in a fresh R process via callr (spawned, not forked):
+# mirai starts background threads, and forking after that is unsafe.
 
 stopifnot(requireNamespace("callr", quietly = TRUE))
+
+# Absolute, so a measurement child can source this file whatever its cwd.
+BENCH_HELPERS <- normalizePath("bench/bench-helpers.R", mustWork = TRUE)
 
 bench_make_data <- function(n, p) {
   X <- as.data.frame(matrix(stats::rnorm(n * p), n, p))
@@ -16,38 +14,16 @@ bench_make_data <- function(n, p) {
 }
 
 ## ---- memory metric ----------------------------------------------------------
-# Preference order:
-# 1. "cgroup-anon+shmem": sample the `anon` and `shmem` counters of our cgroup
-#    v2 memory.stat. The kernel charges each page ONCE per cgroup, so COW pages
-#    shared by fork workers count once -- exactly the unique-memory total we
-#    want, and fairer than summed PSS (which only approximates sharing). mori's
-#    regions live in /dev/shm (tmpfs), which the kernel files under `shmem`,
-#    not `anon`; without that counter the shared input copy is invisible and
-#    mirai is undercounted.
-#    Every process a cell spawns (callr child, mirai dispatcher + daemons,
-#    foreach fork workers) inherits the cgroup, so short-lived workers cannot
-#    escape the measurement and no pgid matching is needed. `anon` excludes
-#    page cache (readRDS pulling the data file in would otherwise inflate small
-#    cells). One small file read per sample, so we can poll at 5ms instead of
-#    the >=50ms-plus-VMA-walk sweeps of the PSS path, shrinking the missed-
-#    spike window. Measured as a delta against the pre-spawn baseline because
-#    the orchestrator shares the cgroup (slurm gives each job one cgroup).
-#    Upgrade path (not needed yet): a dedicated per-cell child cgroup would
-#    give kernel-exact memory.peak with no sampling at all, but requires
-#    cgroupfs write delegation, which cluster nodes rarely grant.
-# 2. "PSS": sum Pss over the child's process group, sampled. smaps_rollup
-#    reads force VMA walks, so the effective sampling interval grows with
-#    memory size and forked workers can spawn and die between sweeps.
-#    Fallback for hosts without cgroup v2 memory accounting.
-# 3. "RSS": last resort without smaps_rollup; overcounts shared pages.
+# cgroup v2 `anon` + `shmem` of the job's cgroup: each page is charged once, so
+# pages shared by fork workers count once and mori's /dev/shm segments count.
+# Every process a cell spawns inherits the cgroup.
 
-# Read a /proc file, quietly tolerating the race where a pid vanishes between
-# being listed and being read (returns character(0) then).
+# A file can vanish between listing and reading; treat that as an empty read.
 .bench_read <- function(path) {
   tryCatch(suppressWarnings(readLines(path, warn = FALSE)), error = function(e) character(0))
 }
 
-# cgroup v2 dir of this process, or NULL if memory accounting is unavailable.
+# cgroup v2 dir of this process, or NULL without memory accounting.
 .bench_cgroup_dir <- function() {
   cg <- .bench_read("/proc/self/cgroup")
   line <- cg[startsWith(cg, "0::")]
@@ -57,6 +33,7 @@ bench_make_data <- function(n, p) {
   dir <- file.path("/sys/fs/cgroup", sub("^0::/?", "", line[1]))
   if (file.exists(file.path(dir, "memory.stat"))) dir else NULL
 }
+
 .bench_cgroup_anon_kb <- function(dir) {
   st <- .bench_read(file.path(dir, "memory.stat"))
   a <- st[startsWith(st, "anon ")]
@@ -67,14 +44,11 @@ bench_make_data <- function(n, p) {
   if (!length(h)) {
     h <- "shmem 0"
   }
-  (as.numeric(sub("^anon ", "", a[1])) + as.numeric(sub("^shmem ", "", h[1]))) / 1024 # bytes -> kB
+  (as.numeric(sub("^anon ", "", a[1])) + as.numeric(sub("^shmem ", "", h[1]))) / 1024
 }
 
-# The memory ceiling this process runs under, in MB, or NA when unlimited.
-# Walk UP the hierarchy: slurm sets the limit on the job's cgroup while the
-# process often sits in a child whose own memory.max reads "max". A peak that
-# reaches this is a measurement of the cap, not of the workload, and must never
-# be reported as the latter.
+# Walk up: slurm sets the limit on the job cgroup while the process sits in a
+# child whose own memory.max reads "max". NA when unlimited.
 .bench_cgroup_limit_mb <- function(dir = .bench_cgroup_dir()) {
   if (is.null(dir)) {
     return(NA_real_)
@@ -102,59 +76,24 @@ bench_make_data <- function(n, p) {
 
 BENCH_CGROUP <- .bench_cgroup_dir()
 BENCH_MEM_LIMIT_MB <- .bench_cgroup_limit_mb()
-BENCH_USE_PSS <- file.exists("/proc/self/smaps_rollup")
-BENCH_METRIC <- if (!is.null(BENCH_CGROUP)) {
-  "cgroup-anon+shmem"
-} else if (BENCH_USE_PSS) {
-  "PSS"
-} else {
-  "RSS"
-}
-.bench_pid_kb <- function(pp) {
-  if (BENCH_USE_PSS) {
-    l <- .bench_read(sprintf("/proc/%d/smaps_rollup", pp))
-    x <- l[grepl("^Pss:", l)]
-    if (length(x)) {
-      return(as.numeric(sub("[^0-9]*([0-9]+).*", "\\1", x[1])))
-    }
-    0
-  } else {
-    st <- .bench_read(sprintf("/proc/%d/statm", pp))
-    if (!length(st)) {
-      return(0)
-    }
-    as.numeric(strsplit(st, " ")[[1]][2]) * 4 # RSS pages -> kB (4k pages)
-  }
-}
-# Process-group id of a pid (field after "pid (comm) state ppid" in /proc/stat).
-# mirai daemons reparent to init (ppid=1) but KEEP the launcher's process group,
-# so ppid-walking misses them while foreach fork workers are caught -- an unfair
-# undercount. Grouping by pgid catches both. callr r_bg gives each cell child its
-# own pgid, so this never sweeps in the parent or other cells.
-.bench_pgid <- function(pid) {
-  st <- .bench_read(sprintf("/proc/%d/stat", pid))
-  if (!length(st)) {
-    return(NA_integer_)
-  }
-  as.integer(strsplit(sub("^.*\\) \\S+ ", "", st[1]), " ", fixed = TRUE)[[1]][3])
-}
-# pids sharing `root`'s process group: the orchestrator, mirai dispatcher +
-# daemons, and foreach fork workers.
-.bench_group <- function(root) {
-  g <- .bench_pgid(root)
-  if (is.na(g)) {
-    return(root)
-  }
-  pids <- suppressWarnings(as.integer(list.files("/proc")))
-  pids <- pids[!is.na(pids)]
-  pids[vapply(pids, function(p) isTRUE(.bench_pgid(p) == g), logical(1))]
-}
-.bench_tree_kb <- function(root) sum(vapply(.bench_group(root), .bench_pid_kb, numeric(1)))
+BENCH_METRIC <- "cgroup-anon+shmem"
 
-# .libPaths() silently DROPS a directory that does not exist, so a ref whose
-# install failed would quietly load whatever arf is installed in the session and
-# report its number under the ref's label. Every process that loads a ref's arf
-# asserts provenance: the master, the PSOCK workers and the mirai daemons.
+# No fallback metric: PSS and RSS count shared pages differently, so a number
+# from either would not be comparable with the rest of the results.
+bench_assert_cgroup <- function() {
+  if (is.null(BENCH_CGROUP)) {
+    stop(
+      "no cgroup v2 memory accounting for this process; run under slurm or a systemd slice",
+      call. = FALSE
+    )
+  }
+  invisible(TRUE)
+}
+
+## ---- child-side setup ------------------------------------------------------
+
+# .libPaths() silently drops a missing directory, so a ref whose install failed
+# would load whatever arf the session has. Every process that loads arf checks.
 .bench_assert_lib <- function(lib) {
   from <- normalizePath(find.package("arf"), mustWork = FALSE)
   want <- normalizePath(lib, mustWork = FALSE)
@@ -164,20 +103,13 @@ BENCH_METRIC <- if (!is.null(BENCH_CGROUP)) {
   invisible(TRUE)
 }
 
-# everywhere() evaluates its expression on the daemon, where the caller's
-# locals do not exist, so the count travels as a value: left as a name, every
-# daemon keeps data.table's default of half the host's cores and they
-# oversubscribe each other.
+# everywhere() evaluates on the daemon, so the count travels as a value.
 .bench_mirai_dt_threads <- function(dt_threads) {
   mirai::everywhere(data.table::setDTthreads(.n), .n = dt_threads)
 }
 
-# Daemons are fresh R processes whose library paths come from the environment,
-# so an in-session .libPaths() never reaches them. Worker bodies ship by value
-# but resolve arf's internals (cforde/post_x/resample) against the daemon's own
-# namespace, so a daemon left on the default library silently measures that arf
-# whichever ref is under test. The assert travels too, to make a wrong library
-# an error rather than a number.
+# Daemons take their library paths from the environment, so the ref library
+# has to be set on each; worker bodies resolve arf internals against it.
 .bench_mirai_load_arf <- function(lib) {
   mirai::everywhere(
     {
@@ -191,9 +123,8 @@ BENCH_METRIC <- if (!is.null(BENCH_CGROUP)) {
   )
 }
 
-# Workers are fresh Rscript processes whose .libPaths() comes from env vars
-# only, so send the master's whole set: otherwise the shared dependency layer
-# can differ between master and worker even when `lib` is fine.
+# PSOCK workers get the master's whole libpath set, so the shared dependency
+# layer matches the master even when the ref library alone would.
 .bench_psock_setup <- function(cl, lib, dt_threads) {
   setup <- function(paths, l, t, assert) {
     .libPaths(paths)
@@ -201,8 +132,7 @@ BENCH_METRIC <- if (!is.null(BENCH_CGROUP)) {
     assert(l)
     data.table::setDTthreads(t)
   }
-  # Detached from the caller's frame, which holds the fixture; see
-  # .bench_mirai_verify().
+  # A closure ships its frame, and this frame holds the fixture.
   environment(setup) <- globalenv()
   parallel::clusterCall(
     cl,
@@ -214,14 +144,11 @@ BENCH_METRIC <- if (!is.null(BENCH_CGROUP)) {
   )
 }
 
-# everywhere() is fire-and-forget: a failure inside it never reaches the
-# caller, which is how an unset thread count or a daemon on the wrong library
-# becomes a measurement instead of an error. Collected, so it is an error.
+# everywhere() is fire-and-forget, so a failed daemon setup is checked here.
 .bench_mirai_verify <- function(lib, dt_threads) {
   n <- max(1L, as.integer(mirai::status()$connections))
   probe <- function(i) c(dirname(find.package("arf")), data.table::getDTthreads())
-  # A closure ships its frame, whose unforced promises ship the caller's frame:
-  # the whole fixture, once per daemon.
+  # A closure ships its frame, and this frame holds the fixture.
   environment(probe) <- globalenv()
   got <- mirai::mirai_map(seq_len(n), probe)[]
   want <- normalizePath(lib)
@@ -242,21 +169,9 @@ BENCH_METRIC <- if (!is.null(BENCH_CGROUP)) {
   invisible(TRUE)
 }
 
-# Function executed in the CHILD process (fresh R): load the package, run one
-# operation `iters` times for one backend, return the elapsed seconds per iter.
-# dt_threads pins data.table (per worker); ranger_threads sets ranger's default
-# threads, which forde()'s terminalNodes prediction picks up (it does not pass
-# num.threads itself).
-#
-# `op` selects the pipeline stage; `op_args` carries its knobs. The cached data
-# object holds arf/X/psi/evidence; each op reads what it needs:
-#   forde          arf, X                       parallelizes over trees
-#   forge          psi, evidence                over evidence steps
-#   expct          psi, evidence                over evidence steps
-#   lik            psi, X, arf, batch           over query folds
-#   adversarial_rf X, trees                     ranger train + prune (over trees)
-# For mirai, the arf-loaded daemons are set up once here so per-call reloading
-# doesn't dominate; see arf_load_on_daemons().
+# Runs in the measurement child: load the ref's arf, set up one backend, time
+# `iters` calls of `op`. ranger_threads sets ranger's default, which forde's
+# terminalNodes prediction picks up.
 .bench_cell_fn <- function(
   lib,
   data_path,
@@ -268,19 +183,12 @@ BENCH_METRIC <- if (!is.null(BENCH_CGROUP)) {
   op = "forde",
   op_args = list()
 ) {
-  # Prepend, never replace: the ref's library holds only arf, and the session's
-  # own libpaths are the shared dependency layer, so a comparison cannot be
-  # confounded by a different data.table version.
+  # Prepend: the ref library holds only arf, the session's paths hold the deps.
   .libPaths(c(lib, .libPaths()))
   suppressWarnings(suppressMessages(library(arf)))
   .bench_assert_lib(lib)
   data.table::setDTthreads(dt_threads)
   options(ranger.num.threads = ranger_threads)
-  # speed-for-memory knob (see ?arf-options), gridable via env
-  br <- Sys.getenv("ARF_BENCH_BLOCK_ROWS", "")
-  if (nzchar(br)) {
-    options(arf.block_rows = as.numeric(br))
-  }
   d <- readRDS(data_path)
   arf <- d$arf
   X <- d$X
@@ -294,8 +202,7 @@ BENCH_METRIC <- if (!is.null(BENCH_CGROUP)) {
     par <- TRUE
     doParallel::registerDoParallel(cores = n_workers)
   } else if (backend == "psock") {
-    # clean (non-fork) foreach workers: separates fork's heap duplication from
-    # the per-worker input copies that mori removes
+    # Non-fork foreach workers: no copy-on-write sharing with the parent.
     options(arf.backend = "foreach")
     par <- TRUE
     cl <- parallel::makeCluster(n_workers)
@@ -306,7 +213,7 @@ BENCH_METRIC <- if (!is.null(BENCH_CGROUP)) {
     options(arf.backend = "mirai")
     par <- TRUE
     mirai::daemons(n_workers)
-    on.exit(mirai::daemons(0), add = TRUE) # always stop, even if the op errors
+    on.exit(mirai::daemons(0), add = TRUE)
     .bench_mirai_dt_threads(dt_threads)
     .bench_mirai_load_arf(lib)
     .bench_mirai_verify(lib, dt_threads)
@@ -342,8 +249,7 @@ BENCH_METRIC <- if (!is.null(BENCH_CGROUP)) {
     stop("unknown op: ", op)
   )
   kind <- unname(BENCH_DIGEST_KIND[[op]])
-  # Digest the first iteration only: one hash per cell is enough, and a fixed
-  # seed makes the stochastic ops comparable across refs.
+  # One digest per cell, from the first call under a fixed seed.
   set.seed(1)
   digest <- NA_character_
   out_rows <- NA_integer_
@@ -353,17 +259,13 @@ BENCH_METRIC <- if (!is.null(BENCH_CGROUP)) {
       t <- system.time(res <- run())[["elapsed"]]
       if (i == 1L) {
         digest <<- tryCatch(bench_digest(res, kind), error = function(e) NA_character_)
-        # A forked worker that dies takes its whole chunk with it: foreach warns,
-        # the rbind returns fewer rows than the evidence had, and arf does not
-        # error. Without this the short result shows up only as a changed digest.
+        # A worker that dies drops its chunk and arf returns the short result.
         out_rows <<- tryCatch(
           if (is.null(res)) NA_integer_ else as.integer(NROW(res)),
           error = function(e) NA_integer_
         )
       }
-      # Fingerprinted and dropped before the next call: a result held across
-      # the remaining calls sits in every later peak by its own size, and so
-      # does the previous call's garbage until a collection happens to run.
+      # Dropped before the next call, or it sits in every later peak.
       rm(res)
       invisible(gc(FALSE))
       t
@@ -380,9 +282,9 @@ BENCH_METRIC <- if (!is.null(BENCH_CGROUP)) {
 }
 `%||%` <- function(a, b) if (is.null(a)) b else a
 
-# Parent-side: launch a cell in a fresh subprocess and track its peak memory
-# while it runs (cgroup-anon delta when available, else /proc PSS/RSS sweeps;
-# see the metric note above). Returns list(seconds = median, peak_mb).
+## ---- parent-side measurement -------------------------------------------------
+
+# Launch one cell measurement in a fresh child and track its peak memory.
 bench_measure_cell <- function(
   backend,
   data_path,
@@ -391,47 +293,38 @@ bench_measure_cell <- function(
   lib,
   ranger_threads = 1L,
   iters = 1L,
-  interval = 0.05,
   op = "forde",
-  op_args = list(),
-  mem_reps = 1L
+  op_args = list()
 ) {
-  args <- .bench_cell_args(
-    lib,
-    data_path,
-    backend,
-    n_workers,
-    dt_threads,
-    ranger_threads,
-    iters,
-    op,
-    op_args
+  r <- .bench_run_sampled(
+    function(helpers, args) {
+      source(helpers)
+      do.call(.bench_cell_fn, args)
+    },
+    args = list(
+      BENCH_HELPERS,
+      list(
+        lib = lib,
+        data_path = data_path,
+        backend = backend,
+        n_workers = n_workers,
+        dt_threads = dt_threads,
+        ranger_threads = ranger_threads,
+        iters = iters,
+        op = op,
+        op_args = op_args
+      )
+    )
   )
-  runs <- lapply(seq_len(max(1L, mem_reps)), function(i) {
-    .bench_run_sampled(.bench_cell_payload(), args, interval)
-  })
-  r <- runs[[1]]
-  if (isTRUE(r$ok)) {
-    # Peak memory depends on when R's GC decides to grow the heap, so repeated
-    # runs of identical code differ by tens of percent on the marginal. The
-    # minimum is the least GC-inflated observation of the real requirement.
-    peaks <- vapply(runs, function(x) if (isTRUE(x$ok)) x$peak_mb else NA_real_, numeric(1))
-    r$peak_mb <- min(peaks, na.rm = TRUE)
-    secs <- unlist(lapply(runs, function(x) if (isTRUE(x$ok)) x$value$seconds else NULL))
-    r$value$seconds <- secs
-  }
   if (!isTRUE(r$ok)) {
-    # Without the reason a dead child is indistinguishable from a slow one in
-    # the job log, and every job still reports success.
+    # Without the reason a dead child looks like a slow one in the job log.
     message("  child failed: ", paste(r$value, collapse = " "))
-    # Whatever the sampler accumulated before the child died is not a
-    # measurement of anything: reported as a number it renders as a large
-    # memory "improvement" with verdict "real".
     return(list(
       seconds = NA_real_,
       peak_mb = NA_real_,
       digest = NA_character_,
       digest_kind = NA_character_,
+      out_rows = NA_integer_,
       arf_version = NA_character_
     ))
   }
@@ -440,21 +333,14 @@ bench_measure_cell <- function(
     peak_mb = r$peak_mb,
     digest = r$value$digest,
     digest_kind = r$value$digest_kind,
+    out_rows = r$value$out_rows,
     arf_version = r$value$arf_version
   )
 }
 
-# Every child in a cell shares one cgroup, and the counter is read as a delta
-# against a baseline taken before the child spawns. A previous child's pages
-# are not reclaimed the instant it exits, so a baseline read too early is
-# inflated and the next child's delta comes out too small -- which produced
-# floor measurements LARGER than the peak they were subtracted from, i.e. a
-# negative marginal. A fixed sleep is not enough; wait for the counter itself
-# to stop moving.
+# A previous child's pages are reclaimed after it exits, not at exit; a
+# baseline read before the counter stops moving inflates it.
 .bench_settle <- function(max_wait = 3, tol_kb = 1024) {
-  if (is.null(BENCH_CGROUP)) {
-    return(invisible(NULL))
-  }
   invisible(gc(FALSE))
   prev <- .bench_cgroup_anon_kb(BENCH_CGROUP)
   deadline <- Sys.time() + max_wait
@@ -469,38 +355,23 @@ bench_measure_cell <- function(
   invisible(NULL)
 }
 
-# Spawn `fn` in a fresh child (callr spawns, it does not fork) and track the
-# cell's peak memory while it runs. Shared by the cell measurement and the
-# floor measurement so both use one sampling path.
-.bench_run_sampled <- function(fn, args, interval = 0.05) {
-  use_cgroup <- !is.null(BENCH_CGROUP)
-  baseline_kb <- NA_real_
-  if (use_cgroup) {
-    # Stabilize the orchestrator's share before taking the baseline: a GC
-    # during the cell would deflate the delta's floor (harmless for a max),
-    # but unreclaimed garbage at baseline time would inflate every sample.
-    .bench_settle()
-    baseline_kb <- .bench_cgroup_anon_kb(BENCH_CGROUP)
-    interval <- 0.005 # one counter read per sample; poll fast
-  }
-  # callr ships the function and its arguments, not the parent's globals, so the
+# Spawn `fn` in a fresh child and sample the cgroup delta while it runs.
+.bench_run_sampled <- function(fn, args) {
+  bench_assert_cgroup()
+  .bench_settle()
+  baseline_kb <- .bench_cgroup_anon_kb(BENCH_CGROUP)
   proc <- callr::r_bg(fn, args = args)
-  pid <- proc$get_pid()
   peak_kb <- 0
   repeat {
     alive <- proc$is_alive()
-    cur_kb <- if (use_cgroup) {
-      .bench_cgroup_anon_kb(BENCH_CGROUP) - baseline_kb
-    } else {
-      .bench_tree_kb(pid)
-    }
+    cur_kb <- .bench_cgroup_anon_kb(BENCH_CGROUP) - baseline_kb
     if (!is.na(cur_kb)) {
       peak_kb <- max(peak_kb, cur_kb)
     }
     if (!alive) {
       break
     }
-    Sys.sleep(interval)
+    Sys.sleep(0.005)
   }
   res <- tryCatch(list(ok = TRUE, value = proc$get_result()), error = function(e) {
     list(ok = FALSE, value = conditionMessage(e))
@@ -508,60 +379,9 @@ bench_measure_cell <- function(
   list(ok = res$ok, value = res$value, peak_mb = peak_kb / 1024)
 }
 
-# callr ships the function and its arguments, not the parent's globals, so the
-# cell function and the digest helpers travel as an explicit payload.
-.bench_cell_payload <- function() {
-  function(lib, data_path, backend, n_workers, dt_threads, ranger_threads, iters, op, op_args, helpers) {
-    for (nm in names(helpers)) {
-      assign(nm, helpers[[nm]], envir = globalenv())
-    }
-    .bench_cell_fn(lib, data_path, backend, n_workers, dt_threads, ranger_threads, iters, op, op_args)
-  }
-}
-
-.bench_cell_args <- function(lib, data_path, backend, n_workers, dt_threads, ranger_threads, iters, op, op_args) {
-  list(
-    lib,
-    data_path,
-    backend,
-    n_workers,
-    dt_threads,
-    ranger_threads,
-    iters,
-    op,
-    op_args,
-    helpers = list(
-      .bench_cell_fn = .bench_cell_fn,
-      .bench_assert_lib = .bench_assert_lib,
-      .bench_mirai_dt_threads = .bench_mirai_dt_threads,
-      .bench_mirai_load_arf = .bench_mirai_load_arf,
-      .bench_mirai_verify = .bench_mirai_verify,
-      .bench_psock_setup = .bench_psock_setup,
-      bench_digest = bench_digest,
-      .bench_digest_exact = .bench_digest_exact,
-      .bench_digest_summary = .bench_digest_summary,
-      .bench_round_num = .bench_round_num,
-      BENCH_DIGEST_KIND = BENCH_DIGEST_KIND,
-      `%||%` = `%||%`
-    )
-  )
-}
-
-# The floor of a cell: an R interpreter, arf, and the fixture, with the op never
-# run. Peak memory is dominated by it (hundreds of MB), so a percentage taken
-# on the raw peak is diluted several-fold and the 3% "real" threshold cannot
-# see a genuine regression. Subtracting the floor gives the op's own marginal.
-bench_measure_floor <- function(lib, data_path, interval = 0.05, reps = 1L) {
-  if (reps > 1L) {
-    peaks <- vapply(
-      seq_len(reps),
-      function(i) {
-        bench_measure_floor(lib, data_path, interval, reps = 1L)
-      },
-      numeric(1)
-    )
-    return(min(peaks, na.rm = TRUE))
-  }
+# The floor: R, arf and the fixture with the op never run. The op's marginal is
+# the peak minus this, so a 3% threshold is not diluted by the fixed cost.
+bench_measure_floor <- function(lib, data_path) {
   r <- .bench_run_sampled(
     function(lib, data_path, assert) {
       .libPaths(c(lib, .libPaths()))
@@ -570,24 +390,16 @@ bench_measure_floor <- function(lib, data_path, interval = 0.05, reps = 1L) {
       invisible(readRDS(data_path))
       NULL
     },
-    args = list(lib, data_path, .bench_assert_lib),
-    interval = interval
+    args = list(lib, data_path, .bench_assert_lib)
   )
   if (!isTRUE(r$ok)) NA_real_ else r$peak_mb
 }
 
 ## ---- correctness digest -----------------------------------------------------
-# A performance number from a ref that computes something different is worse
-# than no number, so every cell fingerprints its own result. "exact" hashes the
-# rounded values (forde parameters, lik values). "summary" hashes rounded column
-# means and standard deviations, for ops whose output is a random sample
-# (forge, expct): an exact hash there also moves when a refactor merely
-# consumes RNG draws in a different order.
-#
-# adversarial_rf is deliberately "none": its result is a fitted ranger forest,
-# where an exact hash would flag benign RNG-consumption differences and the
-# summary path has no as.data.frame() method to stand on. The fit's correctness
-# belongs to the test suite, not to a benchmark fingerprint.
+# "exact" hashes rounded values. "summary" hashes rounded column means and sds,
+# for ops whose output is a random sample: an exact hash there also moves when
+# a refactor merely consumes RNG draws in a different order. adversarial_rf
+# returns a ranger forest, which neither path can fingerprint usefully.
 BENCH_DIGEST_KIND <- c(
   forde = "exact",
   lik = "exact",
@@ -614,8 +426,7 @@ BENCH_DIGEST_KIND <- c(
   .bench_round_num(x, 8)
 }
 
-# Order-free on purpose: row order is not part of the distribution, and sample
-# order is not stable across refactors.
+# Order-free: row order is not part of the distribution.
 .bench_digest_summary <- function(x) {
   if (is.null(x)) {
     return("NULL")

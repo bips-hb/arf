@@ -12,8 +12,7 @@
 
 .bench_ops <- c("adversarial_rf", "forde", "lik", "forge", "expct")
 
-# quick: sequential, small, minutes. What `make bench` runs and what a routine
-# PR claim cites.
+# quick: sequential, small, minutes. What `make bench` runs.
 .bench_cells_quick <- function() {
   cells <- expand.grid(
     op = .bench_ops,
@@ -25,15 +24,13 @@
   cells$backend <- "sequential"
   cells$workers <- NA_integer_
   cells$iters <- 5L
-  # Peak memory is a stochastic function of GC scheduling, so one sample cannot
-  # support a percentage claim. Three cell runs is the
-  # floor for a quick tier that stays cheap enough to run on bertha mid-work.
+  # Peak memory varies with GC timing, so one round cannot carry a verdict.
   cells$mem_reps <- 3L
   .bench_op_knobs(cells)
 }
 
-# full: adds the backend comparison, large data and the worker grid. Cluster
-# only, because a slurm job's cgroup caps memory and bertha cannot.
+# full: backends, large data, the worker grid. Cluster only: a slurm cgroup
+# caps memory, a workstation cannot.
 .bench_cells_full <- function() {
   parallel_cells <- expand.grid(
     op = .bench_ops,
@@ -54,20 +51,12 @@
   cells <- rbind(parallel_cells, seq_cells)
   cells$p <- 10L
   cells$iters <- 5L
-  # The cluster has the budget the quick tier does not, and these are the runs
-  # whose numbers get published.
   cells$mem_reps <- 5L
-  # The evidence ops get both row modes and a large variant, as
-  # submit-ops.sh already defines: "or" is the branch that delegates
-  # parallelism to cforde, which is exactly the mirai/mori code this suite
-  # exists to guard. Ops without evidence appear once.
+  # "or" delegates parallelism to cforde, the mirai/mori path this suite guards.
   plain <- .bench_op_knobs(cells[!cells$op %in% c("forge", "expct"), ])
   ev <- cells[cells$op %in% c("forge", "expct"), ]
-  # The high evidence point is 200, not 1000. At 1000 the 0.2.5 anchor exceeds
-  # a whole node for expct, so its peak was clamped at the cap rather than
-  # measured and the release-trend comparison was unavailable in 58 of 64
-  # cells. 200 keeps the anchor inside half a node at n = 5e4 and a quarter at
-  # n = 1e4, which is what makes the evidence axis carry a verdict at all.
+  # Evidence stays at 200: at 1000 the 0.2.5 anchor needs more than a node
+  # for expct and the release-trend comparison caps instead of measuring.
   variants <- list(
     list(n_evidence = 100L, n_synth = 1L, rowmode = "separate"),
     list(n_evidence = 200L, n_synth = 100L, rowmode = "separate"),
@@ -90,25 +79,13 @@ bench_cells <- function(tier = c("quick", "full")) {
   cells[order(cells$op, cells$n, cells$trees, cells$backend), ]
 }
 
-# Curated: adding an anchor is a decision with a cost someone chose to pay.
+# Curated: an anchor is a cost someone chose to pay on every full run.
 bench_anchors <- function(path = "bench/anchors.csv") {
   read.csv(path, stringsAsFactors = FALSE)$spec
 }
 
-# Compute-node profile for the BIPS cluster: 192 threads (1 socket x 96 cores
-# x 2 SMT) and about 1.1 TB of RAM, so roughly 5.6 GB per thread.
-#
-# Three numbers describe a node's memory and only one of them is the one that
-# matters for a request:
-#   MemTotal      1,160,597 MB  what the kernel sees (arf-bench diag on node03)
-#   RealMemory    1,120,665 MB  what slurm enforces (scontrol show node node03)
-#   sinfo MEMORY    112,066 MB  an order of magnitude low, not to be trusted
-# A request above RealMemory is rejected rather than queued, so the figure
-# below sits under it with room to spare: the cluster's RealMemory is set
-# conservatively on purpose, and the harness should not need it raised.
-# Shared by run and plan so the cell set that plans is the cell set that runs.
-# Each filter is independent: a backend named here keeps that backend's cells at
-# every size, which is what re-measuring one backend after a harness fix needs.
+# Shared by run and plan, so the cell set that plans is the cell set that runs.
+# Filters are independent: a backend named here keeps that backend at every size.
 bench_select_cells <- function(
   cells,
   ops = NA_character_,
@@ -128,8 +105,7 @@ bench_select_cells <- function(
   if (!is.na(backends)) {
     cells <- cells[cells$backend %in% parts(backends), ]
   }
-  # The row-mode and evidence-count variants sit after the worker grid in the
-  # cell order, so --max-cells cannot reach them; select them by name.
+  # The variants sit after the worker grid, out of --max-cells' reach.
   if (!is.na(rowmode)) {
     cells <- cells[!is.na(cells$rowmode) & cells$rowmode %in% parts(rowmode), ]
   }
@@ -145,28 +121,18 @@ bench_select_cells <- function(
   cells
 }
 
+# BIPS compute node: 96 cores x 2 SMT, 1.14 TB RealMemory (slurm rejects a
+# request above it, so this sits below).
 BENCH_NODE_THREADS <- 192L
 BENCH_NODE_MEM_MB <- 1100000L
 
-# Allocate in matched fractions of a node. Requesting cores and memory
-# independently strands whichever one is left over: a 36-thread job asking for
-# 750 GB blocks 65% of a node's memory behind 19% of its cores, so nothing else
-# of the same shape fits and the node is effectively half idle. Taking the same
-# fraction of both means a job's footprint is "an eighth of a node" in each
-# dimension and the remainder stays usable.
+# Cores and memory as matched fractions of a node: requesting them
+# independently strands whichever is left over.
 BENCH_NODE_FRACTIONS <- c(1 / 16, 1 / 8, 1 / 4, 1 / 2, 1)
 
-# Memory a cell needs, in MB, before rounding to a node fraction.
-#
-# Measured peaks, cluster run 2026-10-08 (cran-0.2.5, the hungriest ref):
-#   n=1e3, any op                      < 1 GB
-#   n=1e4, adversarial_rf/forde/lik   <= 18 GB
-#   n=1e4, expct/forge                 39-91 GB
-#   n=5e4, expct/forge                 >= 250 GB, true value unknown: these
-#                                      cells were clamped at a 256 GB cap
-# The heavy classes take headroom rather than a fitted estimate, because a
-# clamped measurement is worthless while an over-request only costs queue
-# position.
+# Memory a cell needs in MB, before rounding to a node fraction. Classes from
+# measured peaks of cran-0.2.5, the hungriest ref, with headroom: a capped
+# measurement is worthless, an over-request only costs queue position.
 bench_cell_memory_mb <- function(cells) {
   heavy <- cells$op %in% c("expct", "forge")
   ifelse(
@@ -180,15 +146,11 @@ bench_cell_memory_mb <- function(cells) {
   )
 }
 
-# Per measurement, on top of the timed calls: child startup, arf load, fixture
-# read, and the sampler settling. Calibrated against two full-tier jobs of
-# known runtime, within 5% both times.
+# Per measurement, on top of the timed calls: child start, arf load, fixture
+# read, sampler settling. Calibrated against full-tier jobs, within 5%.
 BENCH_MEASURE_OVERHEAD_S <- 120
-# Headroom over the estimate. Slurm kills at the limit, and an estimate from
-# another host or an older commit can be optimistic.
 BENCH_WALLTIME_SAFETY <- 1.3
-# The medium QoS ceiling. A cell estimated above this cannot complete whatever
-# is requested, so the estimate is the warning, not the request.
+# The medium QoS ceiling; a cell estimated above it cannot complete.
 BENCH_WALLTIME_MAX_S <- 86400L
 BENCH_WALLTIME_MIN_S <- 1800L
 
@@ -196,21 +158,16 @@ BENCH_WALLTIME_MIN_S <- 1800L
   paste(x$op, x$backend, x$workers, x$n, x$p, x$trees, x$n_evidence, x$rowmode, sep = "|")
 }
 
-# Seconds for one timed call of each cell, from bench/timings.csv. An exact
-# cell match is a measurement; otherwise fall back to the slowest cell sharing
-# the op, size, evidence count and row mode, since the worker axis is where
-# the estimate is least transferable: on expct, foreach scales as 1/w while
-# mirai measurably gets SLOWER with more workers (413 s at 1 worker, 1104 s at
-# 16), so no per-worker rule is safe in either direction.
+# Seconds per timed call from bench/timings.csv. Exact cell, else the slowest
+# cell sharing op, size, evidence and row mode: the worker axis transfers
+# worst, mirai and foreach scale in opposite directions on expct.
 bench_call_seconds <- function(cells, path = "bench/timings.csv") {
   if (!file.exists(path)) {
     return(rep(NA_real_, nrow(cells)))
   }
   t <- utils::read.csv(path, stringsAsFactors = FALSE)
-  # The file is committed, so it can arrive hand-edited or mangled by a merge:
-  # one shifted row makes call_seconds character and the arithmetic below fails
-  # several frames deep. The timings are a scheduling hint, not a requirement,
-  # so a damaged file costs the fallback walltime rather than the whole run.
+  # Committed, so it can arrive hand-edited or mangled by a merge; the timings
+  # are a hint, so a damaged file costs the fallback walltime, not the run.
   need <- c("op", "n", "n_evidence", "rowmode", "call_seconds")
   if (!all(need %in% names(t)) || !is.numeric(t$call_seconds)) {
     warning(
@@ -232,8 +189,8 @@ bench_call_seconds <- function(cells, path = "bench/timings.csv") {
   ifelse(is.na(exact), worst$s[match(cls(cells), worst$k)], exact)
 }
 
-# A cell runs mem_reps rounds, each round measuring every ref once, and each
-# measurement runs `iters` timed calls plus a floor measurement.
+# mem_reps rounds, each measuring every ref once: iters timed calls plus a
+# floor measurement.
 bench_cell_walltime <- function(
   cells,
   n_refs,
@@ -248,34 +205,26 @@ bench_cell_walltime <- function(
     n_refs *
     (iters * t + BENCH_MEASURE_OVERHEAD_S)
   est[is.na(est)] <- fallback
-  # Rounded up to half an hour: batchtools takes resources per submitJobs call,
-  # so every distinct figure is another call, and 30 minutes of slack on a
-  # multi-hour job buys a tenth as many submissions.
+  # Half-hour grid: batchtools submits once per distinct resource figure.
   est <- BENCH_WALLTIME_MIN_S * ceiling(est / BENCH_WALLTIME_MIN_S)
   as.integer(pmax(BENCH_WALLTIME_MIN_S, pmin(BENCH_WALLTIME_MAX_S, est)))
 }
 
-# Measured peaks of the hungriest ref (cran-0.2.5) in an expct cell at n = 5e4:
-# 231 GB at 100 evidence rows "separate", 253 GB "or". Peak is close to linear
-# in the evidence count, so the 200-row variant needs about 462 and 506 GB.
-# Row mode moves it far less than the evidence count does, so both modes share
-# a class; one figure for every heavy cell instead wasted half a node on the
-# light corner and lost the heavy one to its own cap.
+# expct on cran-0.2.5 at n = 5e4 peaks near 250 GB per 100 evidence rows and
+# scales about linearly in the evidence count; row mode moves it far less.
 .bench_heavy_mb <- function(cells) {
   much <- !is.na(cells$n_evidence) & cells$n_evidence >= 200
   ifelse(much, 500000L, 275000L)
 }
 
-# Threads a cell needs: two per worker, plus two spare cores for mirai's
-# dispatcher and the orchestrator's 5 ms cgroup sampler, since a starved
-# dispatcher makes mirai lose comparisons it should win.
+# Two threads per worker plus two spare cores for mirai's dispatcher and the
+# sampler: a starved dispatcher makes mirai lose comparisons it should win.
 bench_cell_threads <- function(cells) {
   w <- ifelse(is.na(cells$workers), 1L, as.integer(cells$workers))
   2L * (w + 2L)
 }
 
-# Per-cell slurm request, rounded up to the smallest node fraction that
-# satisfies both dimensions.
+# Per-cell slurm request: the smallest node fraction satisfying both dimensions.
 bench_cell_resources <- function(cells) {
   need <- pmax(
     bench_cell_threads(cells) / BENCH_NODE_THREADS,

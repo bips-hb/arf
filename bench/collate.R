@@ -1,26 +1,19 @@
-# Deltas, the PR report, and the anchor history. Thresholds come from
-# Memory above 3% is real, time below 10% is inconclusive.
+# Deltas, verdicts, the report, and the two committed CSVs.
 
 BENCH_MEM_THRESHOLD <- 3
 # A marginal below this fraction of its floor is below the instrument's
-# resolution; see the note in bench_deltas().
+# resolution: same-commit spread at marginal/floor 0.29 was 14-23%, at 2.0 under 4%.
 BENCH_MEM_RESOLUTION <- 1
 # Above this many comparison rows the report summarises instead of tabulating.
 BENCH_REPORT_ROWS <- 40
-# Below this many seconds a percentage is not a finding: process and GC jitter
-# at tens of milliseconds easily exceeds the 10% line. Measured on a real quick
-# tier run, the ONLY "real" time verdict under a second was the fastest cell in
-# the grid (62 ms, +12.7%), while every cell above 1 s read inconclusive.
+# Below this many seconds a percentage is jitter, not a finding.
 BENCH_TIME_FLOOR_S <- 0.5
-# A peak this close to the cgroup limit is the limit, not the workload: six
-# cells of a real cluster run sat at 99.75% of a 256 GB cap, identical to the
-# megabyte across a fivefold difference in n.
+# A peak this close to the cgroup limit is the limit, not the workload.
 BENCH_MEM_CAP_FRACTION <- 0.95
 BENCH_TIME_THRESHOLD <- 10
 
-# Evidence and synth counts are part of the cell, not decoration: expct and
-# forge carry variants at otherwise identical settings, and omitting them makes
-# match() compare each variant against whichever baseline row comes first.
+# Evidence and synth counts are part of the cell: forge and expct carry
+# variants at otherwise identical settings.
 .bench_cell_key <- function(rows) {
   paste(
     rows$op,
@@ -36,11 +29,8 @@ BENCH_TIME_THRESHOLD <- 10
   )
 }
 
+# A zero or NA on either side is a failed measurement, not a 100% change.
 .bench_pct <- function(new, old) {
-  # A baseline of 0 or NA means the baseline measurement failed, which is not a
-  # 100% improvement.
-  # Both sides: a zero on the NEW side is a sampler that caught nothing, which
-  # would otherwise render as -100% with verdict "real".
   ifelse(
     is.na(new) | is.na(old) | old <= 0 | new <= 0,
     NA_real_,
@@ -67,18 +57,14 @@ bench_deltas <- function(rows, baseline = "main") {
     stop("baseline ref '", baseline, "' is not in the results", call. = FALSE)
   }
   idx <- match(rows$key, base$key)
-  # On the marginal, not the floor-inflated total: a ~200 MB floor of
-  # interpreter plus arf plus fixture dilutes a raw-peak percentage fivefold.
+  # On the marginal: the floor would dilute a raw-peak percentage several-fold.
   rows$delta_mem_pct <- .bench_pct(rows$peak_delta_mb, base$peak_delta_mb[idx])
   rows$delta_time_pct <- .bench_pct(rows$time_median, base$time_median[idx])
   rows$mem_verdict <- .bench_verdict(rows$delta_mem_pct, BENCH_MEM_THRESHOLD)
   rows$time_verdict <- .bench_verdict(rows$delta_time_pct, BENCH_TIME_THRESHOLD)
-  # Both sides must agree with themselves before disagreeing with each other
-  # means anything. Absent the column (results predating it) assume stable, so
-  # old runs keep the behaviour they were collated with.
+  # Results predating the column are assumed stable, so old runs keep their verdicts.
   stable <- function(x) if (is.null(x)) TRUE else is.na(x) | x
-  # An incomplete result is not a changed result. Compared first so a lost
-  # worker chunk is never reported as an output difference.
+  # An incomplete result is not a changed result; checked first.
   rows$out_rows_differ <- if (is.null(rows$out_rows)) {
     rep(FALSE, nrow(rows))
   } else {
@@ -92,66 +78,38 @@ bench_deltas <- function(rows, baseline = "main") {
     rows$digest != base$digest[idx] &
     stable(rows$digest_stable) &
     stable(base$digest_stable[idx])
-  # One peak sample cannot support a percentage claim: peak memory is a
-  # stochastic function of GC scheduling, and identical code re-run differs by
-  # tens of percent on the marginal (measured same-commit: -2.7% to -11.6% at
-  # n=1e3, up to -38.6% at n=1e4). Refuse to call such a delta a finding.
   too_fast <- (!is.na(rows$time_median) & rows$time_median < BENCH_TIME_FLOOR_S) |
     (!is.na(base$time_median[idx]) & base$time_median[idx] < BENCH_TIME_FLOOR_S)
   rows$time_verdict[too_fast & rows$time_verdict %in% c("real", "inconclusive")] <-
     "too fast to time reliably"
-  # Time has the same replication problem as memory and had no guard for it: a
-  # validation run at --iters 1 --mem-reps 1 produced one timing per ref and
-  # still printed "real" on a 13% delta. Timings per ref are iters x mem_reps.
+  # Timings per ref are iters x mem_reps; one of either cannot carry a percentage.
   n_timings <- ifelse(is.na(rows$iters) | is.na(rows$mem_reps), NA_integer_, rows$iters * rows$mem_reps)
   one_timing <- !is.na(n_timings) & n_timings < 2L & rows$time_verdict %in% c("real", "inconclusive")
   rows$time_verdict[one_timing] <- "single sample, not a finding"
   single <- !is.na(rows$mem_reps) & rows$mem_reps < 2L & rows$mem_verdict == "real"
   rows$mem_verdict[single] <- "single sample, not a finding"
-  # Resolution guard. The marginal is a difference against a floor of an R
-  # interpreter plus arf plus the fixture, so when it is small relative to that
-  # floor the shared-cgroup delta cannot resolve it and no replicate count
-  # helps. Measured same-commit spread against the marginal-to-floor ratio:
-  # 0.29 -> 14-23%, 0.73 -> 4.2%, 2.0 -> <=3.6%, so the op must allocate at
-  # least as much as the fixed floor before a 3% verdict means anything.
-  # Suppress it rather than report noise as a finding.
-  # Per CELL, not per row: a delta has two sides, so if either the ref or its
-  # baseline is below the instrument's resolution then so is the comparison.
-  # Judging each row on its own ratio let one ref in a cell read "real" while
-  # the other read "too small", which is how a +10.3% noise reading got a
-  # verdict on the cluster's first run.
+  # Every guard below is per comparison: a delta has two sides, so it is
+  # invalid when the ref or its baseline is affected, and unaffected when some
+  # third ref in the cell is.
   capped <- !is.na(rows$mem_limit_mb) &
     !is.na(rows$peak_mb) &
     rows$peak_mb >= BENCH_MEM_CAP_FRACTION * rows$mem_limit_mb
-  # Per COMPARISON, not per cell: a delta has two sides, so it is invalid
-  # when the ref or its baseline capped, and unaffected when some third ref
-  # in the same cell did. Where only the hungriest anchor caps, HEAD against
-  # main is still a measurement and must not be discarded with it.
   capped_pair <- capped | (!is.na(idx) & capped[match(rows$key, base$key)])
-  rows$mem_verdict[capped_pair] <- "hit the memory cap, not a measurement"
   thin_row <- !is.na(rows$peak_delta_mb) &
     !is.na(rows$floor_mb) &
     rows$peak_delta_mb < BENCH_MEM_RESOLUTION * rows$floor_mb
-  # Same pairing. Usually identical to a cell-wide rule anyway, since both
-  # sides share the cell's floor.
   thin_pair <- thin_row | (!is.na(idx) & thin_row[match(rows$key, base$key)])
   rows$mem_verdict[thin_pair & rows$mem_verdict %in% c("real", "inconclusive")] <-
     "cell too small to resolve memory"
   rows$mem_verdict[capped_pair] <- "hit the memory cap, not a measurement"
-  # The cluster sets memory.high at the cap, so a run that reached it was
-  # throttled by reclaim for part of its runtime: its timing is not the op's.
+  # memory.high sits at the cap, so a capped run was throttled: its time is not the op's.
   rows$time_verdict[capped_pair] <- "hit the memory cap, not a measurement"
-  # Last, so it survives the guards above. "no baseline" blames the wrong side
-  # when the baseline measured fine and the ref is the one that died: the
-  # evidence=1000 expct cell needs ~1.8 TB on cran-0.2.5, more than a node has,
-  # so its child is OOM-killed and returns NA while main returns 267 GB. That
-  # a ref cannot run a cell at all is a finding, not a missing baseline.
+  # Last, so it survives the guards above: a ref that cannot run a cell is a
+  # finding, not a missing baseline.
   rows$mem_verdict[is.na(rows$peak_delta_mb) & !is.na(base$peak_delta_mb[idx])] <-
     "ref did not complete"
   rows$time_verdict[is.na(rows$time_median) & !is.na(base$time_median[idx])] <-
     "ref did not complete"
-  # Both sides dead means the cell is beyond this hardware for every ref, not
-  # missing a reference point.
   neither <- is.na(rows$peak_delta_mb) & is.na(base$peak_delta_mb[idx])
   rows$mem_verdict[neither] <- "no ref completed this cell"
   rows$time_verdict[is.na(rows$time_median) & is.na(base$time_median[idx])] <-
@@ -175,13 +133,20 @@ bench_deltas <- function(rows, baseline = "main") {
   if (length(parts)) paste(parts, collapse = " ") else "-"
 }
 
+.bench_report_header <- c(
+  paste(
+    "| op | backend | w | n | trees | variant | ref | marginal MB | floor MB |",
+    "mem | time s | time |"
+  ),
+  "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
+)
+
 bench_report <- function(rows, baseline = "main") {
   d <- bench_deltas(rows, baseline)
   base <- d[d$ref == baseline, ]
   d <- d[d$ref != baseline, ]
   metrics <- unique(rows$metric)
   if (length(metrics) > 1L) {
-    # DESIGN: rows with different metrics must never be compared.
     warning(
       "results mix memory metrics (",
       paste(metrics, collapse = ", "),
@@ -190,9 +155,6 @@ bench_report <- function(rows, baseline = "main") {
     )
   }
   idx <- match(.bench_cell_key(d), .bench_cell_key(base))
-  # A full-tier run is 704 non-baseline rows, which is not something anyone
-  # reads in a pull request. Past a readable size, summarise by op and show
-  # only the rows that carry a verdict, with the CSV as the full record.
   full_table <- nrow(d) <= BENCH_REPORT_ROWS
 
   num <- function(x, digits = 1) ifelse(is.na(x), "n/a", formatC(x, format = "f", digits = digits))
@@ -228,12 +190,7 @@ bench_report <- function(rows, baseline = "main") {
       BENCH_MEM_THRESHOLD,
       BENCH_TIME_THRESHOLD
     ),
-    "",
-    paste(
-      "| op | backend | w | n | trees | variant | ref | marginal MB | floor MB |",
-      "mem | time s | time |"
-    ),
-    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
+    ""
   )
   shown <- if (full_table) {
     seq_len(nrow(d))
@@ -246,9 +203,10 @@ bench_report <- function(rows, baseline = "main") {
     )
   }
   if (!full_table) {
+    # A full-tier run has hundreds of rows: summarise by op, show the findings.
     counts <- table(d$op, d$mem_verdict)
     out <- c(
-      out[seq_len(length(out) - 2L)],
+      out,
       sprintf(
         "%d comparisons across %d cells. Memory verdicts by op:",
         nrow(d),
@@ -263,14 +221,10 @@ bench_report <- function(rows, baseline = "main") {
         "Rows below are the %d comparison(s) with a verdict of `real`, or a digest mismatch. Full data in the CSV.",
         length(shown)
       ),
-      "",
-      paste(
-        "| op | backend | w | n | trees | variant | ref | marginal MB | floor MB |",
-        "mem | time s | time |"
-      ),
-      "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
+      ""
     )
   }
+  out <- c(out, .bench_report_header)
   for (i in shown) {
     r <- d[i, ]
     b <- base[idx[i], ]
@@ -328,13 +282,9 @@ bench_report <- function(rows, baseline = "main") {
   c(out, "")
 }
 
-# Anchors only: HEAD and main move, so recording them would be noise. Committed
-# by hand afterwards, for the runs worth keeping.
+# Anchors only: HEAD and main move. Committed by hand, for runs worth keeping.
 bench_history_append <- function(rows, path = "bench/history.csv") {
   anchors <- rows[!rows$ref %in% c("HEAD", "main"), bench_schema()]
-  # A row with no measurement is not history. Say so: a cell whose anchor was
-  # OOM-killed leaves nothing to append, and a silent return looks exactly like
-  # a collate that never ran.
   keep <- anchors[!is.na(anchors$peak_delta_mb) | !is.na(anchors$time_median), ]
   if (!nrow(keep)) {
     message(
@@ -359,9 +309,7 @@ bench_history_append <- function(rows, path = "bench/history.csv") {
   }
   added <- nrow(keep)
   keep <- .bench_bind_old(keep, path)
-  # One row per anchor per cell per host and metric, newest kept: this file is
-  # committed and plotted, so re-running a configuration must replace its row
-  # rather than accumulate duplicates the trend panel would draw as a zig-zag.
+  # Newest row per configuration, or the trend panel draws a zig-zag.
   keep <- .bench_newest_by(
     keep,
     key = c(
@@ -387,10 +335,8 @@ bench_history_append <- function(rows, path = "bench/history.csv") {
   invisible(keep)
 }
 
-# Both committed CSVs outlive the schema that wrote them, so a file missing a
-# column that has since been added is filled rather than refused: the schema
-# grows by addition, and rejecting the file would discard every release
-# measured before the newest column existed.
+# The committed CSVs outlive the schema that wrote them: fill missing columns
+# rather than refuse the file.
 .bench_bind_old <- function(new, path) {
   if (!file.exists(path) || length(readLines(path, warn = FALSE)) < 2L) {
     return(new)
@@ -402,9 +348,7 @@ bench_history_append <- function(rows, path = "bench/history.csv") {
   rbind(old[, names(new)], new)
 }
 
-# Newest row per key, replacing rather than accumulating. Both committed CSVs
-# need it: re-running a configuration must replace its row, or the trend panel
-# draws a zig-zag and the scheduler averages stale timings.
+# Newest row per key, replacing rather than accumulating.
 .bench_newest_by <- function(df, key, stamp, sort_by = key) {
   dt <- data.table::as.data.table(df)
   data.table::setorderv(dt, c(key, stamp))
@@ -413,21 +357,16 @@ bench_history_append <- function(rows, path = "bench/history.csv") {
   as.data.frame(dt)
 }
 
-# Measured per-call seconds per cell, committed so the scheduler can size
-# slurm walltimes from data instead of one global figure. Separate from the
-# history, which keeps anchors only: scheduling cares about the SLOWEST ref in
-# a cell, whichever that is, and about cells no anchor ever runs.
+# Per-call seconds per cell, committed so slurm walltimes come from data.
+# Separate from the history: scheduling needs the slowest ref in a cell,
+# whichever that is, and cells no anchor runs.
 bench_timings_append <- function(rows, path = "bench/timings.csv") {
   have <- rows[!is.na(rows$time_median), ]
   if (!nrow(have)) {
     return(invisible(NULL))
   }
   key <- c("op", "backend", "workers", "n", "p", "trees", "n_evidence", "n_synth", "rowmode")
-  # Worst ref in the cell, not the mean: a walltime that fits the fast ref and
-  # not the slow one loses the whole cell.
-  # data.table, not aggregate(): aggregate() drops every group with an NA in a
-  # `by` column, which here is every sequential cell and every op with no
-  # evidence arguments.
+  # data.table, not aggregate(): aggregate() drops groups with an NA by-column.
   agg <- as.data.frame(
     data.table::as.data.table(have)[,
       list(call_seconds = max(time_median, na.rm = TRUE)),
@@ -448,8 +387,7 @@ bench_timings_append <- function(rows, path = "bench/timings.csv") {
   invisible(agg)
 }
 
-# Shared tail of a run and a collate: one place that writes the CSV, appends
-# anchor rows to the history, and renders the report.
+# Shared tail of a run and a collate.
 bench_write_results <- function(rows) {
   dir.create("bench/results", showWarnings = FALSE, recursive = TRUE)
   out <- file.path(
@@ -458,7 +396,6 @@ bench_write_results <- function(rows) {
   )
   utils::write.csv(rows, out, row.names = FALSE)
   message("Written to ", out)
-  # Anchor rows are appended automatically; only the commit is manual.
   bench_history_append(rows)
   bench_timings_append(rows)
   report <- bench_report(rows)

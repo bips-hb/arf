@@ -12,7 +12,7 @@ Every ref runs inside the same job, interleaved round by round, so a comparison 
   `run` aborts up front if any is missing.
   These are shared by every ref on purpose: per-ref dependency libraries would let versions diverge and confound the comparison.
 - `git` for ref worktrees; network only for `cran:` refs.
-- Memory needs cgroup v2 with memory accounting (any slurm job with `ConstrainRAMSpace`, or a systemd user slice); without it the sampler falls back to PSS, then RSS, and says so in the `metric` column.
+- cgroup v2 memory accounting for the process (any slurm job with `ConstrainRAMSpace`, or a systemd user slice); `run` refuses to start without it.
 - Cluster runs need slurm with the site batchtools config at `/etc/xdg/batchtools/config.R` (template, partition, qos, `max.concurrent.jobs`).
 - `quarto` on `PATH` for `viz`.
 
@@ -103,7 +103,7 @@ Setup is untimed, so one-time daemon or cluster start never enters a timing, but
 Memory metric: `cgroup-anon+shmem`, the `anon` plus `shmem` counters of the job's cgroup v2 `memory.stat`, sampled every 5 ms.
 The kernel charges each page once per cgroup, so pages shared by fork workers count once, and `shmem` catches mori's segments in `/dev/shm`.
 Every process a cell spawns inherits the cgroup.
-Fallbacks are summed PSS from `smaps_rollup` and then RSS; never compare `peak_mb` across CSVs with different `metric`.
+There is no fallback metric; PSS and RSS count shared pages differently and would not be comparable.
 
 Reported memory is `peak_delta_mb`: the peak minus a per-cell floor (R, arf, the fixture; about 480 MB at n=1e4 and 1.7 GB at n=5e4 on the cluster).
 Peak and floor are measured in the same round, rounds interleaved and counterbalanced across refs, and the median of the paired differences is reported.
